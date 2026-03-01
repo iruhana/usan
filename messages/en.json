@@ -1,0 +1,38 @@
+{
+  "common": {
+    "appName": "Usan",
+    "tagline": "AI that shields you from digital threats"
+  },
+  "hero": {
+    "title": "AI-powered protection against voice phishing",
+    "subtitle": "Even if you're not tech-savvy, Usan keeps you safe.",
+    "cta": "Get notified at launch"
+  },
+  "features": {
+    "title": "How Usan protects you",
+    "voicePhishing": {
+      "title": "Voice phishing detection",
+      "description": "AI analyzes calls in real-time to detect and warn about voice phishing attempts."
+    },
+    "easyToUse": {
+      "title": "Easy for everyone",
+      "description": "No complicated setup. Designed for people who aren't comfortable with technology."
+    },
+    "familyProtect": {
+      "title": "Protect your family",
+      "description": "Set up protection remotely for your parents and grandparents, and monitor their safety."
+    }
+  },
+  "waitlist": {
+    "title": "Get notified when we launch",
+    "description": "Be the first to know when Usan is available.",
+    "emailPlaceholder": "Enter your email",
+    "submit": "Notify me",
+    "success": "You're on the list! We'll notify you at launch.",
+    "error": "Something went wrong. Please try again."
+  },
+  "footer": {
+    "copyright": "usan.ai",
+    "contact": "Contact us"
+  }
+}

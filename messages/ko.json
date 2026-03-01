@@ -1,0 +1,38 @@
+{
+  "common": {
+    "appName": "우산",
+    "tagline": "디지털 위험을 막아주는 AI"
+  },
+  "hero": {
+    "title": "보이스피싱, 이제 AI가 막아줍니다",
+    "subtitle": "디지털에 익숙하지 않은 분들도 안심하세요. 우산이 지켜드립니다.",
+    "cta": "출시 알림 받기"
+  },
+  "features": {
+    "title": "우산이 지켜드리는 것들",
+    "voicePhishing": {
+      "title": "보이스피싱 탐지",
+      "description": "AI가 실시간으로 통화를 분석하여 보이스피싱을 감지하고 경고합니다."
+    },
+    "easyToUse": {
+      "title": "누구나 쉽게",
+      "description": "복잡한 설정 없이, 디지털에 익숙하지 않은 분도 쉽게 사용할 수 있습니다."
+    },
+    "familyProtect": {
+      "title": "가족 보호",
+      "description": "부모님, 조부모님을 위해 원격으로 설정하고 보호 상태를 확인하세요."
+    }
+  },
+  "waitlist": {
+    "title": "출시 알림을 받아보세요",
+    "description": "우산 서비스가 출시되면 가장 먼저 알려드립니다.",
+    "emailPlaceholder": "이메일 주소를 입력하세요",
+    "submit": "알림 받기",
+    "success": "등록되었습니다! 출시 시 알려드리겠습니다.",
+    "error": "등록 중 오류가 발생했습니다. 다시 시도해주세요."
+  },
+  "footer": {
+    "copyright": "usan.ai",
+    "contact": "문의하기"
+  }
+}
