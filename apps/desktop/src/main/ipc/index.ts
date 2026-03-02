@@ -12,7 +12,7 @@ import { cleanTempFiles } from '../system/temp-cleaner'
 import { listStartupPrograms, toggleStartupProgram } from '../system/startup-manager'
 import type { StartupSource } from '../system/startup-manager'
 import { signInWithEmail, signUp, signInWithOTP, verifyOTP, signOut, getSession } from '../auth/auth-manager'
-import { pushData, pullData, getSyncStatus } from '../sync/sync-engine'
+import { pushData, pullData, getSyncStatus, validateSyncUser } from '../sync/sync-engine'
 import type { UserMemory } from '../store'
 
 // Persistent settings (loaded from disk on startup)
@@ -246,9 +246,13 @@ export function registerIpcHandlers(): void {
 
   // ─── Sync ──────────────────────────────────────────
   ipcMain.handle(IPC.SYNC_PUSH, async (_, { userId, dataType, data }: { userId: string; dataType: string; data: string }) => {
+    const authError = await validateSyncUser(userId)
+    if (authError) return { success: false, error: authError }
     return pushData(userId, dataType, data)
   })
   ipcMain.handle(IPC.SYNC_PULL, async (_, { userId, dataType }: { userId: string; dataType: string }) => {
+    const authError = await validateSyncUser(userId)
+    if (authError) return { success: false, error: authError }
     return pullData(userId, dataType)
   })
   ipcMain.handle(IPC.SYNC_STATUS, () => {

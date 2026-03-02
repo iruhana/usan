@@ -9,7 +9,8 @@ import { join } from 'path'
 import { app } from 'electron'
 import { runPS } from '../computer/powershell'
 
-const CDP_PORT = 9222
+/** Randomize CDP port within ephemeral range to prevent local port sniffing */
+const CDP_PORT = 49152 + Math.floor(Math.random() * 16384)
 
 /** Known Chrome/Edge paths on Windows */
 const BROWSER_PATHS = [

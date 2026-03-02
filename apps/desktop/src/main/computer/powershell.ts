@@ -30,5 +30,6 @@ export async function runPS(script: string, timeout = DEFAULT_TIMEOUT): Promise<
 export function escapePS(value: string): string {
   // Strip control characters (newlines, tabs, null bytes) that could break out of PS context
   const sanitized = value.replace(/[\x00-\x1f\x7f]/g, '')
-  return sanitized.replace(/'/g, "''")
+  // Escape backticks (PowerShell escape char) then single quotes
+  return sanitized.replace(/`/g, '``').replace(/'/g, "''")
 }

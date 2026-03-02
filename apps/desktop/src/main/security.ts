@@ -138,12 +138,20 @@ const BLOCKED_COMMANDS = [
 const ALLOWED_COMMAND_PREFIXES = [
   'echo', 'type', 'dir', 'ls', 'cat', 'head', 'tail', 'find', 'where',
   'whoami', 'hostname', 'ipconfig', 'ifconfig', 'ping', 'nslookup',
-  'node', 'python', 'git',
-  'code', 'notepad', 'calc', 'explorer',
+  'code', 'notepad', 'calc',
   'systeminfo', 'ver', 'date', 'time',
-  'cd', 'mkdir', 'md', 'copy', 'xcopy', 'move', 'ren',
+  'cd', 'mkdir', 'md', 'ren',
   'tasklist', 'netstat', 'tree',
   'clip',
+]
+
+/** Specific safe command patterns (allowed even when base command is not in ALLOWED_COMMAND_PREFIXES) */
+const SAFE_COMMAND_PATTERNS = [
+  // Version checks only
+  /^node\s+--version$/i,
+  /^python3?\s+--version$/i,
+  // Read-only git subcommands (no arguments that could inject)
+  /^git\s+(status|log|diff|branch|show|tag|remote|stash\s+list)\b/i,
 ]
 
 export function validateCommand(command: string): string | null {
@@ -158,8 +166,18 @@ export function validateCommand(command: string): string | null {
     return '명령어 치환은 사용할 수 없습니다'
   }
 
+  // Block UNC paths in any command argument (\\server\share download vector)
+  if (/\\\\[^\\]/.test(trimmed)) {
+    return '네트워크 경로(UNC)는 명령어에서 사용할 수 없습니다'
+  }
+
+  // Block caret escaping (cmd.exe bypass: r^m → rm)
+  if (/\^[a-z]/i.test(trimmed)) {
+    return '캐럿 이스케이프 문자는 사용할 수 없습니다'
+  }
+
   // Block shell output redirects (> and >>) — validate ALL targets
-  if (/[^>]>(?!>?\s*\/)/.test(trimmed) || />>/.test(trimmed)) {
+  if (/(^|[^>])>(?!>?\s*\/)/.test(trimmed) || />>/.test(trimmed)) {
     for (const m of trimmed.matchAll(/>>?\s*"?([^"&|;\s]+)/g)) {
       const pathError = validatePath(m[1], 'write')
       if (pathError) return `출력 경로 차단: ${pathError}`
@@ -184,7 +202,11 @@ export function validateCommand(command: string): string | null {
   const isAllowed = ALLOWED_COMMAND_PREFIXES.some((p) => basename === p)
 
   if (!isAllowed) {
-    return `허용되지 않은 명령어입니다: ${firstWord}`
+    // Check safe command patterns before rejecting
+    const isSafe = SAFE_COMMAND_PATTERNS.some((p) => p.test(trimmed))
+    if (!isSafe) {
+      return `허용되지 않은 명령어입니다: ${firstWord}`
+    }
   }
 
   // Reject chained commands with dangerous patterns
