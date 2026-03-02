@@ -8,7 +8,10 @@
  * - Data encrypted with AES-256-GCM before upload
  */
 
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'crypto'
+import { dirname, join } from 'path'
+import { homedir } from 'os'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { getSupabaseClient } from '../auth/supabase-client'
 
 const ALGORITHM = 'aes-256-gcm'
@@ -16,6 +19,8 @@ const KEY_LENGTH = 32
 const IV_LENGTH = 16
 const SALT_LENGTH = 32
 const AUTH_TAG_LENGTH = 16
+const SYNC_CIPHER_VERSION = 'v2'
+const SYNC_SECRET_PATH = process.env.USAN_SYNC_SECRET_PATH || join(homedir(), '.usan', 'sync-secret.bin')
 
 export interface SyncStatus {
   lastSynced: number
@@ -30,9 +35,56 @@ let syncStatus: SyncStatus = {
   status: 'idle',
 }
 
-/** Derive a sync encryption key from the user ID + random salt using scrypt */
-function deriveKey(userId: string, salt: Buffer): Buffer {
+let cachedRootSecret: Buffer | null = null
+
+/**
+ * Resolve a root secret for sync encryption.
+ * Priority:
+ * 1) Shared env secret (for multi-device compatibility)
+ * 2) Local device secret file (fallback)
+ */
+function getRootSecret(): Buffer {
+  if (cachedRootSecret) return cachedRootSecret
+
+  const envSecret = process.env.USAN_SYNC_SECRET || process.env.SYNC_ENCRYPTION_SECRET
+  if (envSecret && envSecret.trim().length > 0) {
+    cachedRootSecret = createHash('sha256').update(envSecret, 'utf-8').digest()
+    return cachedRootSecret
+  }
+
+  try {
+    if (existsSync(SYNC_SECRET_PATH)) {
+      const secret = readFileSync(SYNC_SECRET_PATH)
+      if (secret.length === KEY_LENGTH) {
+        cachedRootSecret = secret
+        return secret
+      }
+    }
+  } catch {
+    // continue and regenerate below
+  }
+
+  const generated = randomBytes(KEY_LENGTH)
+  try {
+    mkdirSync(dirname(SYNC_SECRET_PATH), { recursive: true })
+    writeFileSync(SYNC_SECRET_PATH, generated, { mode: 0o600 })
+  } catch {
+    // If writing fails, still use in-memory secret for this process
+  }
+  cachedRootSecret = generated
+  return generated
+}
+
+/** Legacy key derivation (v1) kept for backward compatibility. */
+function deriveLegacyKey(userId: string, salt: Buffer): Buffer {
   return scryptSync(userId, salt, KEY_LENGTH, { N: 16384, r: 8, p: 1 })
+}
+
+/** Derive a sync encryption key from user ID + secret + random salt using scrypt. */
+function deriveKey(userId: string, salt: Buffer): Buffer {
+  const rootSecret = getRootSecret()
+  const material = Buffer.concat([Buffer.from(userId, 'utf-8'), Buffer.from(':'), rootSecret])
+  return scryptSync(material, salt, KEY_LENGTH, { N: 16384, r: 8, p: 1 })
 }
 
 function encrypt(plaintext: string, userId: string): string {
@@ -43,22 +95,26 @@ function encrypt(plaintext: string, userId: string): string {
   let encrypted = cipher.update(plaintext, 'utf-8', 'base64')
   encrypted += cipher.final('base64')
   const tag = cipher.getAuthTag()
-  // Format: salt:iv:tag:ciphertext (all base64)
-  return `${salt.toString('base64')}:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted}`
+  // v2 format: v2:salt:iv:tag:ciphertext (all base64 except prefix)
+  return `${SYNC_CIPHER_VERSION}:${salt.toString('base64')}:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted}`
 }
 
 function decrypt(data: string, userId: string): string {
   const parts = data.split(':')
-  if (parts.length !== 4) throw new Error('Invalid encrypted data format')
-  const salt = Buffer.from(parts[0], 'base64')
-  const iv = Buffer.from(parts[1], 'base64')
-  const tag = Buffer.from(parts[2], 'base64')
-  const ciphertext = parts[3]
+  const isV2 = parts[0] === SYNC_CIPHER_VERSION
+  const expectedLen = isV2 ? 5 : 4
+  if (parts.length !== expectedLen) throw new Error('Invalid encrypted data format')
+
+  const offset = isV2 ? 1 : 0
+  const salt = Buffer.from(parts[offset], 'base64')
+  const iv = Buffer.from(parts[offset + 1], 'base64')
+  const tag = Buffer.from(parts[offset + 2], 'base64')
+  const ciphertext = parts[offset + 3]
   // Validate decoded lengths to catch malformed input
   if (salt.length !== SALT_LENGTH) throw new Error('Invalid salt length')
   if (iv.length !== IV_LENGTH) throw new Error('Invalid IV length')
   if (tag.length !== AUTH_TAG_LENGTH) throw new Error('Invalid auth tag length')
-  const key = deriveKey(userId, salt)
+  const key = isV2 ? deriveKey(userId, salt) : deriveLegacyKey(userId, salt)
   const decipher = createDecipheriv(ALGORITHM, key, iv)
   decipher.setAuthTag(tag)
   let decrypted = decipher.update(ciphertext, 'base64', 'utf-8')

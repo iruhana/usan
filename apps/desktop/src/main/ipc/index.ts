@@ -22,6 +22,11 @@ let permissionGrant = loadPermissions()
 // Apply saved settings to AI on startup
 updateAiSettings(settings)
 
+function requirePermission(feature: string): void {
+  if (permissionGrant.grantedAll) return
+  throw new Error(`권한 동의가 필요한 기능입니다: ${feature}`)
+}
+
 export function registerIpcHandlers(): void {
   // ─── AI Handlers ────────────────────────────
   registerAiIpcHandlers()
@@ -44,6 +49,7 @@ export function registerIpcHandlers(): void {
 
   // ─── Computer Use: Screenshot ─────────────────
   ipcMain.handle(IPC.COMPUTER_SCREENSHOT, async (): Promise<ScreenCaptureResult> => {
+    requirePermission('computer.screenshot')
     const result = await toolCatalog.execute('screenshot', {})
     if (result.error) throw new Error(result.error)
     return result.result as ScreenCaptureResult
@@ -51,22 +57,26 @@ export function registerIpcHandlers(): void {
 
   // ─── File System (validation delegated to ToolCatalog) ──
   ipcMain.handle(IPC.FS_READ, async (_, { path }: { path: string }): Promise<string> => {
+    requirePermission('fs.read')
     const result = await toolCatalog.execute('read_file', { path })
     if (result.error) throw new Error(result.error)
     return (result.result as { content: string }).content
   })
 
   ipcMain.handle(IPC.FS_WRITE, async (_, { path, content }: { path: string; content: string }) => {
+    requirePermission('fs.write')
     const result = await toolCatalog.execute('write_file', { path, content })
     if (result.error) throw new Error(result.error)
   })
 
   ipcMain.handle(IPC.FS_DELETE, async (_, { path }: { path: string }) => {
+    requirePermission('fs.delete')
     const result = await toolCatalog.execute('delete_file', { path })
     if (result.error) throw new Error(result.error)
   })
 
   ipcMain.handle(IPC.FS_LIST, async (_, { dir }: { dir: string }): Promise<FileEntry[]> => {
+    requirePermission('fs.list')
     const result = await toolCatalog.execute('list_directory', { path: dir })
     if (result.error) throw new Error(result.error)
     const data = result.result as { entries: Array<{ name: string; isDirectory: boolean; size: number; modified: string }> }
@@ -83,6 +93,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     IPC.SHELL_EXEC,
     async (_, { command, cwd }: { command: string; cwd?: string }) => {
+      requirePermission('shell.exec')
       const result = await toolCatalog.execute('run_command', { command, cwd })
       if (result.error) {
         return { stdout: '', stderr: result.error, exitCode: 1 }
@@ -169,6 +180,7 @@ export function registerIpcHandlers(): void {
 
   // ─── File: Open in default app ──────────────────
   ipcMain.handle(IPC.FS_OPEN_PATH, async (_, filePath: string) => {
+    requirePermission('fs.openPath')
     const pathError = validatePath(filePath, 'read')
     if (pathError) throw new Error(pathError)
     const errorMsg = await shell.openPath(filePath)
@@ -208,18 +220,22 @@ export function registerIpcHandlers(): void {
 
   // ─── Secure Delete ────────────────────────────────
   ipcMain.handle(IPC.FS_SECURE_DELETE, async (_, filePath: string) => {
+    requirePermission('fs.secureDelete')
     if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('Invalid file path')
     return secureDelete(filePath)
   })
 
   // ─── System Optimization ────────────────────────
   ipcMain.handle(IPC.SYSTEM_CLEAN_TEMP, async () => {
+    requirePermission('system.cleanTemp')
     return cleanTempFiles()
   })
   ipcMain.handle(IPC.SYSTEM_STARTUP_LIST, async () => {
+    requirePermission('system.startupList')
     return listStartupPrograms()
   })
   ipcMain.handle(IPC.SYSTEM_STARTUP_TOGGLE, async (_, { name, source, enabled }: { name: string; source: StartupSource; enabled: boolean }) => {
+    requirePermission('system.startupToggle')
     if (!name || !source) throw new Error('Invalid parameters')
     return toggleStartupProgram(name, source, enabled)
   })

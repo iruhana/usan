@@ -95,6 +95,19 @@ function createTray(): void {
 }
 
 function createWindow(): void {
+  const isDev = !app.isPackaged
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+
+  const isAppNavigation = (url: string): boolean => {
+    if (url.startsWith('file://')) return true
+    if (!devUrl) return false
+    try {
+      return new URL(url).origin === new URL(devUrl).origin
+    } catch {
+      return false
+    }
+  }
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -128,6 +141,14 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => { mainWindow = null })
 
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isAppNavigation(url)) return
+    event.preventDefault()
+    if (isUrlSafe(url)) {
+      shell.openExternal(url)
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     if (isUrlSafe(details.url)) {
       shell.openExternal(details.url)
@@ -136,9 +157,8 @@ function createWindow(): void {
   })
 
   // Dev: load from vite dev server, Prod: load built files
-  const isDev = !app.isPackaged
-  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  if (isDev && devUrl) {
+    mainWindow.loadURL(devUrl)
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }

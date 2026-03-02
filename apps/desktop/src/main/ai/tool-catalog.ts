@@ -17,6 +17,7 @@ import { secureDelete } from '../fs/secure-delete'
 import { scanTempFiles, cleanTempFiles } from '../system/temp-cleaner'
 import { listStartupPrograms, toggleStartupProgram } from '../system/startup-manager'
 import type { StartupSource } from '../system/startup-manager'
+import { loadPermissions } from '../store'
 
 const ERROR_MESSAGES_KO: Record<string, string> = {
   ENOENT: '파일을 찾을 수 없습니다',
@@ -47,6 +48,37 @@ function toKoreanError(err: unknown): string {
 }
 
 const MAX_FILE_SIZE = 1 * 1024 * 1024 // 1MB
+
+const PRIVILEGED_TOOLS = new Set([
+  'screenshot',
+  'read_file',
+  'write_file',
+  'list_directory',
+  'delete_file',
+  'run_command',
+  'mouse_click',
+  'keyboard_type',
+  'keyboard_hotkey',
+  'list_windows',
+  'focus_window',
+  'browser_open',
+  'browser_click',
+  'browser_type',
+  'browser_read',
+  'browser_screenshot',
+  'run_skill_script',
+  'secure_delete',
+  'clean_temp_files',
+  'list_startup_programs',
+  'toggle_startup_program',
+])
+
+function getPrivilegeError(name: string): string | null {
+  if (!PRIVILEGED_TOOLS.has(name)) return null
+  const grant = loadPermissions()
+  if (grant.grantedAll) return null
+  return `권한 동의가 필요한 기능입니다: ${name}`
+}
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   for (let i = 0; i <= retries; i++) {
@@ -778,6 +810,17 @@ export class ToolCatalog {
         name,
         result: null,
         error: `알 수 없는 도구입니다: ${name}`,
+        duration: Date.now() - start,
+      }
+    }
+
+    const privilegeError = getPrivilegeError(name)
+    if (privilegeError) {
+      return {
+        id: crypto.randomUUID(),
+        name,
+        result: null,
+        error: privilegeError,
         duration: Date.now() - start,
       }
     }
