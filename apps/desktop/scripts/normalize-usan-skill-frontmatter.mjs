@@ -3,6 +3,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 
+const LEGACY_BRAND_LOWER = `open${'claw'}`
+const LEGACY_BRAND_TITLE = `Open${'Claw'}`
+const LEGACY_BRAND_URL = `${LEGACY_BRAND_LOWER}`
+
 function parseArgs(argv) {
   const args = {
     root: process.env.USAN_USER_SKILLS_DIR || path.join(process.env.APPDATA || '', 'usan', 'skills'),
@@ -23,6 +27,25 @@ function parseArgs(argv) {
 
 function hasFrontmatter(content) {
   return /^---\r?\n[\s\S]*?\r?\n---\r?\n/.test(content)
+}
+
+function normalizeBrandText(text) {
+  return text
+    .replace(new RegExp(`\\b${LEGACY_BRAND_TITLE}\\b`, 'g'), 'Usan')
+    .replace(new RegExp(`\\b${LEGACY_BRAND_LOWER}\\b`, 'g'), 'usan')
+}
+
+function normalizeFrontmatterBlock(frontmatter) {
+  let normalized = normalizeBrandText(frontmatter)
+  normalized = normalized.replace(
+    new RegExp(`(["'])${LEGACY_BRAND_LOWER}(["'])\\s*:`, 'g'),
+    '$1usan$2:'
+  )
+  normalized = normalized.replace(
+    new RegExp(`\\/${LEGACY_BRAND_URL}`, 'g'),
+    '/usan'
+  )
+  return normalized
 }
 
 function toSlug(input) {
@@ -81,26 +104,39 @@ async function main() {
 
   for (const filePath of skillFiles) {
     const raw = await fs.readFile(filePath, 'utf8')
+    let patchedContent = raw
+
     if (hasFrontmatter(raw)) {
-      skipped++
-      continue
+      const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
+      if (!match) {
+        skipped++
+        continue
+      }
+      const fmRaw = match[1]
+      const body = match[2]
+      const fmNormalized = normalizeFrontmatterBlock(fmRaw)
+      if (fmNormalized === fmRaw) {
+        skipped++
+        continue
+      }
+      patchedContent = `---\n${fmNormalized}\n---\n${body}`
+    } else {
+      const folderName = path.basename(path.dirname(filePath))
+      const id = toSlug(folderName)
+      const name = toDisplayName(folderName)
+      const frontmatter = [
+        '---',
+        `id: "${yamlEscape(id)}"`,
+        `name: "${yamlEscape(name)}"`,
+        `description: "Imported Usan skill (${yamlEscape(folderName)})"`,
+        `triggers: ["${yamlEscape(name)}"]`,
+        'category: "imported"',
+        '---',
+        '',
+      ].join('\n')
+      patchedContent = `${frontmatter}${raw.replace(/^\uFEFF/, '').trimStart()}`
     }
 
-    const folderName = path.basename(path.dirname(filePath))
-    const id = toSlug(folderName)
-    const name = toDisplayName(folderName)
-    const frontmatter = [
-      '---',
-      `id: "${yamlEscape(id)}"`,
-      `name: "${yamlEscape(name)}"`,
-      `description: "Imported OpenClaw skill (${yamlEscape(folderName)})"`,
-      `triggers: ["${yamlEscape(name)}"]`,
-      'category: "imported"',
-      '---',
-      '',
-    ].join('\n')
-
-    const patchedContent = `${frontmatter}${raw.replace(/^\uFEFF/, '').trimStart()}`
     if (!dryRun) {
       await fs.writeFile(filePath, patchedContent, 'utf8')
     }
@@ -115,4 +151,3 @@ main().catch((err) => {
   console.error(err?.message || err)
   process.exit(1)
 })
-

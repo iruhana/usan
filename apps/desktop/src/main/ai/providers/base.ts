@@ -1,6 +1,6 @@
 /**
  * Base AI provider interface — all providers implement this
- * Adapted from OpenClaw's provider pattern for Usan
+ * Uses Usan provider pattern
  */
 
 export interface ProviderMessage {

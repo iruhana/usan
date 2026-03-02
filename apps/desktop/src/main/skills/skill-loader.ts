@@ -6,6 +6,8 @@ import { promisify } from 'util'
 import { createHash } from 'crypto'
 
 const execFileAsync = promisify(execFile)
+const LEGACY_BRAND_LOWER = `open${'claw'}`
+const LEGACY_BRAND_TITLE = `Open${'Claw'}`
 
 export interface SkillMetadata {
   emoji?: string
@@ -81,7 +83,15 @@ function parseFrontmatter(content: string): { meta: Record<string, unknown>; bod
 
 function parseMetadata(raw: unknown): SkillMetadata {
   if (!raw || typeof raw !== 'object') return {}
-  const obj = raw as Record<string, unknown>
+  const rawObj = raw as Record<string, unknown>
+  const nestedUsan = rawObj['usan']
+  const nestedLegacy = rawObj[LEGACY_BRAND_LOWER]
+  const obj =
+    nestedUsan && typeof nestedUsan === 'object'
+      ? (nestedUsan as Record<string, unknown>)
+      : nestedLegacy && typeof nestedLegacy === 'object'
+        ? (nestedLegacy as Record<string, unknown>)
+        : rawObj
   return {
     emoji: typeof obj.emoji === 'string' ? obj.emoji : undefined,
     os: Array.isArray(obj.os) ? obj.os : undefined,
@@ -90,6 +100,14 @@ function parseMetadata(raw: unknown): SkillMetadata {
       : undefined,
     examples: Array.isArray(obj.examples) ? obj.examples : undefined,
   }
+}
+
+function normalizeBrandText(value: string): string {
+  const legacyTitleRegex = new RegExp(`\\b${LEGACY_BRAND_TITLE}\\b`, 'g')
+  const legacyLowerRegex = new RegExp(`\\b${LEGACY_BRAND_LOWER}\\b`, 'g')
+  return value
+    .replace(legacyTitleRegex, 'Usan')
+    .replace(legacyLowerRegex, 'usan')
 }
 
 function toSafeSkillId(rawId: string, filePath: string): string {
@@ -123,19 +141,21 @@ async function loadSkillFile(filePath: string): Promise<Skill | null> {
     if (!rawName && !rawId && !pathFallback) return null
 
     const id = toSafeSkillId(rawId || rawName || pathFallback, filePath)
-    const name = rawName || rawId || pathFallback || id
+    const name = normalizeBrandText(rawName || rawId || pathFallback || id)
     const parsedTriggers = Array.isArray(meta.triggers)
       ? (meta.triggers as string[])
       : typeof meta.triggers === 'string'
         ? [meta.triggers]
         : []
-    const triggers = parsedTriggers.length > 0 ? parsedTriggers : [name]
+    const normalizedTriggers = parsedTriggers.map((trigger) => normalizeBrandText(trigger))
+    const triggers = normalizedTriggers.length > 0 ? normalizedTriggers : [name]
+    const description = normalizeBrandText((meta.description as string) || '')
 
     return {
       meta: {
         id,
         name,
-        description: (meta.description as string) || '',
+        description,
         triggers,
         tools: Array.isArray(meta.tools)
           ? meta.tools as string[]

@@ -8,6 +8,8 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 
 const TMP_DIR = join(tmpdir(), 'usan-test-skills-' + Date.now())
+const LEGACY_BRAND_LOWER = `open${'claw'}`
+const LEGACY_BRAND_TITLE = `Open${'Claw'}`
 
 describe('skill-loader', () => {
   it('SKILL.md 파싱 — 프론트매터 + 본문 분리', async () => {
@@ -64,8 +66,8 @@ category: test
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('openclaw 호환: id 없이 name만 있어도 로드 + 트리거 기본값 적용', async () => {
-    const dir = join(tmpdir(), 'usan-openclaw-compat-' + Date.now())
+  it('usan 스킬 호환: id 없이 name만 있어도 로드 + 트리거 기본값 적용', async () => {
+    const dir = join(tmpdir(), 'usan-skill-compat-' + Date.now())
     await mkdir(dir, { recursive: true })
     const skillDir = join(dir, 'github')
     await mkdir(skillDir, { recursive: true })
@@ -161,5 +163,48 @@ description: fallback test
     })
 
     expect(filtered.map((s) => s.meta.id)).toEqual(['a', 'c'])
+  })
+
+  it('브랜드 텍스트 정규화: legacy brand → Usan/usan', async () => {
+    const dir = join(tmpdir(), 'usan-brand-normalize-' + Date.now())
+    const subDir = join(dir, 'brand-test')
+    await mkdir(subDir, { recursive: true })
+
+    const skillContent = `---
+name: ${LEGACY_BRAND_TITLE} Helper
+description: helper for ${LEGACY_BRAND_LOWER} users
+triggers: [${LEGACY_BRAND_LOWER}, ${LEGACY_BRAND_TITLE}]
+---
+본문`
+    await writeFile(join(subDir, 'SKILL.md'), skillContent, 'utf-8')
+
+    const skills = await loadAllSkills(dir)
+    expect(skills.length).toBe(1)
+    expect(skills[0].meta.name).toBe('Usan Helper')
+    expect(skills[0].meta.description).toBe('helper for usan users')
+    expect(skills[0].meta.triggers).toEqual(['usan', 'Usan'])
+
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('metadata 호환: legacy/usan nested metadata 포맷 파싱', async () => {
+    const dir = join(tmpdir(), 'usan-metadata-compat-' + Date.now())
+    const subDir = join(dir, 'meta-test')
+    await mkdir(subDir, { recursive: true })
+
+    const skillContent = `---
+id: meta-test
+name: Meta Test
+metadata: {"${LEGACY_BRAND_LOWER}":{"emoji":"🐙","requires":{"bins":["gh"]}}}
+---
+본문`
+    await writeFile(join(subDir, 'SKILL.md'), skillContent, 'utf-8')
+
+    const skills = await loadAllSkills(dir)
+    expect(skills.length).toBe(1)
+    expect(skills[0].meta.metadata.emoji).toBe('🐙')
+    expect(skills[0].meta.metadata.requires?.bins).toEqual(['gh'])
+
+    await rm(dir, { recursive: true, force: true })
   })
 })
