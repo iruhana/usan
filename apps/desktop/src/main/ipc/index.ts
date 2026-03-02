@@ -1,6 +1,13 @@
 import { ipcMain, BrowserWindow, shell, app } from 'electron'
 import { IPC } from '@shared/constants/channels'
 import type { AppSettings, ScreenCaptureResult, FileEntry, StoredConversation, Note } from '@shared/types/ipc'
+import {
+  applyPermissionGrantRequest,
+  applyPermissionRevokeRequest,
+  isPermissionGranted,
+  type PermissionGrantRequest,
+  type PermissionRevokeRequest,
+} from '@shared/types/permissions'
 import { registerAiIpcHandlers, updateAiSettings } from './ai.ipc'
 import { toolCatalog } from '../ai/tool-catalog'
 import { validatePath } from '../security'
@@ -23,7 +30,7 @@ let permissionGrant = loadPermissions()
 updateAiSettings(settings)
 
 function requirePermission(feature: string): void {
-  if (permissionGrant.grantedAll) return
+  if (isPermissionGranted(permissionGrant, { featureName: feature })) return
   throw new Error(`권한 동의가 필요한 기능입니다: ${feature}`)
 }
 
@@ -131,12 +138,13 @@ export function registerIpcHandlers(): void {
 
   // ─── Permissions ──────────────────────────────
   ipcMain.handle(IPC.PERMISSIONS_GET, () => permissionGrant)
-  ipcMain.handle(IPC.PERMISSIONS_GRANT, async () => {
-    permissionGrant = {
-      grantedAll: true,
-      grantedAt: Date.now(),
-      version: '0.1.0',
-    }
+  ipcMain.handle(IPC.PERMISSIONS_GRANT, async (_, request?: PermissionGrantRequest) => {
+    permissionGrant = applyPermissionGrantRequest(permissionGrant, request)
+    await savePermissions(permissionGrant)
+    return permissionGrant
+  })
+  ipcMain.handle(IPC.PERMISSIONS_REVOKE, async (_, request?: PermissionRevokeRequest) => {
+    permissionGrant = applyPermissionRevokeRequest(permissionGrant, request)
     await savePermissions(permissionGrant)
     return permissionGrant
   })

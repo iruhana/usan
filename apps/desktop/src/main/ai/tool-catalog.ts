@@ -18,6 +18,7 @@ import { scanTempFiles, cleanTempFiles } from '../system/temp-cleaner'
 import { listStartupPrograms, toggleStartupProgram } from '../system/startup-manager'
 import type { StartupSource } from '../system/startup-manager'
 import { loadPermissions } from '../store'
+import { isPermissionGranted } from '@shared/types/permissions'
 
 const ERROR_MESSAGES_KO: Record<string, string> = {
   ENOENT: '파일을 찾을 수 없습니다',
@@ -73,10 +74,11 @@ const PRIVILEGED_TOOLS = new Set([
   'toggle_startup_program',
 ])
 
-function getPrivilegeError(name: string): string | null {
+function getPrivilegeError(name: string, args?: Record<string, unknown>): string | null {
   if (!PRIVILEGED_TOOLS.has(name)) return null
   const grant = loadPermissions()
-  if (grant.grantedAll) return null
+  const skillId = typeof args?.skill_id === 'string' ? args.skill_id : undefined
+  if (isPermissionGranted(grant, { toolName: name, skillId })) return null
   return `권한 동의가 필요한 기능입니다: ${name}`
 }
 
@@ -814,7 +816,7 @@ export class ToolCatalog {
       }
     }
 
-    const privilegeError = getPrivilegeError(name)
+    const privilegeError = getPrivilegeError(name, args)
     if (privilegeError) {
       return {
         id: crypto.randomUUID(),

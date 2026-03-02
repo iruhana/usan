@@ -11,7 +11,7 @@ import { join } from 'path'
 import { readFileSync, mkdirSync, existsSync, writeFileSync } from 'fs'
 import { writeFile as writeFileAsync, rename as renameAsync } from 'fs/promises'
 import type { AppSettings, StoredConversation, Note } from '@shared/types/ipc'
-import type { PermissionGrant } from '@shared/types/permissions'
+import { normalizePermissionGrant, type PermissionGrant } from '@shared/types/permissions'
 import { encryptString, decryptString } from './security'
 
 const DATA_DIR = join(app.getPath('userData'), 'data')
@@ -112,22 +112,14 @@ function loadApiKey(): string {
 
 // ─── Permissions ────────────────────────────────────
 
-const DEFAULT_PERMISSIONS: PermissionGrant = {
-  grantedAll: false,
-  grantedAt: 0,
-  version: '0.1.0',
-}
+const DEFAULT_PERMISSIONS: PermissionGrant = normalizePermissionGrant()
 
 export function loadPermissions(): PermissionGrant {
   ensureDataDir()
   try {
     const raw = readFileSync(PERMISSIONS_PATH, 'utf-8')
     const p = JSON.parse(raw)
-    return {
-      grantedAll: typeof p.grantedAll === 'boolean' ? p.grantedAll : DEFAULT_PERMISSIONS.grantedAll,
-      grantedAt: typeof p.grantedAt === 'number' ? p.grantedAt : DEFAULT_PERMISSIONS.grantedAt,
-      version: typeof p.version === 'string' ? p.version : DEFAULT_PERMISSIONS.version,
-    }
+    return normalizePermissionGrant(p)
   } catch {
     return { ...DEFAULT_PERMISSIONS }
   }
@@ -135,7 +127,7 @@ export function loadPermissions(): PermissionGrant {
 
 export async function savePermissions(grant: PermissionGrant): Promise<void> {
   ensureDataDir()
-  await atomicWriteFile(PERMISSIONS_PATH, JSON.stringify(grant, null, 2))
+  await atomicWriteFile(PERMISSIONS_PATH, JSON.stringify(normalizePermissionGrant(grant), null, 2))
 }
 
 // ─── Conversations ──────────────────────────────────

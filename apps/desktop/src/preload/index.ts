@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ChatRequest, AppSettings, ScreenCaptureResult, FileEntry, ChatChunk, StoredConversation, Note } from '@shared/types/ipc'
-import type { PermissionGrant } from '@shared/types/permissions'
+import type { PermissionGrant, PermissionGrantRequest, PermissionRevokeRequest } from '@shared/types/permissions'
 import { IPC } from '@shared/constants/channels'
 
 const api = {
@@ -56,7 +56,10 @@ const api = {
   // ─── Permissions ──────────────────────────────
   permissions: {
     get: () => ipcRenderer.invoke(IPC.PERMISSIONS_GET) as Promise<PermissionGrant>,
-    grant: () => ipcRenderer.invoke(IPC.PERMISSIONS_GRANT) as Promise<PermissionGrant>,
+    grant: (request?: PermissionGrantRequest) =>
+      ipcRenderer.invoke(IPC.PERMISSIONS_GRANT, request) as Promise<PermissionGrant>,
+    revoke: (request?: PermissionRevokeRequest) =>
+      ipcRenderer.invoke(IPC.PERMISSIONS_REVOKE, request) as Promise<PermissionGrant>,
   },
 
   // ─── Conversations ──────────────────────────────

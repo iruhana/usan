@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import OfflineBanner from './components/OfflineBanner'
 import { useSettingsStore } from './stores/settings.store'
 import { setLocale, t } from './i18n'
+import { isTimedGrantActive } from '@shared/types/permissions'
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(true)
@@ -27,7 +28,12 @@ export default function App() {
     }).catch(() => {})
 
     window.usan?.permissions.get().then((grant) => {
-      if (grant.grantedAll) {
+      const now = Date.now()
+      const hasGranularGrant =
+        Object.values(grant.toolGrants ?? {}).some((item) => isTimedGrantActive(item, now)) ||
+        Object.values(grant.featureGrants ?? {}).some((item) => isTimedGrantActive(item, now)) ||
+        Object.values(grant.skillGrants ?? {}).some((item) => isTimedGrantActive(item, now))
+      if (grant.grantedAll || hasGranularGrant) {
         setShowOnboarding(false)
       }
       setLoading(false)

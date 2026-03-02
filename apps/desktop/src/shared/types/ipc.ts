@@ -3,7 +3,7 @@
  * All IPC goes through typed contextBridge, never raw ipcRenderer
  */
 
-import type { PermissionGrant } from './permissions'
+import type { PermissionGrant, PermissionGrantRequest, PermissionRevokeRequest } from './permissions'
 import type { ToolResult } from './tools'
 
 export type Locale = 'ko' | 'en' | 'ja'
@@ -122,7 +122,8 @@ export interface IPCChannels {
 
   // Permissions
   'permissions:get': { request: void; response: PermissionGrant }
-  'permissions:grant': { request: void; response: PermissionGrant }
+  'permissions:grant': { request: PermissionGrantRequest | void; response: PermissionGrant }
+  'permissions:revoke': { request: PermissionRevokeRequest | void; response: PermissionGrant }
 
   // Conversations
   'conversations:load': { request: void; response: StoredConversation[] }

@@ -25,6 +25,7 @@ export const IPC = {
   // Permissions
   PERMISSIONS_GET: 'permissions:get',
   PERMISSIONS_GRANT: 'permissions:grant',
+  PERMISSIONS_REVOKE: 'permissions:revoke',
 
   // Conversations
   CONVERSATIONS_LOAD: 'conversations:load',

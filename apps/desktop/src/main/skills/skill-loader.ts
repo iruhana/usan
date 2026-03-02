@@ -45,40 +45,245 @@ interface ResolvedSkillLoaderOptions {
   includeCategories: string[]
 }
 
+function getIndent(line: string): number {
+  let idx = 0
+  while (idx < line.length && line[idx] === ' ') idx++
+  return idx
+}
+
+function unquote(value: string): string {
+  const trimmed = value.trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith('\'') && trimmed.endsWith('\''))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+function splitInlineList(value: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let quote: '"' | '\'' | '' = ''
+
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i]
+    if ((ch === '"' || ch === '\'') && (i === 0 || value[i - 1] !== '\\')) {
+      if (quote === '') quote = ch
+      else if (quote === ch) quote = ''
+      current += ch
+      continue
+    }
+    if (ch === ',' && quote === '') {
+      const item = unquote(current)
+      if (item) result.push(item)
+      current = ''
+      continue
+    }
+    current += ch
+  }
+
+  const last = unquote(current)
+  if (last) result.push(last)
+  return result
+}
+
+function parseScalar(value: string): unknown {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return splitInlineList(trimmed.slice(1, -1))
+  }
+
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return trimmed
+    }
+  }
+
+  const unquoted = unquote(trimmed)
+  if (unquoted === 'true') return true
+  if (unquoted === 'false') return false
+  if (/^-?\d+(\.\d+)?$/.test(unquoted)) return Number(unquoted)
+  return unquoted
+}
+
+function parseYamlNode(
+  lines: string[],
+  startIndex: number,
+  indent: number,
+): { value: unknown; index: number } {
+  let index = startIndex
+  while (index < lines.length) {
+    const line = lines[index]
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      index++
+      continue
+    }
+    const lineIndent = getIndent(line)
+    if (lineIndent < indent) return { value: '', index }
+    if (trimmed.startsWith('- ')) return parseYamlList(lines, index, lineIndent)
+    return parseYamlObject(lines, index, lineIndent)
+  }
+  return { value: '', index }
+}
+
+function parseYamlList(
+  lines: string[],
+  startIndex: number,
+  indent: number,
+): { value: unknown[]; index: number } {
+  const result: unknown[] = []
+  let index = startIndex
+
+  while (index < lines.length) {
+    const line = lines[index]
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      index++
+      continue
+    }
+
+    const lineIndent = getIndent(line)
+    if (lineIndent < indent) break
+    if (lineIndent !== indent || !trimmed.startsWith('- ')) break
+
+    const inline = trimmed.slice(2).trim()
+    index++
+    if (inline) {
+      result.push(parseScalar(inline))
+      continue
+    }
+
+    const nested = parseYamlNode(lines, index, indent + 2)
+    if (nested.index === index) {
+      result.push('')
+      continue
+    }
+    result.push(nested.value)
+    index = nested.index
+  }
+
+  return { value: result, index }
+}
+
+function parseYamlObject(
+  lines: string[],
+  startIndex: number,
+  indent: number,
+): { value: Record<string, unknown>; index: number } {
+  const result: Record<string, unknown> = {}
+  let index = startIndex
+
+  while (index < lines.length) {
+    const line = lines[index]
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      index++
+      continue
+    }
+
+    const lineIndent = getIndent(line)
+    if (lineIndent < indent) break
+    if (lineIndent > indent) {
+      index++
+      continue
+    }
+    if (trimmed.startsWith('- ')) break
+
+    const match = trimmed.match(/^(['"]?)([A-Za-z0-9_.-]+)\1\s*:\s*(.*)$/)
+    if (!match) {
+      index++
+      continue
+    }
+
+    const key = match[2]
+    const rest = match[3].trim()
+    index++
+
+    if (rest) {
+      result[key] = parseScalar(rest)
+      continue
+    }
+
+    const nested = parseYamlNode(lines, index, indent + 2)
+    if (nested.index === index) {
+      result[key] = ''
+      continue
+    }
+    result[key] = nested.value
+    index = nested.index
+  }
+
+  return { value: result, index }
+}
+
 function parseFrontmatter(content: string): { meta: Record<string, unknown>; body: string; hasFrontmatter: boolean } {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
   if (!match) return { meta: {}, body: content, hasFrontmatter: false }
 
   const yamlBlock = match[1]
   const body = match[2]
-  const meta: Record<string, unknown> = {}
+  const lines = yamlBlock.split('\n')
+  const parsed = parseYamlObject(lines, 0, 0).value
+  return { meta: parsed, body, hasFrontmatter: true }
+}
 
-  for (const line of yamlBlock.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
+function toStringArray(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => (typeof item === 'string' ? item : String(item)))
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    return [trimmed]
+  }
+  return []
+}
 
-    const colonIdx = trimmed.indexOf(':')
-    if (colonIdx === -1) continue
+function splitAllowedToolTokens(raw: string): string[] {
+  const cleaned = raw.trim()
+  if (!cleaned) return []
 
-    const key = trimmed.slice(0, colonIdx).trim()
-    let value: unknown = trimmed.slice(colonIdx + 1).trim()
-
-    if (typeof value === 'string' && value.startsWith('[') && value.endsWith(']')) {
-      value = value.slice(1, -1).split(',').map((s) => s.trim().replace(/^["']|["']$/g, ''))
-    }
-
-    if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
-      try {
-        value = JSON.parse(value)
-      } catch {
-        // leave as string if JSON parse fails
-      }
-    }
-
-    meta[key] = value
+  if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
+    return splitInlineList(cleaned.slice(1, -1))
   }
 
-  return { meta, body, hasFrontmatter: true }
+  if (cleaned.includes(',')) {
+    return cleaned.split(',').map((token) => unquote(token.trim())).filter(Boolean)
+  }
+
+  if (cleaned.includes(' ')) {
+    return cleaned.split(/\s+/).map((token) => unquote(token.trim())).filter(Boolean)
+  }
+
+  return [unquote(cleaned)]
+}
+
+function mapAllowedToolToUsanTools(token: string): string[] {
+  const lower = token.toLowerCase()
+  const mapped = new Set<string>()
+  if (lower.includes('bash') || lower.includes('exec') || lower.includes('shell')) mapped.add('run_command')
+  if (/\bread\b/.test(lower)) mapped.add('read_file')
+  if (/\b(write|edit)\b/.test(lower)) mapped.add('write_file')
+  if (/\b(list|glob|grep|ls)\b/.test(lower)) mapped.add('list_directory')
+  if (/\b(tts|speak|voice)\b/.test(lower)) mapped.add('speak_text')
+  if (/\b(message|clipboard)\b/.test(lower)) mapped.add('clipboard_write')
+  if (/\b(search|web)\b/.test(lower)) mapped.add('web_search')
+  return Array.from(mapped)
+}
+
+function parseAllowedTools(raw: unknown): string[] {
+  const tokens = toStringArray(raw).flatMap(splitAllowedToolTokens)
+  return [...new Set(tokens.flatMap(mapAllowedToolToUsanTools))]
 }
 
 function parseMetadata(raw: unknown): SkillMetadata {
@@ -142,14 +347,18 @@ async function loadSkillFile(filePath: string): Promise<Skill | null> {
 
     const id = toSafeSkillId(rawId || rawName || pathFallback, filePath)
     const name = normalizeBrandText(rawName || rawId || pathFallback || id)
-    const parsedTriggers = Array.isArray(meta.triggers)
-      ? (meta.triggers as string[])
-      : typeof meta.triggers === 'string'
-        ? [meta.triggers]
-        : []
-    const normalizedTriggers = parsedTriggers.map((trigger) => normalizeBrandText(trigger))
+    const parsedTriggers = toStringArray(meta.triggers)
+    const parsedReadWhen = toStringArray(meta.read_when).slice(0, 8)
+    const triggerSource = parsedTriggers.length > 0 ? parsedTriggers : parsedReadWhen
+    const normalizedTriggers = triggerSource.map((trigger) => normalizeBrandText(trigger))
     const triggers = normalizedTriggers.length > 0 ? normalizedTriggers : [name]
     const description = normalizeBrandText((meta.description as string) || '')
+    const parsedTools = toStringArray(meta.tools)
+    const parsedAllowedTools =
+      parsedTools.length > 0
+        ? []
+        : parseAllowedTools(meta['allowed-tools'] ?? meta.allowed_tools)
+    const tools = [...new Set((parsedTools.length > 0 ? parsedTools : parsedAllowedTools).map((tool) => tool.trim()).filter(Boolean))]
 
     return {
       meta: {
@@ -157,11 +366,7 @@ async function loadSkillFile(filePath: string): Promise<Skill | null> {
         name,
         description,
         triggers,
-        tools: Array.isArray(meta.tools)
-          ? meta.tools as string[]
-          : typeof meta.tools === 'string'
-            ? [meta.tools]
-            : [],
+        tools,
         category: (meta.category as string) || 'general',
         metadata: parseMetadata(meta.metadata),
       },
