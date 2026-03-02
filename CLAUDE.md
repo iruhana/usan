@@ -1,41 +1,23 @@
-# usan.ai - AI 보이스피싱 방지 서비스
+# 우산 (Usan) Monorepo
 
-## Quick Start
+## 구조
+- `apps/desktop/` — Electron 34 + React 19 + Zustand + Tailwind (데스크톱 AI 비서)
+- `apps/web/` — Next.js 16 + Supabase + shadcn/ui (usan.ai 랜딩 페이지)
 
-```bash
-npm run dev    # 개발 서버
-npm run build  # 프로덕션 빌드
-npm run lint   # ESLint
-```
+## 네이밍
+- 프로젝트명: 우산 (Usan)
+- IPC 브릿지: `window.usan` (UsanAPI)
+- appId: `com.usan.app`
+- 도메인: usan.ai
 
-## Tech Stack
+## 규칙
+- 모든 UI 텍스트는 한국어 (타겟: 어르신/컴맹)
+- 접근성 필수: 큰 터치 타겟(44px+), 폰트 스케일링, 고대비 모드
+- OpenRouter 전용 AI 프로바이더
+- Windows PowerShell 기반 컴퓨터 제어
 
-- **Framework:** Next.js 16 (App Router, Turbopack)
-- **Language:** TypeScript 5
-- **Styling:** Tailwind CSS 4 + shadcn/ui (new-york)
-- **i18n:** next-intl (ko, en)
-- **DB/Auth:** Supabase
-- **Hosting:** Vercel + Cloudflare DNS
-
-## Next.js 16 Patterns
-
-- Dynamic params are `Promise`: `{ params }: { params: Promise<{ id: string }> }`
-- Must `await params`: `const { id } = await params;`
-
-## Supabase Auth
-
-- Server client: `createServerSupabaseClient` from `@/lib/supabase/server`
-- Service client: `createServiceClient` from `@/lib/supabase/server`
-- Browser client: `createClient` from `@/lib/supabase/client`
-
-## i18n
-
-- Default locale: ko
-- Supported: ko, en
-- URL: `/{locale}/path` (ko prefix 생략)
-- Translations: `messages/ko.json`, `messages/en.json`
-
-## Database
-
-- Supabase project ID: `forujutkhlgprfwupqlf`
-- Migrations: `supabase/migrations/`
+## 보이스피싱 차단 (Phase 3 계획)
+- 안드로이드 앱에서 통화 녹취 → 서버 전송
+- 실시간 대화 메모 + 보이스피싱 확률 판정
+- 위험 감지 시 즉시 전화 끊기 + 경고
+- 데스크톱 앱과 안드로이드 앱 상호작용 필요
