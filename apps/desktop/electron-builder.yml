@@ -1,0 +1,46 @@
+appId: com.usan.app
+productName: Usan
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!tests/*'
+  - '!scripts/*'
+  - '!*.md'
+extraResources:
+  - from: src/main/skills/built-in
+    to: skills
+    filter:
+      - '**/*'
+extraFiles:
+  - NOTICE
+
+win:
+  icon: assets/icons/icon.ico
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  artifactName: ${name}-${version}-win-${arch}.${ext}
+  forceCodeSigning: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+mac:
+  icon: assets/icons/icon.icns
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+linux:
+  icon: assets/icons/icon.png
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Utility

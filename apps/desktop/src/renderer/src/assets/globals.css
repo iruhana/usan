@@ -1,0 +1,245 @@
+@import 'tailwindcss';
+
+/*
+ * Usan Design Tokens — 컴맹 친화 (Computer-Illiterate Friendly)
+ * 기본 폰트 20px, 최소 클릭 56px, 넓은 줄간격
+ */
+
+@theme {
+  /* Colors — Warm & Friendly (reference-aligned) */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #dbeafe;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-bg: #f5f7fb;
+  --color-bg-sidebar: #eef3ff;
+  --color-bg-card: #ffffff;
+  --color-text: #101828;
+  --color-text-muted: #475467;
+  --color-border: #d0d5dd;
+  --color-surface-soft: #eef3ff;
+
+  /* High Contrast Mode (toggled via class) */
+  --color-hc-bg: #ffffff;
+  --color-hc-text: #000000;
+  --color-hc-primary: #0052cc;
+  --color-hc-border: #000000;
+
+  /* Spacing */
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Border Radius — 둥글게 (친근감, reference-aligned) */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-card: 0 8px 24px rgba(16, 24, 40, 0.1);
+}
+
+:root {
+  /* Font Scale — user adjustable via settings (1.0 ~ 2.0) */
+  --font-scale: 1;
+  --font-size-base: calc(20px * var(--font-scale));
+  --font-size-sm: calc(16px * var(--font-scale));
+  --font-size-lg: calc(26px * var(--font-scale));
+  --font-size-xl: calc(32px * var(--font-scale));
+  --font-size-2xl: calc(40px * var(--font-scale));
+
+  /* Minimum click target — bigger than WCAG 44px */
+  --min-target: 56px;
+
+  /* Line height — 넓게 (readability) */
+  --line-height-base: 1.8;
+  --line-height-tight: 1.5;
+
+  /* Glassmorphism 2.0 */
+  --glass-blur: 16px;
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.10);
+
+  /* Animations */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}
+
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+}
+
+body {
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dark Mode */
+.dark {
+  --color-bg: #0f172a;
+  --color-bg-sidebar: #1e293b;
+  --color-bg-card: #1e293b;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-border: #334155;
+  --color-primary-light: #1e3a5f;
+  --color-surface-soft: #1a2744;
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.10);
+}
+
+/* Light mode glass (subtle) */
+:root:not(.dark) {
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.08);
+}
+
+/* High Contrast Mode */
+.high-contrast {
+  --color-bg: var(--color-hc-bg);
+  --color-text: var(--color-hc-text);
+  --color-primary: var(--color-hc-primary);
+  --color-border: var(--color-hc-border);
+  --glass-bg: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(0, 0, 0, 0.25);
+}
+
+/* Custom scrollbar — 넓게 (컴맹 사용자가 잡기 쉽도록) */
+::-webkit-scrollbar {
+  width: 12px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Ensure all interactive elements are large enough */
+button, a, input, select, textarea {
+  min-height: var(--min-target);
+  font-size: inherit;
+}
+
+/* Global focus-visible ring for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="switch"]:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Drag region for custom title bar */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Skeleton loading animation */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-bg-card) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--color-border);
+  }
+}
+
+/* Voice input waveform animation */
+@keyframes voice-pulse {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+.voice-wave-bar {
+  display: inline-block;
+  width: 4px;
+  height: 24px;
+  margin: 0 2px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: voice-pulse 0.8s ease-in-out infinite;
+}
+
+.voice-wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.voice-wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.voice-wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.voice-wave-bar:nth-child(5) { animation-delay: 0.15s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-wave-bar {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+  .animate-bounce,
+  .animate-spin,
+  .animate-pulse,
+  .animate-in {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Font scale presets (via data attribute on html) */
+[data-font-scale="large"] {
+  --font-scale: 1.3;
+}
+[data-font-scale="x-large"] {
+  --font-scale: 1.6;
+}
