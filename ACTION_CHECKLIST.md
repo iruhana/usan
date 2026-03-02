@@ -17,3 +17,9 @@
 - [x] Remove Node deprecation source in tests: replace `fs.rmdir(..., { recursive: true })` with `fs.rm(..., { recursive: true, force: true })`
 - [x] Stabilize test log output: add global test setup (`tests/setup-env.ts`) with `USAN_OBS_LEVEL=off`
 - [x] Keep observability unit tests isolated: reset env to `off` after each case to prevent cross-test noise
+
+## P5 (Completed)
+- [x] Run lockfile refresh for transitive updates: `npm update` in both `apps/desktop` and `apps/web`
+- [x] Map remaining transitive deprecations to direct owners (`npm ls ... --all`)
+- [x] Verify post-update stability: desktop typecheck/unit/e2e and web lint/build all passed
+- [x] Document unresolved upstream constraints in `DEPENDENCY_DEPRECATION_REPORT.md`
