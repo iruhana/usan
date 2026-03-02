@@ -3,7 +3,9 @@ dist/
 out/
 .next/
 *.log
+*.pid
 .env.local
 .env*.local
 .DS_Store
 Thumbs.db
+apps/desktop/logs/

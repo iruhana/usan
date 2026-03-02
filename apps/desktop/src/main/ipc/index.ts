@@ -5,6 +5,7 @@ import {
   applyPermissionGrantRequest,
   applyPermissionRevokeRequest,
   isPermissionGranted,
+  isTimedGrantActive,
   type PermissionGrantRequest,
   type PermissionRevokeRequest,
 } from '@shared/types/permissions'
@@ -21,6 +22,7 @@ import type { StartupSource } from '../system/startup-manager'
 import { signInWithEmail, signUp, signInWithOTP, verifyOTP, signOut, getSession } from '../auth/auth-manager'
 import { pushData, pullData, getSyncStatus, validateSyncUser } from '../sync/sync-engine'
 import type { UserMemory } from '../store'
+import { logObsInfo, logObsWarn } from '../observability'
 
 // Persistent settings (loaded from disk on startup)
 let settings: AppSettings = loadSettings()
@@ -31,6 +33,19 @@ updateAiSettings(settings)
 
 function requirePermission(feature: string): void {
   if (isPermissionGranted(permissionGrant, { featureName: feature })) return
+  const featureGrant = permissionGrant.featureGrants?.[feature]
+  const reason =
+    featureGrant == null
+      ? 'missing_grant'
+      : isTimedGrantActive(featureGrant)
+        ? 'scope_mismatch'
+        : 'expired_grant'
+  logObsWarn('permission_denied', {
+    scope: 'features',
+    item: feature,
+    reason,
+    expiresAt: featureGrant?.expiresAt ?? null,
+  })
   throw new Error(`권한 동의가 필요한 기능입니다: ${feature}`)
 }
 
@@ -141,11 +156,22 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.PERMISSIONS_GRANT, async (_, request?: PermissionGrantRequest) => {
     permissionGrant = applyPermissionGrantRequest(permissionGrant, request)
     await savePermissions(permissionGrant)
+    logObsInfo('permission_granted', {
+      scope: request?.scope ?? 'all',
+      items: request?.items ?? null,
+      ttlMinutes: request?.ttlMinutes ?? null,
+      grantedAll: permissionGrant.grantedAll,
+    })
     return permissionGrant
   })
   ipcMain.handle(IPC.PERMISSIONS_REVOKE, async (_, request?: PermissionRevokeRequest) => {
     permissionGrant = applyPermissionRevokeRequest(permissionGrant, request)
     await savePermissions(permissionGrant)
+    logObsInfo('permission_revoked', {
+      scope: request?.scope ?? 'all',
+      items: request?.items ?? null,
+      grantedAll: permissionGrant.grantedAll,
+    })
     return permissionGrant
   })
 

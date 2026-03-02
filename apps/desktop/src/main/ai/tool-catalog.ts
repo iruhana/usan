@@ -18,7 +18,8 @@ import { scanTempFiles, cleanTempFiles } from '../system/temp-cleaner'
 import { listStartupPrograms, toggleStartupProgram } from '../system/startup-manager'
 import type { StartupSource } from '../system/startup-manager'
 import { loadPermissions } from '../store'
-import { isPermissionGranted } from '@shared/types/permissions'
+import { isPermissionGranted, isTimedGrantActive } from '@shared/types/permissions'
+import { logObsWarn } from '../observability'
 
 const ERROR_MESSAGES_KO: Record<string, string> = {
   ENOENT: '파일을 찾을 수 없습니다',
@@ -79,6 +80,20 @@ function getPrivilegeError(name: string, args?: Record<string, unknown>): string
   const grant = loadPermissions()
   const skillId = typeof args?.skill_id === 'string' ? args.skill_id : undefined
   if (isPermissionGranted(grant, { toolName: name, skillId })) return null
+  const toolGrant = grant.toolGrants?.[name]
+  const skillGrant = skillId ? grant.skillGrants?.[skillId] : undefined
+  const reason =
+    (toolGrant && !isTimedGrantActive(toolGrant)) || (skillGrant && !isTimedGrantActive(skillGrant))
+      ? 'expired_grant'
+      : 'missing_grant'
+  logObsWarn('permission_denied', {
+    scope: 'tools',
+    item: name,
+    skillId: skillId ?? null,
+    reason,
+    toolExpiresAt: toolGrant?.expiresAt ?? null,
+    skillExpiresAt: skillGrant?.expiresAt ?? null,
+  })
   return `권한 동의가 필요한 기능입니다: ${name}`
 }
 

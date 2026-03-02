@@ -4,10 +4,24 @@ import { app } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { createHash } from 'crypto'
+import { logObsWarn } from '../observability'
 
 const execFileAsync = promisify(execFile)
 const LEGACY_BRAND_LOWER = `open${'claw'}`
 const LEGACY_BRAND_TITLE = `Open${'Claw'}`
+
+function logSkillImportIssue(filePath: string, reason: string, error?: unknown): void {
+  logObsWarn('skill_import_issue', {
+    filePath,
+    reason,
+    error:
+      error instanceof Error
+        ? { name: error.name, message: error.message }
+        : error == null
+          ? null
+          : String(error),
+  })
+}
 
 export interface SkillMetadata {
   emoji?: string
@@ -334,7 +348,10 @@ async function loadSkillFile(filePath: string): Promise<Skill | null> {
     const content = await readFile(filePath, 'utf-8')
     const { meta, body, hasFrontmatter } = parseFrontmatter(content)
 
-    if (!hasFrontmatter) return null
+    if (!hasFrontmatter) {
+      logSkillImportIssue(filePath, 'missing_frontmatter')
+      return null
+    }
 
     const rawName = typeof meta.name === 'string' ? meta.name.trim() : ''
     const pathFallback = basename(dirname(filePath))
@@ -343,7 +360,10 @@ async function loadSkillFile(filePath: string): Promise<Skill | null> {
         ? meta.id.trim()
         : rawName || pathFallback
 
-    if (!rawName && !rawId && !pathFallback) return null
+    if (!rawName && !rawId && !pathFallback) {
+      logSkillImportIssue(filePath, 'missing_identity')
+      return null
+    }
 
     const id = toSafeSkillId(rawId || rawName || pathFallback, filePath)
     const name = normalizeBrandText(rawName || rawId || pathFallback || id)
@@ -374,7 +394,8 @@ async function loadSkillFile(filePath: string): Promise<Skill | null> {
       filePath,
       eligible: true,
     }
-  } catch {
+  } catch (error) {
+    logSkillImportIssue(filePath, 'file_read_or_parse_error', error)
     return null
   }
 }
