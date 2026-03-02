@@ -23,3 +23,9 @@
 - [x] Map remaining transitive deprecations to direct owners (`npm ls ... --all`)
 - [x] Verify post-update stability: desktop typecheck/unit/e2e and web lint/build all passed
 - [x] Document unresolved upstream constraints in `DEPENDENCY_DEPRECATION_REPORT.md`
+
+## P6 (Completed)
+- [x] Upgrade Electron runtime to secure baseline: `electron` `^34.5.8` -> `^35.7.5`
+- [x] Rebuild native deps and refresh lockfile in `apps/desktop`
+- [x] Verify security improvement: desktop `npm audit` is now `0 vulnerabilities`
+- [x] Re-validate desktop stability: typecheck, full tests (`test:all`), and build all passed

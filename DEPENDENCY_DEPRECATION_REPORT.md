@@ -49,3 +49,23 @@ Repo: C:\Users\admin\Projects\usan
 1. Plan a controlled Electron toolchain upgrade window (Electron/Electron Builder ecosystem) and re-evaluate transitive tree.
 2. For web, keep `shadcn` CLI dependency pinned but monitor upstream for removal of `node-domexception`.
 3. Re-run this audit after each significant dependency bump.
+
+---
+
+## P6 Update (2026-03-03)
+
+### Applied
+- Desktop Electron runtime upgraded:
+  - `electron`: `^34.5.8` -> `^35.7.5`
+- `apps/desktop/package-lock.json` refreshed via `npm install`
+
+### Security Result
+- Desktop `npm audit`: **0 vulnerabilities** (previously 1 moderate advisory on `electron < 35.7.5`)
+
+### Compatibility Result
+- `npm run typecheck` ✅
+- `npm run test:all` ✅
+- `npm run build` ✅
+
+### Remaining Deprecation Status
+- Remaining transitive deprecations listed above are still present and are still upstream-owned (Electron builder/updater ecosystem and shadcn CLI chain).
