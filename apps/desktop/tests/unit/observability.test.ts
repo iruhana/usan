@@ -3,7 +3,7 @@ import { logObsInfo, logObsWarn } from '@main/observability'
 
 describe('observability', () => {
   afterEach(() => {
-    delete process.env.USAN_OBS_LEVEL
+    process.env.USAN_OBS_LEVEL = 'off'
     vi.restoreAllMocks()
   })
 

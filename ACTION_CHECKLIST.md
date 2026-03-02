@@ -12,3 +12,8 @@
 - [x] Add test execution optimization: split scripts into `test:unit`, `test:e2e`, and `test:all`
 - [x] Add background E2E operations: status/stop scripts for long-running tasks
 - [x] Remove redundant CI ambiguity: workflow now runs `test:unit` explicitly before `test:e2e`
+
+## P4 (Completed)
+- [x] Remove Node deprecation source in tests: replace `fs.rmdir(..., { recursive: true })` with `fs.rm(..., { recursive: true, force: true })`
+- [x] Stabilize test log output: add global test setup (`tests/setup-env.ts`) with `USAN_OBS_LEVEL=off`
+- [x] Keep observability unit tests isolated: reset env to `off` after each case to prevent cross-test noise

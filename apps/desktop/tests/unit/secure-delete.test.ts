@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { writeFile, readFile, stat, mkdir, rmdir } from 'fs/promises'
+import { writeFile, readFile, stat, mkdir, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { randomBytes } from 'crypto'
@@ -14,7 +14,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   try {
-    await rmdir(testDir, { recursive: true } as never)
+    await rm(testDir, { recursive: true, force: true })
   } catch { /* ignore */ }
 })
 
