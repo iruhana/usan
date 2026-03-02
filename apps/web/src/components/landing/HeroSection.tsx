@@ -1,44 +1,82 @@
+'use client';
+
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { Shield } from 'lucide-react';
+import { Shield, ArrowDown } from 'lucide-react';
 
 export function HeroSection() {
   const t = useTranslations();
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-blue-50 to-white">
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
-        <LanguageSwitcher />
-      </div>
+    <section className="relative overflow-hidden min-h-[90vh] flex flex-col justify-center">
+      {/* Background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-50 via-white to-white" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-blue-100/40 blur-3xl" />
 
-      <div className="mx-auto max-w-4xl px-6 py-24 sm:py-32 text-center">
-        <div className="mb-8 flex justify-center">
-          <div className="flex items-center gap-3 rounded-full bg-blue-100 px-5 py-2.5">
-            <Shield className="h-6 w-6 text-blue-600" />
-            <span className="text-lg font-semibold text-blue-700">
+      {/* Navigation */}
+      <nav className="absolute top-0 left-0 right-0 z-10">
+        <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <Shield className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-lg font-bold text-gray-900">
               {t('common.appName')}
             </span>
           </div>
+          <LanguageSwitcher />
+        </div>
+      </nav>
+
+      {/* Content */}
+      <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
+        {/* Badge */}
+        <div className="mb-8 flex justify-center">
+          <span className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 px-4 py-1.5 text-sm font-medium text-blue-700 ring-1 ring-blue-600/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+            {t('hero.badge')}
+          </span>
         </div>
 
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
+        {/* Title */}
+        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl leading-[1.15] whitespace-pre-line">
           {t('hero.title')}
         </h1>
 
-        <p className="mt-6 text-lg leading-8 text-gray-600 sm:text-xl">
+        {/* Subtitle */}
+        <p className="mt-6 text-lg leading-relaxed text-gray-500 sm:text-xl max-w-2xl mx-auto">
           {t('hero.subtitle')}
         </p>
 
-        <div className="mt-10">
-          <Button
-            size="lg"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
-            asChild
+        {/* CTA */}
+        <div className="mt-10 flex flex-col items-center gap-3">
+          <a
+            href="#waitlist"
+            className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/30 transition-all duration-200 hover:-translate-y-0.5"
           >
-            <a href="#waitlist">{t('hero.cta')}</a>
-          </Button>
+            {t('hero.cta')}
+          </a>
+          <span className="text-sm text-gray-400">
+            {t('hero.ctaSub')}
+          </span>
         </div>
+
+        {/* Trust indicators */}
+        <div className="mt-16 flex flex-wrap justify-center gap-3">
+          {(['items.0', 'items.1', 'items.2'] as const).map((key, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm text-gray-500 shadow-sm ring-1 ring-gray-100"
+            >
+              {t(`trust.${key}`)}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Scroll indicator */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+        <ArrowDown className="h-5 w-5 text-gray-300" />
       </div>
     </section>
   );

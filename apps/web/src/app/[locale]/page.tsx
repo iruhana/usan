@@ -3,6 +3,7 @@ import { type Locale } from '@/lib/i18n/config';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { FeaturesSection } from '@/components/landing/FeaturesSection';
 import { WaitlistSection } from '@/components/landing/WaitlistSection';
+import { HowItWorksSection } from '@/components/landing/HowItWorksSection';
 import { Footer } from '@/components/landing/Footer';
 
 interface Props {
@@ -17,6 +18,7 @@ export default async function HomePage({ params }: Props) {
     <main className="min-h-screen">
       <HeroSection />
       <FeaturesSection />
+      <HowItWorksSection />
       <WaitlistSection />
       <Footer />
     </main>
