@@ -87,6 +87,7 @@ export interface AppSettings {
   voiceSpeed: number
   locale: Locale
   theme: 'light' | 'dark' | 'system'
+  openAtLogin: boolean
   cloudApiKey?: string
 }
 

@@ -56,6 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   voiceSpeed: 1.0,
   locale: 'ko',
   theme: 'light',
+  openAtLogin: true,
 }
 
 export function loadSettings(): AppSettings {
@@ -71,6 +72,7 @@ export function loadSettings(): AppSettings {
       voiceSpeed: typeof s.voiceSpeed === 'number' && s.voiceSpeed >= 0.1 && s.voiceSpeed <= 3 ? s.voiceSpeed : DEFAULT_SETTINGS.voiceSpeed,
       locale: ['ko', 'en', 'ja'].includes(s.locale) ? s.locale : DEFAULT_SETTINGS.locale,
       theme: ['light', 'dark', 'system'].includes(s.theme) ? s.theme : DEFAULT_SETTINGS.theme,
+      openAtLogin: typeof s.openAtLogin === 'boolean' ? s.openAtLogin : DEFAULT_SETTINGS.openAtLogin,
     }
     settings.cloudApiKey = loadApiKey()
     return settings

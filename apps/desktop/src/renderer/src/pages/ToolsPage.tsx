@@ -9,6 +9,9 @@ import {
   Terminal,
   Wrench,
   AlertTriangle,
+  ShieldCheck,
+  Trash2,
+  Rocket,
 } from 'lucide-react'
 import { t } from '../i18n'
 import { useSafetyStore } from '../stores/safety.store'
@@ -27,6 +30,8 @@ const SAFE_TOOLS: ToolCardProps[] = [
   { icon: Search, titleKey: 'tools.webSearch', descKey: 'tools.webSearchDesc', promptKey: 'tools.webSearchPrompt' },
   { icon: Volume2, titleKey: 'tools.tts', descKey: 'tools.ttsDesc', promptKey: 'tools.ttsPrompt' },
   { icon: Bell, titleKey: 'tools.reminder', descKey: 'tools.reminderDesc', promptKey: 'tools.reminderPrompt' },
+  { icon: Trash2, titleKey: 'tools.cleanTemp', descKey: 'tools.cleanTempDesc', promptKey: 'tools.cleanTempPrompt' },
+  { icon: Rocket, titleKey: 'tools.startupManager', descKey: 'tools.startupManagerDesc', promptKey: 'tools.startupManagerPrompt' },
 ]
 
 const DANGEROUS_TOOLS: ToolCardProps[] = [
@@ -34,6 +39,7 @@ const DANGEROUS_TOOLS: ToolCardProps[] = [
   { icon: Globe, titleKey: 'tools.browserAutomation', descKey: 'tools.browserAutomationDesc', promptKey: 'tools.browserAutomationPrompt', dangerous: true },
   { icon: FolderOpen, titleKey: 'tools.fileManagement', descKey: 'tools.fileManagementDesc', promptKey: 'tools.fileManagementPrompt', dangerous: true },
   { icon: Terminal, titleKey: 'tools.terminal', descKey: 'tools.terminalDesc', promptKey: 'tools.terminalPrompt', dangerous: true },
+  { icon: ShieldCheck, titleKey: 'tools.secureDelete', descKey: 'tools.secureDeleteDesc', promptKey: 'tools.secureDeletePrompt', dangerous: true },
 ]
 
 function ToolCard({ icon: Icon, titleKey, descKey, promptKey, dangerous }: ToolCardProps) {

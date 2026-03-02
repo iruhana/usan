@@ -96,6 +96,8 @@ export const en: Record<string, string> = {
   'settings.apiKeyCheckError': 'Error checking key',
   'settings.current': 'Current',
   'settings.provider': 'OpenRouter',
+  'settings.autoStart': 'Start on boot',
+  'settings.autoStartHint': 'Usan starts automatically when you turn on your computer',
 
   // ─── Notes ────────────────────────────────────
   'notes.title': 'Notes',
@@ -214,6 +216,15 @@ export const en: Record<string, string> = {
   'tools.browserAutomationPrompt': 'Open the browser and help me',
   'tools.fileManagementPrompt': 'Organize my files',
   'tools.terminalPrompt': 'Run a command for me',
+  'tools.secureDelete': 'Secure Delete',
+  'tools.secureDeleteDesc': 'Permanently delete files beyond recovery',
+  'tools.secureDeletePrompt': 'Securely delete this file',
+  'tools.cleanTemp': 'Clean Temp Files',
+  'tools.cleanTempDesc': 'Remove old temporary files to free up space',
+  'tools.cleanTempPrompt': 'Clean up temporary files',
+  'tools.startupManager': 'Startup Programs',
+  'tools.startupManagerDesc': 'Manage auto-start programs',
+  'tools.startupManagerPrompt': 'Show startup programs',
 
   // ─── Skill Runner ────────────────────────────
   'skill.title': 'Skill Runner',
@@ -279,6 +290,27 @@ export const en: Record<string, string> = {
   'tool.browser_read': 'Read page',
   'tool.browser_screenshot': 'Page screenshot',
   'tool.list_skills': 'Skill list',
+  'tool.secure_delete': 'Secure delete',
+  'tool.clean_temp_files': 'Clean temp files',
+  'tool.list_startup_programs': 'Startup programs',
+  'tool.toggle_startup_program': 'Toggle startup',
   'tool.running': 'Running...',
   'tool.done': 'Done',
+
+  // ─── Account ────────────────────────────────
+  'nav.account': 'Account',
+  'account.title': 'Account',
+  'account.login': 'Log in',
+  'account.signup': 'Sign up',
+  'account.email': 'Email',
+  'account.emailPlaceholder': 'Email address',
+  'account.password': 'Password',
+  'account.passwordPlaceholder': 'Password (6+ characters)',
+  'account.displayName': 'Name',
+  'account.displayNamePlaceholder': 'Display name (optional)',
+  'account.loginButton': 'Log in',
+  'account.signupButton': 'Sign up',
+  'account.loading': 'Loading...',
+  'account.logout': 'Log out',
+  'account.unknownUser': 'User',
 }

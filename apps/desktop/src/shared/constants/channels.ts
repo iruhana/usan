@@ -47,6 +47,27 @@ export const IPC = {
   MEMORY_LOAD: 'memory:load',
   MEMORY_SAVE: 'memory:save',
 
+  // File system: secure delete
+  FS_SECURE_DELETE: 'fs:secure-delete',
+
+  // Auth
+  AUTH_LOGIN: 'auth:login',
+  AUTH_SIGNUP: 'auth:signup',
+  AUTH_LOGOUT: 'auth:logout',
+  AUTH_SESSION: 'auth:session',
+  AUTH_LOGIN_OTP: 'auth:login-otp',
+  AUTH_VERIFY_OTP: 'auth:verify-otp',
+
+  // Sync
+  SYNC_PUSH: 'sync:push',
+  SYNC_PULL: 'sync:pull',
+  SYNC_STATUS: 'sync:status',
+
+  // System optimization
+  SYSTEM_CLEAN_TEMP: 'system:clean-temp',
+  SYSTEM_STARTUP_LIST: 'system:startup-list',
+  SYSTEM_STARTUP_TOGGLE: 'system:startup-toggle',
+
   // System
   SYSTEM_DESKTOP_PATH: 'system:desktop-path',
   LOCALE_DETECT: 'locale:detect',

@@ -10,6 +10,7 @@ import {
   Palette,
   RefreshCw,
   Languages,
+  Power,
 } from 'lucide-react'
 import type { ModelInfo } from '@shared/types/ipc'
 import { useSettingsStore } from '../stores/settings.store'
@@ -281,6 +282,38 @@ export default function SettingsPage() {
               style={{ minHeight: '56px' }}
             />
             <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('settings.voiceFast')}</span>
+          </div>
+        </div>
+
+        {/* Auto Start */}
+        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Power size={24} className="text-[var(--color-primary)]" />
+              <div>
+                <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
+                  {t('settings.autoStart')}
+                </h2>
+                <p className="text-[var(--color-text-muted)]" style={{ fontSize: 'var(--font-size-sm)' }}>
+                  {t('settings.autoStartHint')}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => updateStore({ openAtLogin: !settings.openAtLogin })}
+              className={`w-16 h-9 rounded-full transition-all relative ${
+                settings.openAtLogin ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+              }`}
+              style={{ minHeight: '56px' }}
+              role="switch"
+              aria-checked={settings.openAtLogin}
+            >
+              <span
+                className={`absolute top-1 w-7 h-7 rounded-full bg-white shadow transition-transform ${
+                  settings.openAtLogin ? 'translate-x-8' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
         </div>
 

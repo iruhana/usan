@@ -6,6 +6,13 @@ import { toolCatalog } from '../ai/tool-catalog'
 import { validatePath } from '../security'
 import { loadSettings, saveSettings, loadPermissions, savePermissions, loadConversations, saveConversations, loadNotes, saveNotes, loadMemory, saveMemory } from '../store'
 import { updateTrayLocale } from '../index'
+import { setAutoStart } from '../admin/elevation'
+import { secureDelete } from '../fs/secure-delete'
+import { cleanTempFiles } from '../system/temp-cleaner'
+import { listStartupPrograms, toggleStartupProgram } from '../system/startup-manager'
+import type { StartupSource } from '../system/startup-manager'
+import { signInWithEmail, signUp, signInWithOTP, verifyOTP, signOut, getSession } from '../auth/auth-manager'
+import { pushData, pullData, getSyncStatus } from '../sync/sync-engine'
 import type { UserMemory } from '../store'
 
 // Persistent settings (loaded from disk on startup)
@@ -98,12 +105,16 @@ export function registerIpcHandlers(): void {
     if (partial.voiceSpeed !== undefined) safe.voiceSpeed = Number(partial.voiceSpeed)
     if (partial.locale !== undefined && ['ko', 'en', 'ja'].includes(partial.locale)) safe.locale = partial.locale
     if (partial.theme !== undefined && ['light', 'dark', 'system'].includes(partial.theme)) safe.theme = partial.theme
+    if (partial.openAtLogin !== undefined) safe.openAtLogin = Boolean(partial.openAtLogin)
     if (partial.cloudApiKey !== undefined && partial.cloudApiKey !== '••••••••') safe.cloudApiKey = String(partial.cloudApiKey)
     settings = { ...settings, ...safe }
     await saveSettings(settings)
     updateAiSettings(settings)
     if (safe.locale) {
       updateTrayLocale(safe.locale as 'ko' | 'en' | 'ja')
+    }
+    if (safe.openAtLogin !== undefined) {
+      setAutoStart(safe.openAtLogin)
     }
   })
 
@@ -193,6 +204,55 @@ export function registerIpcHandlers(): void {
     }
 
     return 'ko' // Final fallback
+  })
+
+  // ─── Secure Delete ────────────────────────────────
+  ipcMain.handle(IPC.FS_SECURE_DELETE, async (_, filePath: string) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('Invalid file path')
+    return secureDelete(filePath)
+  })
+
+  // ─── System Optimization ────────────────────────
+  ipcMain.handle(IPC.SYSTEM_CLEAN_TEMP, async () => {
+    return cleanTempFiles()
+  })
+  ipcMain.handle(IPC.SYSTEM_STARTUP_LIST, async () => {
+    return listStartupPrograms()
+  })
+  ipcMain.handle(IPC.SYSTEM_STARTUP_TOGGLE, async (_, { name, source, enabled }: { name: string; source: StartupSource; enabled: boolean }) => {
+    if (!name || !source) throw new Error('Invalid parameters')
+    return toggleStartupProgram(name, source, enabled)
+  })
+
+  // ─── Auth ──────────────────────────────────────────
+  ipcMain.handle(IPC.AUTH_LOGIN, async (_, { email, password }: { email: string; password: string }) => {
+    return signInWithEmail(email, password)
+  })
+  ipcMain.handle(IPC.AUTH_SIGNUP, async (_, { email, password, displayName }: { email: string; password: string; displayName?: string }) => {
+    return signUp(email, password, displayName)
+  })
+  ipcMain.handle(IPC.AUTH_LOGOUT, async () => {
+    return signOut()
+  })
+  ipcMain.handle(IPC.AUTH_SESSION, async () => {
+    return getSession()
+  })
+  ipcMain.handle(IPC.AUTH_LOGIN_OTP, async (_, { phone }: { phone: string }) => {
+    return signInWithOTP(phone)
+  })
+  ipcMain.handle(IPC.AUTH_VERIFY_OTP, async (_, { phone, token }: { phone: string; token: string }) => {
+    return verifyOTP(phone, token)
+  })
+
+  // ─── Sync ──────────────────────────────────────────
+  ipcMain.handle(IPC.SYNC_PUSH, async (_, { userId, dataType, data }: { userId: string; dataType: string; data: string }) => {
+    return pushData(userId, dataType, data)
+  })
+  ipcMain.handle(IPC.SYNC_PULL, async (_, { userId, dataType }: { userId: string; dataType: string }) => {
+    return pullData(userId, dataType)
+  })
+  ipcMain.handle(IPC.SYNC_STATUS, () => {
+    return getSyncStatus()
   })
 
   // ─── Memory (long-term user preferences) ────────

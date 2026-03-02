@@ -96,6 +96,8 @@ export const ja: Record<string, string> = {
   'settings.apiKeyCheckError': '確認中にエラーが発生しました',
   'settings.current': '現在',
   'settings.provider': 'OpenRouter',
+  'settings.autoStart': '自動起動',
+  'settings.autoStartHint': 'パソコンを起動した時にウサンが自動で始まります',
 
   // ─── Notes ────────────────────────────────────
   'notes.title': 'メモ',
@@ -214,6 +216,15 @@ export const ja: Record<string, string> = {
   'tools.browserAutomationPrompt': 'ブラウザを開いて手伝ってください',
   'tools.fileManagementPrompt': 'ファイルを整理してください',
   'tools.terminalPrompt': 'コマンドを実行してください',
+  'tools.secureDelete': '安全削除',
+  'tools.secureDeleteDesc': 'ファイルを復元不可能に完全削除します',
+  'tools.secureDeletePrompt': 'このファイルを安全に削除してください',
+  'tools.cleanTemp': '一時ファイル整理',
+  'tools.cleanTempDesc': '古い一時ファイルを削除して空き容量を確保します',
+  'tools.cleanTempPrompt': '一時ファイルを整理してください',
+  'tools.startupManager': 'スタートアップ',
+  'tools.startupManagerDesc': '自動起動プログラムを管理します',
+  'tools.startupManagerPrompt': 'スタートアッププログラムを表示してください',
 
   // ─── Skill Runner ────────────────────────────
   'skill.title': 'スキル実行',
@@ -279,6 +290,27 @@ export const ja: Record<string, string> = {
   'tool.browser_read': 'ページ読み取り',
   'tool.browser_screenshot': 'ページスクリーンショット',
   'tool.list_skills': 'スキル一覧',
+  'tool.secure_delete': '安全削除',
+  'tool.clean_temp_files': '一時ファイル整理',
+  'tool.list_startup_programs': 'スタートアップ一覧',
+  'tool.toggle_startup_program': 'スタートアップ切替',
   'tool.running': '実行中...',
   'tool.done': '完了',
+
+  // ─── Account ────────────────────────────────
+  'nav.account': 'アカウント',
+  'account.title': 'アカウント',
+  'account.login': 'ログイン',
+  'account.signup': '新規登録',
+  'account.email': 'メール',
+  'account.emailPlaceholder': 'メールアドレス',
+  'account.password': 'パスワード',
+  'account.passwordPlaceholder': 'パスワード（6文字以上）',
+  'account.displayName': '名前',
+  'account.displayNamePlaceholder': '表示名（任意）',
+  'account.loginButton': 'ログイン',
+  'account.signupButton': '登録する',
+  'account.loading': '処理中...',
+  'account.logout': 'ログアウト',
+  'account.unknownUser': 'ユーザー',
 }

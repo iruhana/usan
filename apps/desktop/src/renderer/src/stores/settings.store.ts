@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   voiceSpeed: 1.0,
   locale: 'ko',
   theme: 'light',
+  openAtLogin: true,
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({

@@ -13,6 +13,10 @@ import { browserOpen, browserClick, browserType, browserRead, browserScreenshot 
 import { loadAllSkillsMultiSource, getEligibleSkills, getBuiltInSkillsDir, getUserSkillsDir } from '../skills/skill-loader'
 import { reminderManager } from '../reminders/reminder-manager'
 import { speakText } from '../tts/edge-tts'
+import { secureDelete } from '../fs/secure-delete'
+import { scanTempFiles, cleanTempFiles } from '../system/temp-cleaner'
+import { listStartupPrograms, toggleStartupProgram } from '../system/startup-manager'
+import type { StartupSource } from '../system/startup-manager'
 
 const ERROR_MESSAGES_KO: Record<string, string> = {
   ENOENT: '파일을 찾을 수 없습니다',
@@ -330,6 +334,48 @@ const TOOL_DEFINITIONS: ProviderTool[] = [
         rate: { type: 'string', description: '속도 (선택, 기본: -20%, 예: +0%, -30%)' },
       },
       required: ['text'],
+    },
+  },
+  {
+    name: 'secure_delete',
+    description: '파일을 복구할 수 없도록 3-pass 덮어쓰기 후 삭제합니다. 반드시 사용자 확인 후 실행하세요.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: '안전 삭제할 파일 경로' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'clean_temp_files',
+    description: '7일 이상 된 임시 파일(.tmp/.log/.bak 등)을 삭제하여 디스크 공간을 확보합니다. scan_only=true로 미리보기 가능.',
+    parameters: {
+      type: 'object',
+      properties: {
+        scan_only: { type: 'boolean', description: '스캔만 할지 여부 (true면 삭제하지 않음, 기본: false)' },
+      },
+    },
+  },
+  {
+    name: 'list_startup_programs',
+    description: '윈도우 시작 시 자동으로 실행되는 프로그램 목록을 보여줍니다.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'toggle_startup_program',
+    description: '시작 프로그램을 활성화 또는 비활성화합니다. 시스템 보호 프로그램은 변경할 수 없습니다.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: '프로그램 이름' },
+        source: { type: 'string', enum: ['hkcu', 'startup-folder'], description: '소스 (hkcu 또는 startup-folder)' },
+        enabled: { type: 'boolean', description: '활성화 여부' },
+      },
+      required: ['name', 'source', 'enabled'],
     },
   },
 ]
@@ -683,6 +729,37 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
     const text = args.text as string
     if (!text) return { error: '읽을 텍스트를 입력해주세요' }
     return speakText(text, args.voice as string | undefined, args.rate as string | undefined)
+  },
+
+  async secure_delete(args) {
+    const path = args.path as string
+    if (!path) return { error: '삭제할 파일 경로를 입력해주세요' }
+    return secureDelete(path)
+  },
+
+  async clean_temp_files(args) {
+    const scanOnly = args.scan_only === true
+    if (scanOnly) {
+      return scanTempFiles()
+    }
+    return cleanTempFiles()
+  },
+
+  async list_startup_programs() {
+    const programs = await listStartupPrograms()
+    return { programs, count: programs.length }
+  },
+
+  async toggle_startup_program(args) {
+    const name = args.name as string
+    const source = args.source as StartupSource
+    const enabled = args.enabled as boolean
+    if (!name) return { error: '프로그램 이름을 입력해주세요' }
+    if (!source || !['hkcu', 'startup-folder'].includes(source)) {
+      return { error: '소스는 hkcu 또는 startup-folder만 가능합니다' }
+    }
+    if (typeof enabled !== 'boolean') return { error: 'enabled 값을 지정해주세요' }
+    return toggleStartupProgram(name, source, enabled)
   },
 }
 

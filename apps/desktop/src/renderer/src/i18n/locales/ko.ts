@@ -96,6 +96,8 @@ export const ko: Record<string, string> = {
   'settings.apiKeyCheckError': '확인 중 오류가 발생했습니다',
   'settings.current': '현재',
   'settings.provider': 'OpenRouter',
+  'settings.autoStart': '자동 시작',
+  'settings.autoStartHint': '컴퓨터를 켤 때 우산이 자동으로 시작됩니다',
 
   // ─── Notes ────────────────────────────────────
   'notes.title': '메모',
@@ -214,6 +216,15 @@ export const ko: Record<string, string> = {
   'tools.browserAutomationPrompt': '브라우저를 열어서 도와줘',
   'tools.fileManagementPrompt': '파일을 정리해줘',
   'tools.terminalPrompt': '명령어를 실행해줘',
+  'tools.secureDelete': '안전 삭제',
+  'tools.secureDeleteDesc': '파일을 복구할 수 없도록 완전히 삭제합니다',
+  'tools.secureDeletePrompt': '이 파일을 안전하게 삭제해줘',
+  'tools.cleanTemp': '임시 파일 정리',
+  'tools.cleanTempDesc': '오래된 임시 파일을 삭제하여 공간을 확보합니다',
+  'tools.cleanTempPrompt': '임시 파일을 정리해줘',
+  'tools.startupManager': '시작 프로그램',
+  'tools.startupManagerDesc': '자동 시작 프로그램을 관리합니다',
+  'tools.startupManagerPrompt': '시작 프로그램 목록을 보여줘',
 
   // ─── Skill Runner ────────────────────────────
   'skill.title': '스킬 실행',
@@ -279,6 +290,27 @@ export const ko: Record<string, string> = {
   'tool.browser_read': '웹 읽기',
   'tool.browser_screenshot': '웹 스크린샷',
   'tool.list_skills': '스킬 목록',
+  'tool.secure_delete': '안전 삭제',
+  'tool.clean_temp_files': '임시 파일 정리',
+  'tool.list_startup_programs': '시작 프로그램 목록',
+  'tool.toggle_startup_program': '시작 프로그램 토글',
   'tool.running': '실행 중...',
   'tool.done': '완료',
+
+  // ─── Account ────────────────────────────────
+  'nav.account': '계정',
+  'account.title': '계정',
+  'account.login': '로그인',
+  'account.signup': '회원가입',
+  'account.email': '이메일',
+  'account.emailPlaceholder': '이메일 주소',
+  'account.password': '비밀번호',
+  'account.passwordPlaceholder': '비밀번호 (6자 이상)',
+  'account.displayName': '이름',
+  'account.displayNamePlaceholder': '표시될 이름 (선택)',
+  'account.loginButton': '로그인',
+  'account.signupButton': '가입하기',
+  'account.loading': '처리 중...',
+  'account.logout': '로그아웃',
+  'account.unknownUser': '사용자',
 }

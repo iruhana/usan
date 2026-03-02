@@ -34,6 +34,7 @@ const api = {
     write: (path: string, content: string) => ipcRenderer.invoke(IPC.FS_WRITE, { path, content }),
     delete: (path: string) => ipcRenderer.invoke(IPC.FS_DELETE, { path }),
     list: (dir: string) => ipcRenderer.invoke(IPC.FS_LIST, { dir }) as Promise<FileEntry[]>,
+    secureDelete: (path: string) => ipcRenderer.invoke(IPC.FS_SECURE_DELETE, path) as Promise<{ success: boolean; path: string; size: number; error?: string }>,
   },
 
   // ─── Shell ────────────────────────────────────
@@ -93,6 +94,26 @@ const api = {
   system: {
     desktopPath: () => ipcRenderer.invoke(IPC.SYSTEM_DESKTOP_PATH) as Promise<string>,
     detectLocale: () => ipcRenderer.invoke(IPC.LOCALE_DETECT) as Promise<'ko' | 'en' | 'ja'>,
+    cleanTemp: () => ipcRenderer.invoke(IPC.SYSTEM_CLEAN_TEMP) as Promise<{ deletedCount: number; freedBytes: number; errors: string[] }>,
+    startupList: () => ipcRenderer.invoke(IPC.SYSTEM_STARTUP_LIST) as Promise<Array<{ name: string; command: string; source: string; enabled: boolean; protected: boolean }>>,
+    startupToggle: (name: string, source: string, enabled: boolean) => ipcRenderer.invoke(IPC.SYSTEM_STARTUP_TOGGLE, { name, source, enabled }) as Promise<{ success: boolean; error?: string }>,
+  },
+
+  // ─── Auth ────────────────────────────────────────
+  auth: {
+    login: (email: string, password: string) => ipcRenderer.invoke(IPC.AUTH_LOGIN, { email, password }) as Promise<{ success: boolean; user?: { id: string; email?: string; displayName?: string }; error?: string }>,
+    signup: (email: string, password: string, displayName?: string) => ipcRenderer.invoke(IPC.AUTH_SIGNUP, { email, password, displayName }) as Promise<{ success: boolean; user?: { id: string; email?: string; displayName?: string }; error?: string }>,
+    logout: () => ipcRenderer.invoke(IPC.AUTH_LOGOUT) as Promise<{ success: boolean; error?: string }>,
+    session: () => ipcRenderer.invoke(IPC.AUTH_SESSION) as Promise<{ success: boolean; user?: { id: string; email?: string; displayName?: string }; error?: string }>,
+    loginOtp: (phone: string) => ipcRenderer.invoke(IPC.AUTH_LOGIN_OTP, { phone }) as Promise<{ success: boolean; error?: string }>,
+    verifyOtp: (phone: string, token: string) => ipcRenderer.invoke(IPC.AUTH_VERIFY_OTP, { phone, token }) as Promise<{ success: boolean; user?: { id: string; email?: string; displayName?: string }; error?: string }>,
+  },
+
+  // ─── Sync ───────────────────────────────────────
+  sync: {
+    push: (userId: string, dataType: string, data: string) => ipcRenderer.invoke(IPC.SYNC_PUSH, { userId, dataType, data }) as Promise<{ success: boolean; error?: string }>,
+    pull: (userId: string, dataType: string) => ipcRenderer.invoke(IPC.SYNC_PULL, { userId, dataType }) as Promise<{ success: boolean; data?: string; error?: string }>,
+    status: () => ipcRenderer.invoke(IPC.SYNC_STATUS) as Promise<{ lastSynced: number; pending: number; status: string; error?: string }>,
   },
 
   // ─── Memory (long-term preferences) ────────────

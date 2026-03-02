@@ -12,8 +12,9 @@ const ToolsPage = lazy(() => import('../../pages/ToolsPage'))
 const NotesPage = lazy(() => import('../../pages/NotesPage'))
 const FilesPage = lazy(() => import('../../pages/FilesPage'))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage'))
+const AccountPage = lazy(() => import('../../pages/AccountPage'))
 
-type Page = 'home' | 'tools' | 'notes' | 'files' | 'settings'
+type Page = 'home' | 'tools' | 'notes' | 'files' | 'settings' | 'account'
 
 export default function AppLayout() {
   const [activePage, setActivePage] = useState<Page>('home')
@@ -21,13 +22,13 @@ export default function AppLayout() {
 
   // Global keyboard shortcuts: Ctrl+K (command palette), Ctrl+1-5 (page navigation)
   useEffect(() => {
-    const pages: Page[] = ['home', 'tools', 'notes', 'files', 'settings']
+    const pages: Page[] = ['home', 'tools', 'notes', 'files', 'settings', 'account']
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         setCommandOpen((o) => !o)
       }
-      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '5') {
+      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '6') {
         e.preventDefault()
         setActivePage(pages[parseInt(e.key) - 1])
       }
@@ -50,6 +51,7 @@ export default function AppLayout() {
               <div className="h-full overflow-auto" style={{ display: activePage === 'notes' ? 'block' : 'none' }}><NotesPage /></div>
               <div className="h-full overflow-auto" style={{ display: activePage === 'files' ? 'block' : 'none' }}><FilesPage /></div>
               <div className="h-full overflow-auto" style={{ display: activePage === 'settings' ? 'block' : 'none' }}><SettingsPage /></div>
+              <div className="h-full overflow-auto" style={{ display: activePage === 'account' ? 'block' : 'none' }}><AccountPage /></div>
             </Suspense>
           </main>
         </div>

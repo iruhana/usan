@@ -36,11 +36,8 @@ export default function StatusBar() {
       {/* Center: current status */}
       <span>{isStreaming ? t('status.working') : t('status.idle')}</span>
 
-      {/* Right: model + locale */}
+      {/* Right: locale */}
       <div className="flex items-center gap-3">
-        {settings.selectedModel && (
-          <span className="truncate max-w-[160px]">{settings.selectedModel.split('/').pop()}</span>
-        )}
         <span>{settings.locale.toUpperCase()}</span>
       </div>
     </div>

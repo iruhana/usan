@@ -24,11 +24,13 @@ win:
       arch: [x64, arm64]
   artifactName: ${name}-${version}-win-${arch}.${ext}
   forceCodeSigning: false
+  # certificateSubjectName: "Usan Inc." # Enable after EV certificate purchase
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
+  include: build/installer.nsh
 
 mac:
   icon: assets/icons/icon.icns
@@ -44,3 +46,8 @@ linux:
     - target: AppImage
       arch: [x64]
   category: Utility
+
+publish:
+  provider: github
+  owner: usan-app
+  repo: usan

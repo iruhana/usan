@@ -87,10 +87,8 @@ export async function browserRead(): Promise<{ title: string; url: string; text:
   const page = await getPage()
   const title = await page.title()
   const url = page.url()
-  const text = await page.evaluate(() => {
-    const el = document.querySelector('main') || document.querySelector('article') || document.body
-    return el?.innerText?.slice(0, 20000) ?? ''
-  })
+  // page.evaluate runs in browser context where `document` exists
+  const text = await page.evaluate('(() => { const el = document.querySelector("main") || document.querySelector("article") || document.body; return el?.innerText?.slice(0, 20000) ?? ""; })()') as string
   return { title, url, text }
 }
 

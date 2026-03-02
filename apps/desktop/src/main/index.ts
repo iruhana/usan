@@ -4,6 +4,8 @@ import { registerIpcHandlers } from './ipc'
 import { isUrlSafe } from './security'
 import { browserDisconnect } from './browser/browser-manager'
 import { reminderManager } from './reminders/reminder-manager'
+import { ensureElevated } from './admin/elevation'
+import { initAutoUpdater } from './updater'
 import type { Locale } from '@shared/types/ipc'
 let currentLocale: Locale = 'ko'
 
@@ -147,11 +149,15 @@ let isQuitting = false
 app.whenReady().then(() => {
   app.setAppUserModelId('com.usan.app')
 
+  // Re-launch as admin via Task Scheduler if not elevated (production only)
+  if (ensureElevated()) return
+
   // Register all IPC handlers before creating window
   registerIpcHandlers()
 
   createWindow()
   createTray()
+  initAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

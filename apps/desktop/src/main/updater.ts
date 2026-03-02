@@ -1,42 +1,43 @@
 /**
- * Auto-updater module — checks for updates on app start.
- * Uses electron-builder's built-in auto-update mechanism.
- * Currently a placeholder — requires code signing and a release server.
+ * Auto-updater — electron-updater with GitHub Releases.
+ *
+ * Behavior:
+ * - autoDownload = false (notify user, don't download silently)
+ * - Checks every 4 hours
+ * - Shows notification when new version is available
  */
+
 import { app } from 'electron'
+import { autoUpdater, type UpdateInfo } from 'electron-updater'
 import { sendNotification } from './notifications'
 
-// Auto-update will be enabled after code signing is set up.
-// For now, check version against a simple JSON endpoint.
+const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
 
-const UPDATE_CHECK_URL = 'https://usan.ai/api/version'
+export function initAutoUpdater(): void {
+  if (!app.isPackaged) return
 
-interface VersionInfo {
-  latest: string
-  downloadUrl: string
-  releaseNotes?: string
-}
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
 
-export async function checkForUpdates(): Promise<void> {
-  if (!app.isPackaged) return // Skip in dev mode
-
-  try {
-    const res = await fetch(UPDATE_CHECK_URL, {
-      signal: AbortSignal.timeout(10000),
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    sendNotification({
+      title: '새 버전이 있습니다',
+      body: `우산 ${info.version} 버전을 다운로드할 수 있습니다.`,
+      level: 'info',
     })
-    if (!res.ok) return
+  })
 
-    const data = (await res.json()) as VersionInfo
-    const currentVersion = app.getVersion()
-
-    if (data.latest && data.latest !== currentVersion) {
-      sendNotification({
-        title: '새 버전이 있습니다',
-        body: `우산 ${data.latest} 버전을 다운로드할 수 있습니다.`,
-        level: 'info',
-      })
-    }
-  } catch {
+  autoUpdater.on('error', () => {
     // Silently fail — update check is not critical
-  }
+  })
+
+  // Initial check (delayed 30s to not slow down startup)
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {})
+  }, 30000)
+
+  // Periodic check
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => {})
+  }, CHECK_INTERVAL_MS)
 }
