@@ -14,6 +14,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest run",
+    "skills:normalize-openclaw": "node scripts/normalize-openclaw-frontmatter.mjs",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

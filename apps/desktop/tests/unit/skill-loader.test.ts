@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 // parseFrontmatter is not exported, so we test it indirectly
 // by importing the module and testing loadAllSkills with a temp dir
-import { loadAllSkills } from '@main/skills/skill-loader'
+import { loadAllSkills, filterSkillsForRuntime, type Skill } from '@main/skills/skill-loader'
 import { writeFile, mkdir, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -64,6 +64,31 @@ category: test
     await rm(dir, { recursive: true, force: true })
   })
 
+  it('openclaw 호환: id 없이 name만 있어도 로드 + 트리거 기본값 적용', async () => {
+    const dir = join(tmpdir(), 'usan-openclaw-compat-' + Date.now())
+    await mkdir(dir, { recursive: true })
+    const skillDir = join(dir, 'github')
+    await mkdir(skillDir, { recursive: true })
+
+    const skillContent = `---
+name: GitHub Ops
+description: GitHub skill
+---
+# GitHub Skill
+
+Run gh commands safely.
+`
+    await writeFile(join(skillDir, 'SKILL.md'), skillContent, 'utf-8')
+
+    const skills = await loadAllSkills(dir)
+    expect(skills.length).toBe(1)
+    expect(skills[0].meta.name).toBe('GitHub Ops')
+    expect(skills[0].meta.id).toBe('github-ops')
+    expect(skills[0].meta.triggers).toEqual(['GitHub Ops'])
+
+    await rm(dir, { recursive: true, force: true })
+  })
+
   it('존재하지 않는 디렉토리 → 빈 배열', async () => {
     const skills = await loadAllSkills('/nonexistent/path/abc123')
     expect(skills).toEqual([])
@@ -85,5 +110,56 @@ category: test
     expect(ids).toEqual(['s1', 's2'])
 
     await rm(dir, { recursive: true, force: true })
+  })
+
+  it('name/id 누락 시 폴더명 기반 fallback 적용', async () => {
+    const dir = join(tmpdir(), 'usan-folder-fallback-' + Date.now())
+    const subDir = join(dir, 'my-special-skill')
+    await mkdir(subDir, { recursive: true })
+
+    const skillContent = `---
+description: fallback test
+---
+본문`
+    await writeFile(join(subDir, 'SKILL.md'), skillContent, 'utf-8')
+
+    const skills = await loadAllSkills(dir)
+    expect(skills.length).toBe(1)
+    expect(skills[0].meta.name).toBe('my-special-skill')
+    expect(skills[0].meta.id).toBe('my-special-skill')
+    expect(skills[0].meta.triggers).toEqual(['my-special-skill'])
+
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('runtime 필터: 카테고리 + 최대 개수 제한', () => {
+    const base = (id: string, category: string): Skill => ({
+      meta: {
+        id,
+        name: id,
+        description: '',
+        triggers: [id],
+        tools: [],
+        category,
+        metadata: {},
+      },
+      procedure: '',
+      filePath: `${id}.md`,
+      eligible: true,
+    })
+
+    const skills: Skill[] = [
+      base('a', 'security'),
+      base('b', 'general'),
+      base('c', 'security'),
+      base('d', 'notes'),
+    ]
+
+    const filtered = filterSkillsForRuntime(skills, {
+      includeCategories: ['security', 'notes'],
+      maxSkills: 2,
+    })
+
+    expect(filtered.map((s) => s.meta.id)).toEqual(['a', 'c'])
   })
 })

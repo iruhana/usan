@@ -1,8 +1,9 @@
 import { readFile, readdir, access } from 'fs/promises'
-import { join } from 'path'
+import { join, basename, dirname } from 'path'
 import { app } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { createHash } from 'crypto'
 
 const execFileAsync = promisify(execFile)
 
@@ -30,9 +31,21 @@ export interface Skill {
   eligible: boolean
 }
 
-function parseFrontmatter(content: string): { meta: Record<string, unknown>; body: string } {
+const binaryExistsCache = new Map<string, boolean>()
+
+export interface SkillLoaderOptions {
+  maxSkills?: number
+  includeCategories?: string[]
+}
+
+interface ResolvedSkillLoaderOptions {
+  maxSkills: number | null
+  includeCategories: string[]
+}
+
+function parseFrontmatter(content: string): { meta: Record<string, unknown>; body: string; hasFrontmatter: boolean } {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
-  if (!match) return { meta: {}, body: content }
+  if (!match) return { meta: {}, body: content, hasFrontmatter: false }
 
   const yamlBlock = match[1]
   const body = match[2]
@@ -63,7 +76,7 @@ function parseFrontmatter(content: string): { meta: Record<string, unknown>; bod
     meta[key] = value
   }
 
-  return { meta, body }
+  return { meta, body, hasFrontmatter: true }
 }
 
 function parseMetadata(raw: unknown): SkillMetadata {
@@ -79,23 +92,51 @@ function parseMetadata(raw: unknown): SkillMetadata {
   }
 }
 
+function toSafeSkillId(rawId: string, filePath: string): string {
+  const normalized = rawId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+
+  if (normalized) return normalized
+
+  const hash = createHash('sha1').update(filePath).digest('hex').slice(0, 8)
+  return `skill-${hash}`
+}
+
 async function loadSkillFile(filePath: string): Promise<Skill | null> {
   try {
     const content = await readFile(filePath, 'utf-8')
-    const { meta, body } = parseFrontmatter(content)
+    const { meta, body, hasFrontmatter } = parseFrontmatter(content)
 
-    if (!meta.id || !meta.name) return null
+    if (!hasFrontmatter) return null
+
+    const rawName = typeof meta.name === 'string' ? meta.name.trim() : ''
+    const pathFallback = basename(dirname(filePath))
+    const rawId =
+      typeof meta.id === 'string' && meta.id.trim()
+        ? meta.id.trim()
+        : rawName || pathFallback
+
+    if (!rawName && !rawId && !pathFallback) return null
+
+    const id = toSafeSkillId(rawId || rawName || pathFallback, filePath)
+    const name = rawName || rawId || pathFallback || id
+    const parsedTriggers = Array.isArray(meta.triggers)
+      ? (meta.triggers as string[])
+      : typeof meta.triggers === 'string'
+        ? [meta.triggers]
+        : []
+    const triggers = parsedTriggers.length > 0 ? parsedTriggers : [name]
 
     return {
       meta: {
-        id: meta.id as string,
-        name: meta.name as string,
+        id,
+        name,
         description: (meta.description as string) || '',
-        triggers: Array.isArray(meta.triggers)
-          ? meta.triggers as string[]
-          : typeof meta.triggers === 'string'
-            ? [meta.triggers]
-            : [],
+        triggers,
         tools: Array.isArray(meta.tools)
           ? meta.tools as string[]
           : typeof meta.tools === 'string'
@@ -142,11 +183,18 @@ async function scanDir(dirPath: string): Promise<string[]> {
 
 async function checkBinaryExists(bin: string): Promise<boolean> {
   if (!/^[\w.-]+$/.test(bin)) return false
+
+  if (binaryExistsCache.has(bin)) {
+    return binaryExistsCache.get(bin)!
+  }
+
   const cmd = process.platform === 'win32' ? 'where' : 'which'
   try {
     await execFileAsync(cmd, [bin], { timeout: 5000, windowsHide: true })
+    binaryExistsCache.set(bin, true)
     return true
   } catch {
+    binaryExistsCache.set(bin, false)
     return false
   }
 }
@@ -180,14 +228,68 @@ export async function loadAllSkills(skillsDir: string): Promise<Skill[]> {
 }
 
 // Module-level cache to avoid rescanning filesystem on every tool call
-let cachedSkills: Skill[] | null = null
-let cacheTimestamp = 0
+const cachedSkillsByKey = new Map<string, { skills: Skill[]; ts: number }>()
 const CACHE_TTL_MS = 60_000 // 1 minute
 
-export async function loadAllSkillsMultiSource(): Promise<Skill[]> {
+function normalizeCategories(categories?: string[]): string[] {
+  if (!categories?.length) return []
+  return [...new Set(categories.map((c) => c.trim().toLowerCase()).filter(Boolean))]
+}
+
+function parseMaxSkills(raw: string | undefined): number | null {
+  if (!raw) return null
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return Math.floor(parsed)
+}
+
+function resolveLoaderOptions(options?: SkillLoaderOptions): ResolvedSkillLoaderOptions {
+  const envMax = parseMaxSkills(process.env['USAN_SKILLS_MAX_COUNT'])
+  const envCategories = normalizeCategories(
+    process.env['USAN_SKILLS_CATEGORIES']?.split(',').map((v) => v.trim()) ?? []
+  )
+  const optionMax =
+    typeof options?.maxSkills === 'number' && Number.isFinite(options.maxSkills) && options.maxSkills > 0
+      ? Math.floor(options.maxSkills)
+      : null
+  const optionCategories = normalizeCategories(options?.includeCategories)
+
+  return {
+    maxSkills: optionMax ?? envMax,
+    includeCategories: optionCategories.length > 0 ? optionCategories : envCategories,
+  }
+}
+
+function toCacheKey(options: ResolvedSkillLoaderOptions): string {
+  return JSON.stringify({
+    maxSkills: options.maxSkills,
+    includeCategories: options.includeCategories,
+  })
+}
+
+export function filterSkillsForRuntime(skills: Skill[], options?: SkillLoaderOptions): Skill[] {
+  const resolved = resolveLoaderOptions(options)
+  let result = skills
+
+  if (resolved.includeCategories.length > 0) {
+    const allowed = new Set(resolved.includeCategories)
+    result = result.filter((skill) => allowed.has(skill.meta.category.toLowerCase()))
+  }
+
+  if (resolved.maxSkills !== null) {
+    result = result.slice(0, resolved.maxSkills)
+  }
+
+  return result
+}
+
+export async function loadAllSkillsMultiSource(options?: SkillLoaderOptions): Promise<Skill[]> {
+  const resolvedOptions = resolveLoaderOptions(options)
+  const cacheKey = toCacheKey(resolvedOptions)
   const now = Date.now()
-  if (cachedSkills && now - cacheTimestamp < CACHE_TTL_MS) {
-    return cachedSkills
+  const cached = cachedSkillsByKey.get(cacheKey)
+  if (cached && now - cached.ts < CACHE_TTL_MS) {
+    return cached.skills
   }
 
   const allSkills: Skill[] = []
@@ -218,14 +320,18 @@ export async function loadAllSkillsMultiSource(): Promise<Skill[]> {
     // user skills dir doesn't exist yet
   }
 
+  const filteredSkills = filterSkillsForRuntime(allSkills, options)
+
   // Run eligibility checks
-  await Promise.all(allSkills.map(async (skill) => {
+  await Promise.all(filteredSkills.map(async (skill) => {
     skill.eligible = await checkEligibility(skill)
   }))
 
-  cachedSkills = allSkills
-  cacheTimestamp = Date.now()
-  return allSkills
+  cachedSkillsByKey.set(cacheKey, {
+    skills: filteredSkills,
+    ts: Date.now(),
+  })
+  return filteredSkills
 }
 
 export function getEligibleSkills(skills: Skill[]): Skill[] {
