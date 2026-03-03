@@ -21,7 +21,7 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
   const user = useAuthStore((s) => s.user)
 
   return (
-    <nav className="w-24 bg-[var(--color-bg-sidebar)] border-r border-[var(--color-border)] flex flex-col items-center py-6 gap-2 shrink-0">
+    <nav className="w-[72px] border-r border-[var(--color-border)] flex flex-col items-center py-3 gap-1 shrink-0 bg-[var(--color-bg)] chrome-no-select">
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon
         const isActive = activePage === item.id
@@ -31,20 +31,22 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
             key={item.id}
             onClick={() => onNavigate(item.id)}
             className={`
-              w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-2xl transition-all
+              relative w-16 flex flex-col items-center gap-1 py-2 rounded-[var(--radius-md)] transition-all
               ${
                 isActive
-                  ? 'bg-[var(--color-primary)] text-white shadow-lg'
-                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-card)] hover:shadow-sm'
+                  ? 'text-[var(--color-primary)] bg-[var(--color-primary-light)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-soft)]'
               }
             `}
             aria-label={label}
             aria-current={isActive ? 'page' : undefined}
           >
-            <Icon size={28} strokeWidth={isActive ? 2.5 : 2} />
+            {isActive && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[6px] w-[3px] h-5 rounded-full bg-[var(--color-primary)]" />
+            )}
+            <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
             <span
-              className="font-medium"
-              style={{ fontSize: 'calc(14px * var(--font-scale))' }}
+              className={`text-[length:var(--text-xs)] leading-tight text-center truncate w-full ${isActive ? 'font-medium' : ''}`}
             >
               {label}
             </span>
@@ -59,26 +61,28 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
       <button
         onClick={() => onNavigate('account')}
         className={`
-          w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-2xl transition-all
+          relative w-16 flex flex-col items-center gap-1 py-2 rounded-[var(--radius-md)] transition-all
           ${
             activePage === 'account'
-              ? 'bg-[var(--color-primary)] text-white shadow-lg'
-              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-card)] hover:shadow-sm'
+              ? 'text-[var(--color-primary)] bg-[var(--color-primary-light)]'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-soft)]'
           }
         `}
         aria-label={t('nav.account')}
         aria-current={activePage === 'account' ? 'page' : undefined}
       >
+        {activePage === 'account' && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[6px] w-[3px] h-5 rounded-full bg-[var(--color-primary)]" />
+        )}
         {user ? (
-          <div className="w-8 h-8 rounded-full bg-[var(--color-primary-light)] flex items-center justify-center">
-            <User size={20} className={activePage === 'account' ? 'text-white' : 'text-[var(--color-primary)]'} />
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] flex items-center justify-center shadow-[var(--shadow-sm)]">
+            <User size={14} className="text-[var(--color-text-inverse)]" />
           </div>
         ) : (
-          <User size={28} strokeWidth={activePage === 'account' ? 2.5 : 2} />
+          <User size={20} strokeWidth={activePage === 'account' ? 2.2 : 1.8} />
         )}
         <span
-          className="font-medium"
-          style={{ fontSize: 'calc(14px * var(--font-scale))' }}
+          className={`text-[length:var(--text-xs)] leading-tight text-center truncate w-full ${activePage === 'account' ? 'font-medium' : ''}`}
         >
           {t('nav.account')}
         </span>

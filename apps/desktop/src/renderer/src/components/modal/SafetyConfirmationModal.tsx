@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { AlertTriangle, X } from 'lucide-react'
 import { useSafetyStore } from '../../stores/safety.store'
 import FocusTrap from '../accessibility/FocusTrap'
 import { t } from '../../i18n'
+import { Button, IconButton } from '../ui'
 
 export default function SafetyConfirmationModal() {
   const { open, prompt, confirm, cancel } = useSafetyStore()
   const [understood, setUnderstood] = useState(false)
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const titleId = useId()
 
   useEffect(() => {
     if (open) {
@@ -28,39 +30,39 @@ export default function SafetyConfirmationModal() {
   if (!open || !prompt) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-backdrop)] backdrop-blur-sm">
       <FocusTrap active={open}>
         <div
-          className="bg-[var(--color-bg-card)] rounded-2xl border-2 border-red-300 dark:border-red-700 shadow-2xl max-w-md w-full mx-4 p-6"
-          aria-label={t('safety.title')}
+          className="bg-[var(--color-bg-card)] rounded-[var(--radius-lg)] border border-[var(--color-danger)]/30 shadow-[var(--shadow-lg)] max-w-md w-full mx-4 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
         >
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
-              <AlertTriangle size={24} className="text-red-600 dark:text-red-400" />
+            <div className="w-10 h-10 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] flex items-center justify-center shrink-0">
+              <AlertTriangle size={20} className="text-[var(--color-danger)]" />
             </div>
-            <h2 className="font-bold text-red-700 dark:text-red-400 flex-1" style={{ fontSize: 'var(--font-size-lg)' }}>
+            <h2 id={titleId} className="text-[length:var(--text-md)] font-semibold text-[var(--color-danger)] flex-1">
               {prompt.title}
             </h2>
-            <button
+            <IconButton
+              icon={X}
+              size="sm"
+              label={t('titlebar.close')}
               onClick={cancel}
-              className="p-2.5 rounded-lg hover:bg-[var(--color-bg)] transition-all text-[var(--color-text-muted)]"
-              style={{ minWidth: '44px', minHeight: '44px' }}
-              aria-label={t('titlebar.close')}
-            >
-              <X size={20} />
-            </button>
+            />
           </div>
 
           {/* What will happen */}
           {prompt.summary.length > 0 && (
             <div className="mb-4">
-              <p className="font-semibold text-[var(--color-text)] mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>
+              <p className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)] mb-2">
                 {t('safety.whatWillHappen')}
               </p>
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col gap-2">
                 {prompt.summary.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[var(--color-text-muted)]" style={{ fontSize: 'calc(14px * var(--font-scale))' }}>
+                  <li key={i} className="flex items-start gap-2 text-[length:var(--text-md)] text-[var(--color-text-muted)]">
                     <span className="shrink-0 mt-0.5">•</span>
                     <span>{item}</span>
                   </li>
@@ -71,13 +73,13 @@ export default function SafetyConfirmationModal() {
 
           {/* How to undo */}
           {prompt.rollback.length > 0 && (
-            <div className="mb-4 p-3 rounded-xl bg-[var(--color-surface-soft)]">
-              <p className="font-semibold text-[var(--color-text)] mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>
+            <div className="mb-4 p-3 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)]">
+              <p className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)] mb-2">
                 {t('safety.howToUndo')}
               </p>
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col gap-2">
                 {prompt.rollback.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[var(--color-text-muted)]" style={{ fontSize: 'calc(14px * var(--font-scale))' }}>
+                  <li key={i} className="flex items-start gap-2 text-[length:var(--text-md)] text-[var(--color-text-muted)]">
                     <span className="shrink-0 mt-0.5">↩</span>
                     <span>{item}</span>
                   </li>
@@ -92,32 +94,31 @@ export default function SafetyConfirmationModal() {
               type="checkbox"
               checked={understood}
               onChange={(e) => setUnderstood(e.target.checked)}
-              className="w-6 h-6 rounded accent-red-600 cursor-pointer"
-              style={{ minHeight: '24px' }}
+              className="w-6 h-6 rounded accent-[var(--color-danger)] cursor-pointer"
             />
-            <span className="text-[var(--color-text)]" style={{ fontSize: 'var(--font-size-sm)' }}>
+            <span className="text-[length:var(--text-md)] text-[var(--color-text)]">
               {t('safety.understand')}
             </span>
           </label>
 
           {/* Action buttons */}
           <div className="flex gap-3">
-            <button
+            <Button
               ref={cancelRef}
+              variant="secondary"
+              className="flex-1"
               onClick={cancel}
-              className="flex-1 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold hover:bg-[var(--color-bg-sidebar)] transition-all"
-              style={{ fontSize: 'var(--font-size-sm)', minHeight: 'var(--min-target)' }}
             >
               {t('safety.cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
               onClick={confirm}
               disabled={!understood}
-              className="flex-1 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              style={{ fontSize: 'var(--font-size-sm)', minHeight: 'var(--min-target)' }}
             >
               {t('safety.confirm')}
-            </button>
+            </Button>
           </div>
         </div>
       </FocusTrap>

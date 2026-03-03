@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { AlertTriangle, Info, ShieldAlert, X } from 'lucide-react'
+import { AlertTriangle, Info, ShieldAlert } from 'lucide-react'
 import { t } from '../i18n'
+import { IconButton } from './ui'
+import { X } from 'lucide-react'
 
 interface ToastData {
   id: string
@@ -10,9 +12,9 @@ interface ToastData {
 }
 
 const LEVEL_STYLES: Record<string, { bg: string; border: string; icon: typeof Info }> = {
-  info: { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', icon: Info },
-  warning: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', icon: AlertTriangle },
-  danger: { bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', icon: ShieldAlert },
+  info: { bg: 'bg-[var(--color-primary-light)]', border: 'border-[var(--color-primary)]/20', icon: Info },
+  warning: { bg: 'bg-[var(--color-surface-soft)]', border: 'border-[var(--color-warning)]/30', icon: AlertTriangle },
+  danger: { bg: 'bg-[var(--color-danger-bg)]', border: 'border-[var(--color-danger)]/30', icon: ShieldAlert },
 }
 
 export default function NotificationToast() {
@@ -46,26 +48,24 @@ export default function NotificationToast() {
         return (
           <div
             key={toast.id}
-            className={`${style.bg} ${style.border} border rounded-xl p-4 shadow-lg animate-in slide-in-from-right flex items-start gap-3`}
+            className={`${style.bg} ${style.border} border rounded-[var(--radius-lg)] p-3 shadow-[var(--shadow-lg)] animate-in flex items-start gap-2`}
             role="alert"
           >
             <Icon size={20} className="shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-[var(--color-text)]" style={{ fontSize: 'var(--font-size-sm)' }}>
+              <p className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)]">
                 {toast.title}
               </p>
-              <p className="text-[var(--color-text-muted)] mt-0.5" style={{ fontSize: 'calc(13px * var(--font-scale))' }}>
+              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mt-0.5">
                 {toast.body}
               </p>
             </div>
-            <button
+            <IconButton
+              icon={X}
+              size="sm"
+              label={t('titlebar.close')}
               onClick={() => dismiss(toast.id)}
-              className="p-2.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-all shrink-0"
-              style={{ minWidth: '44px', minHeight: '44px' }}
-              aria-label={t('titlebar.close')}
-            >
-              <X size={16} />
-            </button>
+            />
           </div>
         )
       })}

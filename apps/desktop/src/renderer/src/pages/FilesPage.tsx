@@ -13,7 +13,6 @@ import type { FileEntry } from '@shared/types/ipc'
 import { useFilesStore } from '../stores/files.store'
 import { t } from '../i18n'
 
-/** Bytes to human-readable size */
 function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -21,7 +20,6 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }
 
-/** Timestamp to date string */
 function formatDate(ts: number): string {
   const d = new Date(ts)
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
@@ -39,7 +37,6 @@ export default function FilesPage() {
     init()
   }, [init])
 
-  /** Go to parent folder */
   const goUp = () => {
     const parent = currentPath.replace(/[\\/][^\\/]+$/, '')
     if (parent && parent !== currentPath) {
@@ -47,7 +44,6 @@ export default function FilesPage() {
     }
   }
 
-  /** Handle item click */
   const handleClick = (entry: FileEntry) => {
     if (entry.isDirectory) {
       loadDirectory(entry.path)
@@ -56,7 +52,6 @@ export default function FilesPage() {
     }
   }
 
-  /** Breadcrumb segments */
   const breadcrumbs = currentPath
     .replace(/^([A-Z]):\\/, '$1:\\')
     .split(/[\\/]/)
@@ -69,38 +64,38 @@ export default function FilesPage() {
   return (
     <div className="flex flex-col h-full p-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <FolderOpen size={28} className="text-[var(--color-primary)]" />
-        <h1 className="font-bold" style={{ fontSize: 'var(--font-size-xl)' }}>
+      <div className="mb-4">
+        <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
           {t('files.title')}
         </h1>
       </div>
 
       {/* Breadcrumbs + up */}
-      <div className="flex items-center gap-1 mb-4 flex-wrap bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] px-4 py-2">
+      <div className="flex items-center gap-1 mb-4 flex-wrap bg-[var(--color-surface-soft)] rounded-[var(--radius-md)] px-2 py-1.5">
         <button
           onClick={() => loadDirectory('C:\\')}
-          className="p-3 rounded-lg hover:bg-[var(--color-bg-sidebar)] transition-all text-[var(--color-text-muted)]"
+          className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card)] transition-all text-[var(--color-text-muted)]"
           title={t('files.driveRoot')}
+          aria-label={t('files.driveRoot')}
         >
-          <Home size={18} />
+          <Home size={15} />
         </button>
         <button
           onClick={goUp}
-          className="p-3 rounded-lg hover:bg-[var(--color-bg-sidebar)] transition-all text-[var(--color-text-muted)]"
+          className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card)] transition-all text-[var(--color-text-muted)]"
           title={t('files.parentFolder')}
+          aria-label={t('files.parentFolder')}
         >
-          <ArrowUp size={18} />
+          <ArrowUp size={15} />
         </button>
 
-        <div className="flex items-center gap-0.5 ml-2 overflow-x-auto">
+        <div className="flex items-center gap-1 ml-1 overflow-x-auto">
           {breadcrumbs.map((bc, i) => (
-            <div key={bc.path} className="flex items-center gap-0.5 shrink-0">
-              {i > 0 && <ChevronRight size={14} className="text-[var(--color-text-muted)]" />}
+            <div key={bc.path} className="flex items-center gap-1 shrink-0">
+              {i > 0 && <ChevronRight size={12} className="text-[var(--color-text-muted)] opacity-50" />}
               <button
                 onClick={() => loadDirectory(bc.path)}
-                className="px-3 py-2 rounded-lg hover:bg-[var(--color-bg-sidebar)] transition-all text-[var(--color-text)] truncate max-w-[160px]"
-                style={{ fontSize: 'var(--font-size-sm)' }}
+                className="px-2 py-1 rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card)] transition-all text-[length:var(--text-sm)] text-[var(--color-text)] truncate max-w-[140px]"
                 title={bc.path}
               >
                 {bc.label}
@@ -113,16 +108,16 @@ export default function FilesPage() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12 text-[var(--color-text-muted)]">
-          <Loader2 size={24} className="animate-spin mr-3" />
-          <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('files.loading')}</span>
+          <Loader2 size={20} className="animate-spin mr-2" />
+          <span className="text-[length:var(--text-md)]">{t('files.loading')}</span>
         </div>
       )}
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 mb-4">
-          <AlertCircle size={20} />
-          <span style={{ fontSize: 'var(--font-size-sm)' }}>{error}</span>
+        <div className="flex items-center gap-2 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] text-[var(--color-danger)] mb-4">
+          <AlertCircle size={16} />
+          <span className="text-[length:var(--text-md)]">{error}</span>
         </div>
       )}
 
@@ -131,50 +126,34 @@ export default function FilesPage() {
         <div className="flex-1 overflow-y-auto">
           {entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-[var(--color-text-muted)]">
-              <FolderOpen size={48} className="mb-3 opacity-40" />
-              <p style={{ fontSize: 'var(--font-size-sm)' }}>{t('files.empty')}</p>
+              <FolderOpen size={40} className="mb-3 opacity-20" />
+              <p className="text-[length:var(--text-md)]">{t('files.empty')}</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col">
               {entries.map((entry) => (
                 <button
                   key={entry.path}
                   onClick={() => handleClick(entry)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[var(--color-bg-card)] transition-all text-left group"
-                  style={{ minHeight: 'var(--min-target)' }}
+                  className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-soft)] transition-all text-left group"
+                  style={{ minHeight: '48px' }}
                 >
-                  {/* Icon */}
                   <div className="shrink-0">
                     {entry.isDirectory ? (
-                      <Folder size={22} className="text-amber-500" />
+                      <Folder size={18} className="text-[var(--color-warning)]" />
                     ) : (
-                      <File size={22} className="text-[var(--color-text-muted)]" />
+                      <File size={18} className="text-[var(--color-text-muted)]" />
                     )}
                   </div>
-
-                  {/* Name */}
                   <div className="flex-1 min-w-0">
-                    <span
-                      className="block truncate text-[var(--color-text)] group-hover:text-[var(--color-primary)]"
-                      style={{ fontSize: 'var(--font-size-sm)' }}
-                    >
+                    <span className="block truncate text-[length:var(--text-md)] text-[var(--color-text)] group-hover:text-[var(--color-primary)]">
                       {entry.name}
                     </span>
                   </div>
-
-                  {/* Size (files only) */}
-                  <span
-                    className="shrink-0 text-[var(--color-text-muted)] w-20 text-right"
-                    style={{ fontSize: 'calc(12px * var(--font-scale))' }}
-                  >
+                  <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--color-text-muted)] w-20 text-right">
                     {entry.isDirectory ? '' : humanSize(entry.size)}
                   </span>
-
-                  {/* Modified date */}
-                  <span
-                    className="shrink-0 text-[var(--color-text-muted)] w-24 text-right"
-                    style={{ fontSize: 'calc(12px * var(--font-scale))' }}
-                  >
+                  <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--color-text-muted)] w-24 text-right">
                     {formatDate(entry.modifiedAt)}
                   </span>
                 </button>

@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, shell, app } from 'electron'
+import { ipcMain, BrowserWindow, shell, app, dialog } from 'electron'
 import { IPC } from '@shared/constants/channels'
 import type { AppSettings, ScreenCaptureResult, FileEntry, StoredConversation, Note } from '@shared/types/ipc'
 import {
@@ -47,6 +47,67 @@ function requirePermission(feature: string): void {
     expiresAt: featureGrant?.expiresAt ?? null,
   })
   throw new Error(`권한 동의가 필요한 기능입니다: ${feature}`)
+}
+
+const ALLOWED_GRANT_SCOPES = new Set(['all', 'tools', 'features', 'skills'])
+const MAX_GRANT_ITEMS = 200
+
+function sanitizeGrantRequest(request?: PermissionGrantRequest): PermissionGrantRequest {
+  if (!request || !ALLOWED_GRANT_SCOPES.has(String(request.scope))) {
+    throw new Error('유효한 권한 요청(scope)이 필요합니다')
+  }
+
+  const scope = request.scope as PermissionGrantRequest['scope']
+  const ttlMinutes = typeof request.ttlMinutes === 'number' ? request.ttlMinutes : undefined
+  const confirmAll = request.confirmAll === true
+  const rawItems = Array.isArray(request.items) ? request.items : undefined
+  const items = rawItems
+    ?.filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0 && item.length <= 200)
+    .slice(0, MAX_GRANT_ITEMS)
+
+  if (scope !== 'all' && (!items || items.length === 0)) {
+    throw new Error('세부 권한 항목(items)이 필요합니다')
+  }
+
+  return { scope, items, ttlMinutes, confirmAll }
+}
+
+async function confirmGrantRequest(
+  request: PermissionGrantRequest,
+  senderWindow: BrowserWindow | null,
+): Promise<void> {
+  if (request.scope !== 'all') return
+
+  if (request.confirmAll !== true) {
+    throw new Error('전체 권한 승인은 confirmAll=true로만 요청할 수 있습니다')
+  }
+
+  const dialogOptions: Electron.MessageBoxOptions = {
+    type: 'warning',
+    buttons: ['허용', '취소'],
+    defaultId: 1,
+    cancelId: 1,
+    title: '권한 승인 요청',
+    message: 'Usan이 전체 권한 승인을 요청했습니다.',
+    detail: [
+      '요청 범위: all',
+      `TTL(분): ${request.ttlMinutes ?? '기본값'}`,
+      '',
+      '전체 권한은 파일/명령/브라우저 제어를 포함합니다.',
+      '신뢰할 수 있는 상황에서만 허용하세요.',
+    ].join('\n'),
+    noLink: true,
+  }
+
+  const response = senderWindow
+    ? await dialog.showMessageBox(senderWindow, dialogOptions)
+    : await dialog.showMessageBox(dialogOptions)
+
+  if (response.response !== 0) {
+    throw new Error('사용자가 권한 요청을 취소했습니다')
+  }
 }
 
 export function registerIpcHandlers(): void {
@@ -153,13 +214,17 @@ export function registerIpcHandlers(): void {
 
   // ─── Permissions ──────────────────────────────
   ipcMain.handle(IPC.PERMISSIONS_GET, () => permissionGrant)
-  ipcMain.handle(IPC.PERMISSIONS_GRANT, async (_, request?: PermissionGrantRequest) => {
-    permissionGrant = applyPermissionGrantRequest(permissionGrant, request)
+  ipcMain.handle(IPC.PERMISSIONS_GRANT, async (event, request?: PermissionGrantRequest) => {
+    const sanitizedRequest = sanitizeGrantRequest(request)
+    const senderWindow = BrowserWindow.fromWebContents(event.sender)
+    await confirmGrantRequest(sanitizedRequest, senderWindow)
+
+    permissionGrant = applyPermissionGrantRequest(permissionGrant, sanitizedRequest)
     await savePermissions(permissionGrant)
     logObsInfo('permission_granted', {
-      scope: request?.scope ?? 'all',
-      items: request?.items ?? null,
-      ttlMinutes: request?.ttlMinutes ?? null,
+      scope: sanitizedRequest.scope ?? 'all',
+      items: sanitizedRequest.items ?? null,
+      ttlMinutes: sanitizedRequest.ttlMinutes ?? null,
       grantedAll: permissionGrant.grantedAll,
     })
     return permissionGrant

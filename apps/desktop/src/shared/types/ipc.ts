@@ -18,6 +18,7 @@ export interface ChatMessage {
   toolResults?: ToolResult[]
   modelId?: string
   timestamp: number
+  isError?: boolean
 }
 
 export interface ChatRequest {

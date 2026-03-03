@@ -21,25 +21,28 @@ export default function StatusBar() {
 
   return (
     <div
-      className="flex items-center justify-between px-4 bg-[var(--color-bg-sidebar)] border-t border-[var(--color-border)] text-[var(--color-text-muted)] select-none"
-      style={{ fontSize: 'calc(12px * var(--font-scale))', height: 'calc(28px * var(--font-scale))', minHeight: 'auto' }}
+      className="flex items-center justify-between h-6 px-4 bg-transparent border-t border-[var(--color-border)] text-[length:var(--text-xs)] text-[var(--color-text-muted)] chrome-no-select shrink-0"
     >
       {/* Left: online/offline */}
       <div className="flex items-center gap-2">
         <span
-          className={`w-2 h-2 rounded-full ${online ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]'}`}
-          style={{ minHeight: '8px' }}
+          className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]'}`}
+          role="status"
+          aria-label={online ? t('status.online') : t('status.offline')}
         />
         <span>{online ? t('status.online') : t('status.offline')}</span>
       </div>
 
       {/* Center: current status */}
-      <span>{isStreaming ? t('status.working') : t('status.idle')}</span>
+      {isStreaming && (
+        <span className="flex items-center gap-1">
+          <span className="w-1 h-1 rounded-full bg-[var(--color-primary)] animate-pulse" />
+          {t('status.working')}
+        </span>
+      )}
 
       {/* Right: locale */}
-      <div className="flex items-center gap-3">
-        <span>{settings.locale.toUpperCase()}</span>
-      </div>
+      <span>{settings.locale.toUpperCase()}</span>
     </div>
   )
 }

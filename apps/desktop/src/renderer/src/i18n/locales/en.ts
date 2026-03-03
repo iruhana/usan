@@ -23,6 +23,8 @@ export const en: Record<string, string> = {
   'home.inputPlaceholder': 'Type your message...',
   'home.listening': 'Listening...',
   'home.thinking': 'Usan is thinking...',
+  'home.toolRunning': 'Usan is working on it...',
+  'home.generating': 'Usan is writing a reply...',
   'home.send': 'Send',
   'home.stop': 'Stop',
   'home.voiceStart': 'Voice input',
@@ -60,9 +62,16 @@ export const en: Record<string, string> = {
   'time.minutesAgo': 'm ago',
   'time.hoursAgo': 'h ago',
   'time.daysAgo': 'd ago',
+  'time.am': 'AM',
+  'time.pm': 'PM',
 
   // ─── Settings ─────────────────────────────────
   'settings.title': 'Settings',
+  'settings.subtitle': 'Customize your app settings',
+  'settings.group.display': 'Display',
+  'settings.group.sound': 'Sound',
+  'settings.group.system': 'System',
+  'settings.group.advanced': 'Advanced',
   'settings.language': 'Language',
   'settings.languageHint': 'Choose display language',
   'settings.fontSize': 'Font Size',
@@ -139,6 +148,8 @@ export const en: Record<string, string> = {
   'onboarding.perm.settings': 'Change settings',
   'onboarding.perm.settingsDesc': 'Adjust computer settings',
   'onboarding.agreeAll': 'Agree and get started',
+
+  'onboarding.permissionGrantError': 'Permission request was canceled. Please approve to continue.',
   'onboarding.privacyNote': 'Usan will never delete files or share your personal data without permission.',
   'onboarding.fontTitle': 'Adjust your font size',
   'onboarding.fontHint': 'Can you read this comfortably?',
@@ -190,6 +201,7 @@ export const en: Record<string, string> = {
   'tools.title': 'Tools',
   'tools.subtitle': 'One tap to get Usan to help',
   'tools.run': 'Run',
+  'tools.safeTools': 'Safe tools',
   'tools.dangerZone': 'Tools requiring confirmation',
   'tools.needsConfirmation': 'Confirmation needed before running',
   'tools.screenCapture': 'Screen Capture',
@@ -244,6 +256,7 @@ export const en: Record<string, string> = {
   'home.greetingMorning': 'Good morning!',
   'home.greetingAfternoon': 'Good afternoon!',
   'home.greetingEvening': 'Good evening!',
+  'home.quickSuggestions': 'Quick start',
   'home.recentTasks': 'Recent conversations',
   'home.noRecentTasks': 'No conversations yet',
   'home.quickAction.readAloud': 'Read aloud',
@@ -263,6 +276,12 @@ export const en: Record<string, string> = {
   'error.details': 'Error details',
   'error.offline': 'You are offline. AI features are limited.',
   'error.unknown': 'An unknown error occurred',
+  'error.chatRetry': 'Try again',
+
+  // ─── Undo ───────────────────────────────────────
+  'undo.action': 'Undo',
+  'undo.conversationDeleted': 'Conversation deleted',
+  'undo.noteDeleted': 'Note deleted',
 
   // ─── Accessibility ────────────────────────────
   'a11y.skipToContent': 'Skip to content',

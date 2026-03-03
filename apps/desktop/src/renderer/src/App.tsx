@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Umbrella } from 'lucide-react'
 import AppLayout from './components/layout/AppLayout'
 import OnboardingWizard from './components/onboarding/OnboardingWizard'
 import ErrorBoundary from './components/ErrorBoundary'
 import OfflineBanner from './components/OfflineBanner'
+import TitleBar from './components/layout/TitleBar'
 import { useSettingsStore } from './stores/settings.store'
 import { setLocale, t } from './i18n'
 import { isTimedGrantActive } from '@shared/types/permissions'
@@ -46,19 +48,29 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[var(--color-bg)]">
-        <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">🤖</div>
-          <p style={{ fontSize: 'var(--font-size-lg)' }} className="text-[var(--color-text-muted)]">
-            {t('app.loading')}
-          </p>
+      <div className="flex flex-col h-screen bg-[var(--color-bg)]">
+        <TitleBar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="mb-4 animate-bounce"><Umbrella size={56} className="text-[var(--color-primary)] mx-auto" /></div>
+            <p className="text-[var(--color-text-muted)] text-[length:var(--text-lg)]">
+              {t('app.loading')}
+            </p>
+          </div>
         </div>
       </div>
     )
   }
 
   if (showOnboarding) {
-    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+    return (
+      <div className="flex flex-col h-screen bg-[var(--color-bg)]">
+        <TitleBar />
+        <div className="flex-1 overflow-auto">
+          <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -23,6 +23,8 @@ export const ko: Record<string, string> = {
   'home.inputPlaceholder': '여기에 말씀해주세요...',
   'home.listening': '듣고 있어요...',
   'home.thinking': '우산이 생각하고 있어요...',
+  'home.toolRunning': '우산이 작업하고 있어요...',
+  'home.generating': '우산이 답변을 작성하고 있어요...',
   'home.send': '전송',
   'home.stop': '중지',
   'home.voiceStart': '음성으로 입력',
@@ -60,9 +62,16 @@ export const ko: Record<string, string> = {
   'time.minutesAgo': '분 전',
   'time.hoursAgo': '시간 전',
   'time.daysAgo': '일 전',
+  'time.am': '오전',
+  'time.pm': '오후',
 
   // ─── Settings ─────────────────────────────────
   'settings.title': '설정',
+  'settings.subtitle': '앱 환경을 내 맞대로 설정하세요',
+  'settings.group.display': '화면',
+  'settings.group.sound': '소리',
+  'settings.group.system': '시스템',
+  'settings.group.advanced': '고급',
   'settings.language': '언어',
   'settings.languageHint': '앱 표시 언어를 선택하세요',
   'settings.fontSize': '글씨 크기',
@@ -139,6 +148,8 @@ export const ko: Record<string, string> = {
   'onboarding.perm.settings': '설정 변경',
   'onboarding.perm.settingsDesc': '컴퓨터 설정을 조정합니다',
   'onboarding.agreeAll': '전체 동의하고 시작하기',
+
+  'onboarding.permissionGrantError': '권한 요청이 취소되었습니다. 계속하려면 권한을 승인해주세요.',
   'onboarding.privacyNote': '우산은 허락 없이 파일을 삭제하거나 개인정보를 외부로 보내지 않습니다.',
   'onboarding.fontTitle': '글씨 크기를 조절해주세요',
   'onboarding.fontHint': '이 글씨가 편하게 읽히시나요?',
@@ -190,6 +201,7 @@ export const ko: Record<string, string> = {
   'tools.title': '도구',
   'tools.subtitle': '버튼 하나로 우산에게 시킬 수 있어요',
   'tools.run': '실행',
+  'tools.safeTools': '안전한 도구',
   'tools.dangerZone': '확인이 필요한 도구',
   'tools.needsConfirmation': '실행 전에 확인을 받습니다',
   'tools.screenCapture': '화면 캡처',
@@ -244,6 +256,7 @@ export const ko: Record<string, string> = {
   'home.greetingMorning': '좋은 아침이에요!',
   'home.greetingAfternoon': '안녕하세요!',
   'home.greetingEvening': '편안한 저녁이에요!',
+  'home.quickSuggestions': '빠른 시작',
   'home.recentTasks': '최근 대화',
   'home.noRecentTasks': '아직 대화가 없습니다',
   'home.quickAction.readAloud': '소리로 읽어줘',
@@ -263,6 +276,12 @@ export const ko: Record<string, string> = {
   'error.details': '오류 상세',
   'error.offline': '인터넷 연결이 끊겼습니다. AI 기능이 제한됩니다.',
   'error.unknown': '알 수 없는 오류가 발생했습니다',
+  'error.chatRetry': '다시 시도하기',
+
+  // ─── Undo ───────────────────────────────────────
+  'undo.action': '되돌리기',
+  'undo.conversationDeleted': '대화가 삭제되었습니다',
+  'undo.noteDeleted': '메모가 삭제되었습니다',
 
   // ─── Accessibility ────────────────────────────
   'a11y.skipToContent': '본문으로 건너뛰기',

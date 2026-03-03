@@ -2,6 +2,7 @@ import { Component } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { t } from '../i18n'
+import { Button } from './ui'
 
 interface Props {
   children: ReactNode
@@ -31,39 +32,26 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-[var(--color-bg)] p-8">
-          <AlertTriangle size={48} className="text-amber-500 mb-4" />
-          <h1
-            className="font-bold text-[var(--color-text)] mb-2"
-            style={{ fontSize: 'var(--font-size-xl)' }}
-          >
+          <AlertTriangle size={48} className="text-[var(--color-warning)] mb-4" />
+          <h1 className="font-semibold text-[var(--color-text)] mb-2 text-[length:var(--text-xl)]">
             {t('error.title')}
           </h1>
-          <p
-            className="text-[var(--color-text-muted)] text-center mb-6 max-w-md"
-            style={{ fontSize: 'var(--font-size-sm)' }}
-          >
+          <p className="text-[var(--color-text-muted)] text-center mb-6 max-w-md text-[length:var(--text-md)]">
             {t('error.description')}
           </p>
-          <button
+          <Button
             onClick={this.handleReload}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:opacity-90 transition-all"
-            style={{ fontSize: 'var(--font-size-sm)', minHeight: '48px' }}
+            leftIcon={<RefreshCw size={20} />}
+            size="lg"
           >
-            <RefreshCw size={20} />
             {t('error.retry')}
-          </button>
+          </Button>
           {this.state.error && (
             <details className="mt-6 max-w-lg w-full">
-              <summary
-                className="cursor-pointer text-[var(--color-text-muted)]"
-                style={{ fontSize: 'calc(12px * var(--font-scale))' }}
-              >
+              <summary className="cursor-pointer text-[var(--color-text-muted)] text-[length:var(--text-sm)]">
                 {t('error.details')}
               </summary>
-              <pre
-                className="mt-2 p-3 rounded-lg bg-[var(--color-bg-card)] text-[var(--color-text-muted)] overflow-auto whitespace-pre-wrap"
-                style={{ fontSize: 'calc(11px * var(--font-scale))' }}
-              >
+              <pre className="mt-2 p-3 rounded-[var(--radius-md)] bg-[var(--color-bg-card)] text-[var(--color-text-muted)] overflow-auto whitespace-pre-wrap text-[length:var(--text-xs)]">
                 {this.state.error.message}
               </pre>
             </details>

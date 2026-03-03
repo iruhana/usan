@@ -74,6 +74,7 @@ export interface PermissionGrantRequest {
   scope?: PermissionScope
   items?: string[]
   ttlMinutes?: number
+  confirmAll?: boolean
 }
 
 export interface PermissionRevokeRequest {
@@ -190,12 +191,24 @@ function grantItems(
   return next
 }
 
+function normalizeGrantItems(items?: string[]): string[] | undefined {
+  if (!items?.length) return undefined
+  const normalized = items
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0 && item.length <= 200)
+  if (!normalized.length) return undefined
+  return [...new Set(normalized)]
+}
+
 export function applyPermissionGrantRequest(
   current: PermissionGrant,
   request?: PermissionGrantRequest,
 ): PermissionGrant {
   const normalized = normalizePermissionGrant(current)
-  const scope = request?.scope ?? 'all'
+  if (!request?.scope) {
+    return normalized
+  }
+  const scope = request.scope
   if (scope === 'all') {
     return {
       ...normalized,
@@ -205,21 +218,26 @@ export function applyPermissionGrantRequest(
     }
   }
 
-  const ttlMinutes = toSafeTtlMinutes(request?.ttlMinutes ?? normalized.defaultTtlMinutes)
+  const items = normalizeGrantItems(request.items)
+  if (!items?.length) {
+    return normalized
+  }
+
+  const ttlMinutes = toSafeTtlMinutes(request.ttlMinutes ?? normalized.defaultTtlMinutes)
   return {
     ...normalized,
     defaultTtlMinutes: ttlMinutes,
     toolGrants:
       scope === 'tools'
-        ? grantItems(normalized.toolGrants, request?.items, ttlMinutes)
+        ? grantItems(normalized.toolGrants, items, ttlMinutes)
         : normalized.toolGrants,
     featureGrants:
       scope === 'features'
-        ? grantItems(normalized.featureGrants, request?.items, ttlMinutes)
+        ? grantItems(normalized.featureGrants, items, ttlMinutes)
         : normalized.featureGrants,
     skillGrants:
       scope === 'skills'
-        ? grantItems(normalized.skillGrants, request?.items, ttlMinutes)
+        ? grantItems(normalized.skillGrants, items, ttlMinutes)
         : normalized.skillGrants,
   }
 }

@@ -1,46 +1,64 @@
 /**
  * MessageBubble — single chat message display
- * 컴맹 친화: large text, clear bubbles, glassmorphism, tool call cards
  */
 
 import { memo } from 'react'
-import { Sparkles, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Sparkles, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 import type { ChatMessage } from '@shared/types/ipc'
+import { useChatStore } from '../../stores/chat.store'
 import { t } from '../../i18n'
+import { Button } from '../ui'
 
 interface Props {
   message: ChatMessage
 }
 
+function formatTime(ts: number): string {
+  const d = new Date(ts)
+  const h = d.getHours()
+  const m = String(d.getMinutes()).padStart(2, '0')
+  const period = h < 12 ? t('time.am') : t('time.pm')
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return `${period} ${h12}:${m}`
+}
+
 export default memo(function MessageBubble({ message }: Props) {
+  const retryLastMessage = useChatStore((s) => s.retryLastMessage)
+  const isStreaming = useChatStore((s) => s.isStreaming)
+
   const isUser = message.role === 'user'
   const isTool = message.role === 'tool'
   const isAssistant = message.role === 'assistant'
 
-  // Tool result message (compact card + optional screenshot preview)
+  // Tool result message
   if (isTool) {
-    const isError = message.content.startsWith('❌')
+    const isError = message.content.startsWith('\u274C') || message.content.startsWith('Error')
     const screenshot = message.toolResults?.[0]?.result as { image?: string } | null
     const hasImage = screenshot?.image && typeof screenshot.image === 'string'
     return (
       <div className="flex justify-start">
         <div className="flex flex-col gap-2">
           <div
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-muted)]"
-            style={{ fontSize: 'calc(14px * var(--font-scale))' }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] border text-[length:var(--text-md)] ${
+              isError
+                ? 'bg-[var(--color-danger-bg)] border-[var(--color-danger)]/20'
+                : 'bg-[var(--color-surface-soft)] border-[var(--color-border)]'
+            }`}
           >
             {isError ? (
               <AlertCircle size={16} className="text-[var(--color-danger)] shrink-0" />
             ) : (
               <CheckCircle size={16} className="text-[var(--color-success)] shrink-0" />
             )}
-            {message.content}
+            <span className={`font-medium ${isError ? 'text-[var(--color-danger)]' : 'text-[var(--color-text)]'}`}>
+              {message.content}
+            </span>
           </div>
           {hasImage && (
             <img
-              src={`data:image/png;base64,${screenshot!.image}`}
+              src={`data:image/png;base64,${screenshot?.image}`}
               alt={t('tool.screenshot')}
-              className="max-w-md rounded-xl border border-[var(--color-border)] shadow-sm"
+              className="max-w-sm rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow-sm)]"
             />
           )}
         </div>
@@ -48,26 +66,23 @@ export default memo(function MessageBubble({ message }: Props) {
     )
   }
 
-  // Tool call in-progress (assistant message with tool calls)
+  // Tool call in-progress
   if (isAssistant && message.toolCalls?.length) {
     return (
       <div className="flex justify-start">
-        <div
-          className="flex items-center gap-3 px-5 py-3 rounded-xl bg-[var(--color-primary-light)] border border-[var(--color-border)]"
-          style={{ fontSize: 'calc(14px * var(--font-scale))' }}
-        >
+        <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--color-primary-light)] border border-[var(--color-primary)]/15 text-[length:var(--text-md)]">
           <Loader2 size={18} className="text-[var(--color-primary)] shrink-0 animate-spin" />
-          <div className="flex flex-col gap-0.5">
-            <span className="font-medium text-[var(--color-primary)]">
+          <div className="flex flex-col">
+            <span className="font-semibold text-[var(--color-primary)]">
               {(() => {
-                const name = message.toolCalls![0].name
+                const name = message.toolCalls?.[0]?.name
                 if (!name) return ''
                 const key = `tool.${name}`
                 const label = t(key)
                 return label !== key ? label : name
               })()}
             </span>
-            <span className="text-[var(--color-text-muted)]" style={{ fontSize: 'calc(12px * var(--font-scale))' }}>
+            <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
               {t('tool.running')}
             </span>
           </div>
@@ -76,29 +91,64 @@ export default memo(function MessageBubble({ message }: Props) {
     )
   }
 
-  // Regular user/assistant message
-  return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[80%] rounded-2xl px-5 py-4 ${
-          isUser
-            ? 'bg-[var(--color-primary)] text-white'
-            : 'glass'
-        }`}
-        style={{ fontSize: 'var(--font-size-base)', lineHeight: 'var(--line-height-base)' }}
-      >
-        {isAssistant && (
+  // Error message — with retry
+  if (isAssistant && message.isError) {
+    return (
+      <div className="flex justify-start">
+        <div className="max-w-[80%] rounded-[var(--radius-lg)] bg-[var(--color-danger-bg)] border border-[var(--color-danger)]/20 px-4 py-3 text-[length:var(--text-md)]">
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={18} className="text-[var(--color-primary)]" />
-            <span
-              className="font-semibold text-[var(--color-primary)]"
-              style={{ fontSize: 'calc(14px * var(--font-scale))' }}
-            >
-              {t('app.name')}
+            <AlertCircle size={16} className="text-[var(--color-danger)] shrink-0" />
+            <span className="font-medium text-[var(--color-danger)]">
+              {t('error.title')}
             </span>
           </div>
+          <p className="text-[var(--color-text)] mb-3" style={{ lineHeight: 'var(--line-height-base)' }}>
+            {message.content}
+          </p>
+          <Button
+            size="sm"
+            onClick={retryLastMessage}
+            disabled={isStreaming}
+            leftIcon={<RefreshCw size={15} />}
+          >
+            {t('error.chatRetry')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Regular message
+  const timeLabel = message.timestamp ? formatTime(message.timestamp) : ''
+
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[80%]`}>
+        <div
+          className={`px-4 py-3 text-[length:var(--text-md)] ${
+            isUser
+              ? 'bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] text-[var(--color-text-inverse)] rounded-xl rounded-br-sm shadow-[var(--shadow-md)]'
+              : 'bg-[var(--color-surface-soft)] border border-[var(--color-border)]/50 rounded-xl rounded-bl-sm'
+          }`}
+          style={{ lineHeight: 'var(--line-height-base)' }}
+        >
+          {isAssistant && (
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--color-primary)]/15">
+              <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center">
+                <Sparkles size={11} className="text-[var(--color-text-inverse)]" />
+              </div>
+              <span className="text-[length:var(--text-xs)] font-semibold text-[var(--color-primary)]">
+                {t('app.name')}
+              </span>
+            </div>
+          )}
+          <div className="whitespace-pre-wrap">{message.content}</div>
+        </div>
+        {timeLabel && (
+          <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mt-1 px-1">
+            {timeLabel}
+          </span>
         )}
-        <div className="whitespace-pre-wrap">{message.content}</div>
       </div>
     </div>
   )

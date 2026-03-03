@@ -6,6 +6,7 @@
   "scripts": {
     "dev:desktop": "cd apps/desktop && npm run dev",
     "dev:web": "cd apps/web && npm run dev",
+    "lint": "cd apps/desktop && npm run lint",
     "build:desktop": "cd apps/desktop && npm run build",
     "build:web": "cd apps/web && npm run build",
     "test": "cd apps/desktop && npm test",

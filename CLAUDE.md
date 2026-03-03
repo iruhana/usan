@@ -21,3 +21,7 @@
 - 실시간 대화 메모 + 보이스피싱 확률 판정
 - 위험 감지 시 즉시 전화 끊기 + 경고
 - 데스크톱 앱과 안드로이드 앱 상호작용 필요
+
+## UI 디자인 규칙
+- **UI/디자인 작업 시** 반드시 `C:\Users\admin\Dendron\notes\Electron_React_Design.txt`를 먼저 읽고 규칙을 따를 것
+- 데스크톱 UX 기준 밀도 최적화, 단축키, selection/focus 분리, QA 체크리스트 수행

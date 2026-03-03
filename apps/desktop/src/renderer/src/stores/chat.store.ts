@@ -9,11 +9,14 @@ import { t } from '../i18n'
 
 type Conversation = StoredConversation
 
+type StreamingPhase = 'idle' | 'waiting' | 'tool' | 'generating'
+
 interface ChatState {
   conversations: Conversation[]
   activeConversationId: string | null
   streamingConversationId: string | null
   isStreaming: boolean
+  streamingPhase: StreamingPhase
   streamingText: string
   loaded: boolean
 
@@ -23,6 +26,7 @@ interface ChatState {
   setActiveConversation: (id: string) => void
   deleteConversation: (id: string) => void
   sendMessage: (text: string) => Promise<void>
+  retryLastMessage: () => void
   stopStreaming: () => void
   handleChunk: (chunk: ChatChunk) => void
 }
@@ -99,6 +103,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     activeConversationId: null,
     streamingConversationId: null,
     isStreaming: false,
+    streamingPhase: 'idle' as StreamingPhase,
     streamingText: '',
     loaded: false,
 
@@ -177,6 +182,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             : c
         ),
         isStreaming: true,
+        streamingPhase: 'waiting' as StreamingPhase,
         streamingConversationId: convId,
         streamingText: '',
       }))
@@ -188,12 +194,34 @@ export const useChatStore = create<ChatState>((set, get) => {
       })
     },
 
+    retryLastMessage: () => {
+      const state = get()
+      const conv = state.conversations.find((c) => c.id === state.activeConversationId)
+      if (!conv || state.isStreaming) return
+      // Find the last user message
+      const lastUserMsg = [...conv.messages].reverse().find((m) => m.role === 'user')
+      if (lastUserMsg) {
+        // Remove error messages that came after the last user message
+        const lastUserIdx = conv.messages.lastIndexOf(lastUserMsg)
+        const cleaned = conv.messages.slice(0, lastUserIdx)
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === state.activeConversationId
+              ? { ...c, messages: cleaned }
+              : c
+          ),
+        }))
+        // Resend the same message
+        get().sendMessage(lastUserMsg.content)
+      }
+    },
+
     stopStreaming: () => {
       const convId = get().streamingConversationId ?? get().activeConversationId
       if (convId) {
         window.usan?.ai.stop(convId)
       }
-      set({ isStreaming: false, streamingConversationId: null })
+      set({ isStreaming: false, streamingPhase: 'idle' as StreamingPhase, streamingConversationId: null })
     },
 
     handleChunk: (chunk) => {
@@ -202,12 +230,13 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       switch (chunk.type) {
         case 'text':
-          set((s) => ({ streamingText: s.streamingText + chunk.content }))
+          set((s) => ({ streamingText: s.streamingText + chunk.content, streamingPhase: 'generating' as StreamingPhase }))
           break
 
         case 'tool_call':
           if (chunk.toolCall) {
             set((s) => ({
+              streamingPhase: 'tool' as StreamingPhase,
               conversations: s.conversations.map((c) =>
                 c.id === convId
                   ? {
@@ -217,7 +246,7 @@ export const useChatStore = create<ChatState>((set, get) => {
                         {
                           id: crypto.randomUUID(),
                           role: 'assistant' as const,
-                          content: `🔧 ${getToolLabel(chunk.toolCall!.name)} ${t('tool.running')}`,
+                          content: `${getToolLabel(chunk.toolCall!.name)} ${t('tool.running')}`,
                           toolCalls: [chunk.toolCall!],
                           timestamp: Date.now(),
                         },
@@ -275,10 +304,11 @@ export const useChatStore = create<ChatState>((set, get) => {
               ),
               streamingText: '',
               isStreaming: false,
+              streamingPhase: 'idle' as StreamingPhase,
               streamingConversationId: null,
             }))
           } else {
-            set({ isStreaming: false, streamingConversationId: null })
+            set({ isStreaming: false, streamingPhase: 'idle' as StreamingPhase, streamingConversationId: null })
           }
           persistToDisk()
           break
@@ -295,14 +325,16 @@ export const useChatStore = create<ChatState>((set, get) => {
                       {
                         id: crypto.randomUUID(),
                         role: 'assistant' as const,
-                        content: `⚠️ ${chunk.content}`,
+                        content: chunk.content,
                         timestamp: Date.now(),
+                        isError: true,
                       },
                     ],
                   }
                 : c
             ),
             isStreaming: false,
+            streamingPhase: 'idle' as StreamingPhase,
             streamingConversationId: null,
             streamingText: '',
           }))

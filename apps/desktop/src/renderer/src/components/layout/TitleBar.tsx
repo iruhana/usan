@@ -1,40 +1,39 @@
 import { Minus, Square, X } from 'lucide-react'
+import { IconButton } from '../ui'
 import { t } from '../../i18n'
 
 export default function TitleBar() {
   return (
-    <div className="drag-region flex items-center justify-between h-16 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] px-4 select-none shrink-0">
-      {/* App name */}
+    <div className="drag-region flex items-center justify-between h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 chrome-no-select shrink-0">
+      {/* App brand */}
       <div className="flex items-center gap-2">
-        <span className="text-xl">🤖</span>
-        <span className="font-bold" style={{ fontSize: 'var(--font-size-sm)' }}>
+        <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-primary)]" />
+        <span className="font-semibold tracking-tight text-[length:var(--text-md)] text-[var(--color-text)]">
           {t('titlebar.title')}
         </span>
       </div>
 
       {/* Window controls */}
       <div className="no-drag flex items-center gap-1">
-        <button
+        <IconButton
+          icon={Minus}
+          size="sm"
+          label={t('titlebar.minimize')}
           onClick={() => window.usan?.window.minimize()}
-          className="w-14 h-14 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg)] transition-colors"
-          aria-label={t('titlebar.minimize')}
-        >
-          <Minus size={18} />
-        </button>
-        <button
+        />
+        <IconButton
+          icon={Square}
+          size="sm"
+          label={t('titlebar.maximize')}
           onClick={() => window.usan?.window.maximize()}
-          className="w-14 h-14 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg)] transition-colors"
-          aria-label={t('titlebar.maximize')}
-        >
-          <Square size={14} />
-        </button>
-        <button
+        />
+        <IconButton
+          icon={X}
+          size="sm"
+          variant="danger"
+          label={t('titlebar.close')}
           onClick={() => window.usan?.window.close()}
-          className="w-14 h-14 flex items-center justify-center rounded-lg hover:bg-[var(--color-danger-light,#fef2f2)] hover:text-[var(--color-danger)] transition-colors"
-          aria-label={t('titlebar.close')}
-        >
-          <X size={18} />
-        </button>
+        />
       </div>
     </div>
   )

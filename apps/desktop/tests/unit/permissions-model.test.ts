@@ -48,6 +48,16 @@ describe('permissions model', () => {
     expect(isPermissionGranted(granted, { skillId: 'other-skill' })).toBe(false)
   })
 
+  it('ignores empty grant requests safely', () => {
+    const base = normalizePermissionGrant()
+    const noRequest = applyPermissionGrantRequest(base)
+    const missingItems = applyPermissionGrantRequest(base, { scope: 'tools' })
+
+    expect(noRequest).toEqual(base)
+    expect(missingItems).toEqual(base)
+    expect(isPermissionGranted(noRequest, { toolName: 'run_command' })).toBe(false)
+  })
+
   it('revokes selected scope items', () => {
     const base = normalizePermissionGrant()
     const granted = applyPermissionGrantRequest(base, {

@@ -23,6 +23,8 @@ export const ja: Record<string, string> = {
   'home.inputPlaceholder': 'メッセージを入力...',
   'home.listening': '聞いています...',
   'home.thinking': 'ウサンが考えています...',
+  'home.toolRunning': 'ウサンが作業中です...',
+  'home.generating': 'ウサンが返信を書いています...',
   'home.send': '送信',
   'home.stop': '停止',
   'home.voiceStart': '音声入力',
@@ -60,9 +62,16 @@ export const ja: Record<string, string> = {
   'time.minutesAgo': '分前',
   'time.hoursAgo': '時間前',
   'time.daysAgo': '日前',
+  'time.am': '午前',
+  'time.pm': '午後',
 
   // ─── Settings ─────────────────────────────────
   'settings.title': '設定',
+  'settings.subtitle': 'アプリの設定をカスタマイズ',
+  'settings.group.display': '画面',
+  'settings.group.sound': 'サウンド',
+  'settings.group.system': 'システム',
+  'settings.group.advanced': '詳細',
   'settings.language': '言語',
   'settings.languageHint': '表示言語を選択してください',
   'settings.fontSize': '文字サイズ',
@@ -139,6 +148,8 @@ export const ja: Record<string, string> = {
   'onboarding.perm.settings': '設定変更',
   'onboarding.perm.settingsDesc': 'パソコンの設定を調整します',
   'onboarding.agreeAll': '同意して始める',
+
+  'onboarding.permissionGrantError': '権限リクエストがキャンセルされました。続行するには許可してください。',
   'onboarding.privacyNote': 'ウサンは許可なくファイルを削除したり個人情報を外部に送信しません。',
   'onboarding.fontTitle': '文字サイズを調整してください',
   'onboarding.fontHint': 'この文字は読みやすいですか？',
@@ -190,6 +201,7 @@ export const ja: Record<string, string> = {
   'tools.title': 'ツール',
   'tools.subtitle': 'ボタン一つでウサンに頼めます',
   'tools.run': '実行',
+  'tools.safeTools': '安全なツール',
   'tools.dangerZone': '確認が必要なツール',
   'tools.needsConfirmation': '実行前に確認があります',
   'tools.screenCapture': 'スクリーンキャプチャ',
@@ -244,6 +256,7 @@ export const ja: Record<string, string> = {
   'home.greetingMorning': 'おはようございます！',
   'home.greetingAfternoon': 'こんにちは！',
   'home.greetingEvening': 'こんばんは！',
+  'home.quickSuggestions': 'クイックスタート',
   'home.recentTasks': '最近の会話',
   'home.noRecentTasks': 'まだ会話がありません',
   'home.quickAction.readAloud': '読み上げて',
@@ -263,6 +276,12 @@ export const ja: Record<string, string> = {
   'error.details': 'エラー詳細',
   'error.offline': 'インターネット接続がありません。AI機能が制限されます。',
   'error.unknown': '不明なエラーが発生しました',
+  'error.chatRetry': 'もう一度試す',
+
+  // ─── Undo ───────────────────────────────────────
+  'undo.action': '元に戻す',
+  'undo.conversationDeleted': '会話が削除されました',
+  'undo.noteDeleted': 'メモが削除されました',
 
   // ─── Accessibility ────────────────────────────
   'a11y.skipToContent': 'メインコンテンツへ',

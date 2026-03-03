@@ -14,7 +14,7 @@ const STEP_COLOR: Record<SkillStepStatus, string> = {
   pending: 'text-[var(--color-text-muted)]',
   running: 'text-[var(--color-primary)]',
   done: 'text-[var(--color-success)]',
-  failed: 'text-red-500',
+  failed: 'text-[var(--color-danger)]',
 }
 
 const STATE_LABEL: Record<SkillRunState, string> = {
@@ -29,11 +29,11 @@ const STATE_LABEL: Record<SkillRunState, string> = {
 
 const STATE_BG: Record<SkillRunState, string> = {
   idle: 'bg-[var(--color-bg)]',
-  validating: 'bg-blue-100 dark:bg-blue-900/20',
-  running: 'bg-blue-100 dark:bg-blue-900/20',
-  paused: 'bg-amber-100 dark:bg-amber-900/20',
-  done: 'bg-green-100 dark:bg-green-900/20',
-  failed: 'bg-red-100 dark:bg-red-900/20',
+  validating: 'bg-[var(--color-primary-light)]',
+  running: 'bg-[var(--color-primary-light)]',
+  paused: 'bg-[var(--color-surface-soft)]',
+  done: 'bg-[var(--color-surface-soft)]',
+  failed: 'bg-[var(--color-danger-bg)]',
   cancelled: 'bg-[var(--color-bg)]',
 }
 
@@ -51,16 +51,15 @@ export default function SkillRunner() {
   const canCancel = state === 'running' || state === 'paused' || state === 'validating'
 
   return (
-    <div className="border border-[var(--color-border)] rounded-2xl bg-[var(--color-bg-card)] p-5">
+    <div className="border border-[var(--color-border)] rounded-[var(--radius-lg)] bg-[var(--color-bg-card)] p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-[var(--color-text)]" style={{ fontSize: 'var(--font-size-base)' }}>
+          <h3 className="font-semibold text-[var(--color-text)] text-[length:var(--text-md)]">
             {title}
           </h3>
           <span
-            className={`inline-block mt-1 px-3 py-1 rounded-full font-medium ${STATE_BG[state]}`}
-            style={{ fontSize: 'calc(12px * var(--font-scale))' }}
+            className={`inline-block mt-1 px-3 py-1 rounded-full font-medium text-[length:var(--text-sm)] ${STATE_BG[state]}`}
           >
             {t(STATE_LABEL[state])}
           </span>
@@ -71,7 +70,7 @@ export default function SkillRunner() {
           {canPause && (
             <button
               onClick={() => setState('paused')}
-              className="p-2.5 rounded-lg bg-[var(--color-bg)] hover:bg-[var(--color-bg-sidebar)] transition-all"
+              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-bg)] hover:bg-[var(--color-bg-sidebar)] transition-all"
               style={{ minWidth: '44px', minHeight: '44px' }}
               aria-label={t('skill.pause')}
             >
@@ -81,7 +80,7 @@ export default function SkillRunner() {
           {canResume && (
             <button
               onClick={() => setState('running')}
-              className="p-2.5 rounded-lg bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition-all"
+              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-primary)] text-[var(--color-text-inverse)] hover:bg-[var(--color-primary-hover)] transition-all"
               style={{ minWidth: '44px', minHeight: '44px' }}
               aria-label={t('skill.resume')}
             >
@@ -91,7 +90,7 @@ export default function SkillRunner() {
           {canCancel && (
             <button
               onClick={() => setState('cancelled')}
-              className="p-2.5 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-600 hover:bg-red-200 dark:hover:bg-red-900/40 transition-all"
+              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] text-[var(--color-danger)] hover:bg-[var(--color-danger-bg-hover)] transition-all"
               style={{ minWidth: '44px', minHeight: '44px' }}
               aria-label={t('skill.cancel')}
             >
@@ -101,7 +100,7 @@ export default function SkillRunner() {
           {(state === 'done' || state === 'failed' || state === 'cancelled') && (
             <button
               onClick={reset}
-              className="p-2.5 rounded-lg bg-[var(--color-bg)] hover:bg-[var(--color-bg-sidebar)] transition-all text-[var(--color-text-muted)]"
+              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-bg)] hover:bg-[var(--color-bg-sidebar)] transition-all text-[var(--color-text-muted)]"
               style={{ minWidth: '44px', minHeight: '44px' }}
               aria-label={t('titlebar.close')}
             >
@@ -130,21 +129,20 @@ export default function SkillRunner() {
               {/* Step content */}
               <div className="flex-1 pb-2">
                 <span
-                  className={`font-medium ${step.status === 'failed' ? 'text-red-500' : 'text-[var(--color-text)]'}`}
-                  style={{ fontSize: 'var(--font-size-sm)' }}
+                  className={`font-medium text-[length:var(--text-md)] ${step.status === 'failed' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text)]'}`}
                 >
                   {step.title}
                 </span>
                 {step.detail && (
-                  <p className="text-[var(--color-text-muted)] mt-0.5" style={{ fontSize: 'calc(12px * var(--font-scale))' }}>
+                  <p className="text-[var(--color-text-muted)] mt-0.5 text-[length:var(--text-sm)]">
                     {step.detail}
                   </p>
                 )}
                 {step.status === 'failed' && (
                   <button
                     onClick={() => updateStep(step.id, 'pending')}
-                    className="mt-1 flex items-center gap-1 text-[var(--color-primary)] font-medium"
-                    style={{ fontSize: 'calc(13px * var(--font-scale))', minHeight: '44px' }}
+                    className="mt-1 flex items-center gap-1 text-[var(--color-primary)] font-medium text-[length:var(--text-md)]"
+                    style={{ minHeight: '44px' }}
                   >
                     <RotateCcw size={14} /> {t('skill.retry')}
                   </button>
@@ -157,7 +155,7 @@ export default function SkillRunner() {
 
       {/* Error message */}
       {error && (
-        <div className="mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400" style={{ fontSize: 'var(--font-size-sm)' }}>
+        <div className="mt-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] text-[var(--color-danger)] text-[length:var(--text-md)]">
           {error}
         </div>
       )}

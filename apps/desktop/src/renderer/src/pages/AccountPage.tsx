@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { User, LogOut, Mail, Lock, UserPlus } from 'lucide-react'
 import { useAuthStore } from '../stores/auth.store'
 import { t } from '../i18n'
+import { Card, Button } from '../components/ui'
 
 export default function AccountPage() {
   const { user, loading, error, login, signup, logout, checkSession } = useAuthStore()
@@ -27,134 +28,126 @@ export default function AccountPage() {
   // Logged in view
   if (user) {
     return (
-      <div className="max-w-md mx-auto p-8">
-        <div className="flex items-center gap-3 mb-8">
-          <User size={32} className="text-[var(--color-primary)]" />
-          <h1 className="font-bold" style={{ fontSize: 'var(--font-size-xl)' }}>
+      <div className="max-w-sm mx-auto p-8">
+        <div className="mb-8">
+          <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
             {t('account.title')}
           </h1>
         </div>
 
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          {/* Profile card */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 rounded-full bg-[var(--color-primary-light)] flex items-center justify-center">
-              <User size={32} className="text-[var(--color-primary)]" />
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-[var(--color-primary-light)] flex items-center justify-center">
+              <User size={24} className="text-[var(--color-primary)]" />
             </div>
             <div>
-              <p className="font-semibold" style={{ fontSize: 'var(--font-size-base)' }}>
+              <p className="text-[length:var(--text-md)] font-medium">
                 {user.displayName || user.email || t('account.unknownUser')}
               </p>
               {user.email && (
-                <p className="text-[var(--color-text-muted)]" style={{ fontSize: 'var(--font-size-sm)' }}>
+                <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
                   {user.email}
                 </p>
               )}
             </div>
           </div>
 
-          <button
+          <Button
+            variant="ghost"
+            className="w-full !text-[var(--color-danger)] hover:!bg-[var(--color-danger-bg)]"
             onClick={logout}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 font-medium hover:bg-red-100 dark:hover:bg-red-900/40 transition-all"
-            style={{ minHeight: 'var(--min-target)', fontSize: 'var(--font-size-sm)' }}
+            leftIcon={<LogOut size={16} />}
           >
-            <LogOut size={20} />
             {t('account.logout')}
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     )
   }
 
   // Login/Signup form
   return (
-    <div className="max-w-md mx-auto p-8">
-      <div className="flex items-center gap-3 mb-8">
-        <User size={32} className="text-[var(--color-primary)]" />
-        <h1 className="font-bold" style={{ fontSize: 'var(--font-size-xl)' }}>
+    <div className="max-w-sm mx-auto p-8">
+      <div className="mb-8">
+        <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
           {t('account.title')}
         </h1>
       </div>
 
-      <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
+      <Card>
         {/* Mode toggle */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-1 mb-4 p-1 bg-[var(--color-surface-soft)] rounded-[var(--radius-md)]">
           <button
             onClick={() => setMode('login')}
-            className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+            className={`flex-1 py-2 rounded-[var(--radius-sm)] text-[length:var(--text-md)] font-medium transition-all ${
               mode === 'login'
-                ? 'bg-[var(--color-primary)] text-white'
-                : 'bg-[var(--color-bg)] text-[var(--color-text-muted)]'
+                ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-sm'
+                : 'text-[var(--color-text-muted)]'
             }`}
-            style={{ minHeight: 'var(--min-target)', fontSize: 'var(--font-size-sm)' }}
           >
             {t('account.login')}
           </button>
           <button
             onClick={() => setMode('signup')}
-            className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+            className={`flex-1 py-2 rounded-[var(--radius-sm)] text-[length:var(--text-md)] font-medium transition-all ${
               mode === 'signup'
-                ? 'bg-[var(--color-primary)] text-white'
-                : 'bg-[var(--color-bg)] text-[var(--color-text-muted)]'
+                ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-sm'
+                : 'text-[var(--color-text-muted)]'
             }`}
-            style={{ minHeight: 'var(--min-target)', fontSize: 'var(--font-size-sm)' }}
           >
             {t('account.signup')}
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {mode === 'signup' && (
             <div>
-              <label className="block mb-1 text-[var(--color-text-muted)]" style={{ fontSize: 'var(--font-size-sm)' }}>
+              <label className="block mb-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
                 {t('account.displayName')}
               </label>
               <div className="relative">
-                <UserPlus size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                <UserPlus size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
                 <input
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder={t('account.displayNamePlaceholder')}
-                  className="w-full h-14 pl-11 pr-4 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
-                  style={{ fontSize: 'var(--font-size-sm)' }}
+                  className="w-full h-10 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)] text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block mb-1 text-[var(--color-text-muted)]" style={{ fontSize: 'var(--font-size-sm)' }}>
+            <label className="block mb-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
               {t('account.email')}
             </label>
             <div className="relative">
-              <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t('account.emailPlaceholder')}
-                className="w-full h-14 pl-11 pr-4 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
-                style={{ fontSize: 'var(--font-size-sm)' }}
+                className="w-full h-10 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)] text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block mb-1 text-[var(--color-text-muted)]" style={{ fontSize: 'var(--font-size-sm)' }}>
+            <label className="block mb-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
               {t('account.password')}
             </label>
             <div className="relative">
-              <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t('account.passwordPlaceholder')}
-                className="w-full h-14 pl-11 pr-4 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
-                style={{ fontSize: 'var(--font-size-sm)' }}
+                className="w-full h-10 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)] text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
                 required
                 minLength={6}
               />
@@ -162,25 +155,24 @@ export default function AccountPage() {
           </div>
 
           {error && (
-            <p className="text-red-500 font-medium" style={{ fontSize: 'var(--font-size-sm)' }}>
+            <p className="text-[length:var(--text-sm)] text-[var(--color-danger)] font-medium">
               {error}
             </p>
           )}
 
-          <button
+          <Button
+            className="w-full mt-1"
             type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-[var(--color-primary)] text-white font-semibold hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-all"
-            style={{ minHeight: 'var(--min-target)', fontSize: 'var(--font-size-sm)' }}
+            loading={loading}
           >
             {loading
               ? t('account.loading')
               : mode === 'login'
                 ? t('account.loginButton')
                 : t('account.signupButton')}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   )
 }

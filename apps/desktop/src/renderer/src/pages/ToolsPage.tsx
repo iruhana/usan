@@ -7,8 +7,6 @@ import {
   Globe,
   FolderOpen,
   Terminal,
-  Wrench,
-  AlertTriangle,
   ShieldCheck,
   Trash2,
   Rocket,
@@ -16,6 +14,7 @@ import {
 import { t } from '../i18n'
 import { useSafetyStore } from '../stores/safety.store'
 import { useChatStore } from '../stores/chat.store'
+import { SectionHeader } from '../components/ui'
 
 interface ToolCardProps {
   icon: typeof Monitor
@@ -60,40 +59,41 @@ function ToolCard({ icon: Icon, titleKey, descKey, promptKey, dangerous }: ToolC
   }
 
   return (
-    <div className={`flex flex-col p-5 rounded-2xl border transition-all ${
-      dangerous
-        ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10'
-        : 'border-[var(--color-border)] bg-[var(--color-bg-card)]'
-    }`}>
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+    <button
+      onClick={handleRun}
+      className={`group flex items-center gap-4 p-4 rounded-[var(--radius-lg)] border transition-all hover:-translate-y-px text-left w-full ${
+        dangerous
+          ? 'border-[var(--color-danger)]/20 hover:border-[var(--color-danger)]/40 hover:bg-[var(--color-danger-bg)]/30'
+          : 'border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-[var(--color-primary)]/30 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]'
+      }`}
+    >
+      <div className={`w-10 h-10 rounded-[var(--radius-md)] flex items-center justify-center shrink-0 transition-all group-hover:scale-110 ${
+        dangerous
+          ? 'bg-[var(--color-danger-bg)]'
+          : 'bg-[var(--color-primary-light)] group-hover:bg-[var(--color-primary)] group-hover:shadow-[var(--shadow-md)]'
+      }`}>
+        <Icon size={18} className={`transition-colors ${
           dangerous
-            ? 'bg-red-100 dark:bg-red-900/30'
-            : 'bg-[var(--color-surface-soft)]'
-        }`}>
-          <Icon size={24} className={dangerous ? 'text-red-600 dark:text-red-400' : 'text-[var(--color-primary)]'} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-[var(--color-text)]" style={{ fontSize: 'var(--font-size-sm)' }}>
-            {t(titleKey)}
-          </h3>
-          <p className="text-[var(--color-text-muted)]" style={{ fontSize: 'calc(13px * var(--font-scale))' }}>
-            {t(descKey)}
-          </p>
-        </div>
+            ? 'text-[var(--color-danger)]'
+            : 'text-[var(--color-primary)] group-hover:text-[var(--color-text-inverse)]'
+        }`} />
       </div>
-      <button
-        onClick={handleRun}
-        className={`w-full rounded-xl font-semibold transition-all ${
-          dangerous
-            ? 'bg-red-600 text-white hover:bg-red-700'
-            : 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]'
-        }`}
-        style={{ fontSize: 'var(--font-size-sm)', minHeight: 'var(--min-target)' }}
-      >
+      <div className="flex-1 min-w-0">
+        <h3 className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">
+          {t(titleKey)}
+        </h3>
+        <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] truncate">
+          {t(descKey)}
+        </p>
+      </div>
+      <span className={`shrink-0 px-3 py-2 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
+        dangerous
+          ? 'text-[var(--color-danger)] group-hover:bg-[var(--color-danger-bg)]'
+          : 'text-[var(--color-primary)] group-hover:bg-[var(--color-primary-light)]'
+      }`}>
         {t('tools.run')}
-      </button>
-    </div>
+      </span>
+    </button>
   )
 }
 
@@ -101,37 +101,38 @@ export default function ToolsPage() {
   return (
     <div className="flex flex-col h-full p-6 overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <Wrench size={28} className="text-[var(--color-primary)]" />
-        <h1 className="font-bold" style={{ fontSize: 'var(--font-size-xl)' }}>
+      <div className="mb-8 pb-6 border-b border-[var(--color-border)]">
+        <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
           {t('tools.title')}
         </h1>
+        <p className="text-[length:var(--text-md)] text-[var(--color-text-muted)] mt-1">
+          {t('tools.subtitle')}
+        </p>
       </div>
-      <p className="text-[var(--color-text-muted)] mb-6" style={{ fontSize: 'var(--font-size-sm)' }}>
-        {t('tools.subtitle')}
-      </p>
 
       {/* Safe tools */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {SAFE_TOOLS.map((tool) => (
-          <ToolCard key={tool.titleKey} {...tool} />
-        ))}
+      <div className="mb-8 max-w-2xl">
+        <SectionHeader title={t('tools.safeTools')} indicator="var(--color-success)" />
+        <div className="flex flex-col gap-2">
+          {SAFE_TOOLS.map((tool) => (
+            <ToolCard key={tool.titleKey} {...tool} />
+          ))}
+        </div>
       </div>
 
       {/* Dangerous tools */}
-      <div className="flex items-center gap-2 mb-4">
-        <AlertTriangle size={20} className="text-[var(--color-warning)]" />
-        <h2 className="font-semibold text-[var(--color-text)]" style={{ fontSize: 'var(--font-size-base)' }}>
-          {t('tools.dangerZone')}
-        </h2>
-      </div>
-      <p className="text-[var(--color-text-muted)] mb-4" style={{ fontSize: 'calc(13px * var(--font-scale))' }}>
-        {t('tools.needsConfirmation')}
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {DANGEROUS_TOOLS.map((tool) => (
-          <ToolCard key={tool.titleKey} {...tool} />
-        ))}
+      <div className="max-w-2xl">
+        <SectionHeader title={t('tools.dangerZone')} indicator="var(--color-danger)" />
+        <div className="px-4 py-2 mb-4 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)]/30 border border-[var(--color-danger)]/15">
+          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+            {t('tools.needsConfirmation')}
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          {DANGEROUS_TOOLS.map((tool) => (
+            <ToolCard key={tool.titleKey} {...tool} />
+          ))}
+        </div>
       </div>
     </div>
   )

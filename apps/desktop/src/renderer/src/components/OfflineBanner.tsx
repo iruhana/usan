@@ -20,13 +20,12 @@ export default function OfflineBanner() {
 
   return (
     <div
-      className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-center gap-2"
+      className="bg-[var(--color-surface-soft)] border-b border-[var(--color-warning)]/30 px-4 py-2 flex items-center justify-center gap-2"
       role="alert"
     >
-      <WifiOff size={16} className="text-amber-600" />
+      <WifiOff size={16} className="text-[var(--color-warning)]" />
       <span
-        className="text-amber-800 dark:text-amber-200 font-medium"
-        style={{ fontSize: 'var(--font-size-sm)' }}
+        className="text-[var(--color-text)] font-medium text-[length:var(--text-md)]"
       >
         {t('error.offline')}
       </span>

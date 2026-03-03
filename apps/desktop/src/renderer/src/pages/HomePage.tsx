@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, Volume2 } from 'lucide-react'
+import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, Volume2, ArrowRight } from 'lucide-react'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
 import MessageBubble from '../components/chat/MessageBubble'
@@ -8,6 +8,13 @@ import ConversationList from '../components/chat/ConversationList'
 import { SkeletonLoader } from '../components/chat/SkeletonLoader'
 import { useAnnouncer } from '../components/accessibility'
 import { t, getSpeechLang } from '../i18n'
+
+const quickActions = [
+  { icon: Monitor, labelKey: 'home.quickAction.screenError', descKey: 'home.quickAction.screenErrorDesc', promptKey: 'home.quickAction.screenErrorPrompt' },
+  { icon: FileSearch, labelKey: 'home.quickAction.findFile', descKey: 'home.quickAction.findFileDesc', promptKey: 'home.quickAction.findFilePrompt' },
+  { icon: Globe, labelKey: 'home.quickAction.weather', descKey: 'home.quickAction.weatherDesc', promptKey: 'home.quickAction.weatherPrompt' },
+  { icon: Volume2, labelKey: 'home.quickAction.readAloud', descKey: 'home.quickAction.readAloudDesc', promptKey: 'home.quickAction.readAloudPrompt' },
+] as const
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -26,6 +33,7 @@ export default function HomePage() {
   const conversations = useChatStore((s) => s.conversations)
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const isStreaming = useChatStore((s) => s.isStreaming)
+  const streamingPhase = useChatStore((s) => s.streamingPhase)
   const streamingText = useChatStore((s) => s.streamingText)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const stopStreaming = useChatStore((s) => s.stopStreaming)
@@ -34,75 +42,38 @@ export default function HomePage() {
   const { settings } = useSettingsStore()
   const { announce } = useAnnouncer()
 
-  // Screen reader: announce streaming start/end
   const prevStreamingRef = useRef(false)
   useEffect(() => {
-    if (isStreaming && !prevStreamingRef.current) {
-      announce(t('a11y.streaming'))
-    } else if (!isStreaming && prevStreamingRef.current) {
-      announce(t('a11y.streamingDone'))
-    }
+    if (isStreaming && !prevStreamingRef.current) announce(t('a11y.streaming'))
+    else if (!isStreaming && prevStreamingRef.current) announce(t('a11y.streamingDone'))
     prevStreamingRef.current = isStreaming
   }, [isStreaming, announce])
-
-  const quickActions = [
-    {
-      icon: Monitor,
-      label: t('home.quickAction.screenError'),
-      description: t('home.quickAction.screenErrorDesc'),
-      prompt: t('home.quickAction.screenErrorPrompt'),
-    },
-    {
-      icon: FileSearch,
-      label: t('home.quickAction.findFile'),
-      description: t('home.quickAction.findFileDesc'),
-      prompt: t('home.quickAction.findFilePrompt'),
-    },
-    {
-      icon: Globe,
-      label: t('home.quickAction.weather'),
-      description: t('home.quickAction.weatherDesc'),
-      prompt: t('home.quickAction.weatherPrompt'),
-    },
-    {
-      icon: Volume2,
-      label: t('home.quickAction.readAloud'),
-      description: t('home.quickAction.readAloudDesc'),
-      prompt: t('home.quickAction.readAloudPrompt'),
-    },
-  ]
-
-  const quickChips = quickActions.map((a) => ({ label: a.label, prompt: a.prompt }))
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId)
   const messages = activeConversation?.messages ?? []
 
-  // Load saved conversations on first mount
-  useEffect(() => {
-    loadFromDisk()
-  }, [loadFromDisk])
+  useEffect(() => { loadFromDisk() }, [loadFromDisk])
+  useEffect(() => { return () => { recognitionRef.current?.stop(); recognitionRef.current = null } }, [])
 
-  // Cleanup speech recognition on unmount — null the ref to prevent onend/onerror from calling setState
+  // Stop voice recognition when window loses focus
   useEffect(() => {
-    return () => {
-      recognitionRef.current?.stop()
-      recognitionRef.current = null
+    const handleBlur = () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+        recognitionRef.current = null
+        setIsListening(false)
+      }
     }
+    window.addEventListener('blur', handleBlur)
+    return () => window.removeEventListener('blur', handleBlur)
   }, [])
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingText])
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streamingText])
 
-  // TTS: read assistant messages aloud
   useEffect(() => {
     if (!settings.voiceEnabled) return
-    if (messages.length <= prevMessageCountRef.current) {
-      prevMessageCountRef.current = messages.length
-      return
-    }
+    if (messages.length <= prevMessageCountRef.current) { prevMessageCountRef.current = messages.length; return }
     prevMessageCountRef.current = messages.length
-
     const lastMsg = messages[messages.length - 1]
     if (lastMsg?.role === 'assistant' && !lastMsg.toolCalls?.length) {
       const utterance = new SpeechSynthesisUtterance(lastMsg.content)
@@ -112,63 +83,34 @@ export default function HomePage() {
     }
   }, [messages, settings.voiceEnabled, settings.voiceSpeed])
 
-  const handleSend = useCallback(
-    (text: string) => {
-      if (!text.trim() || isStreaming) return
-      sendMessage(text)
-      setInput('')
-    },
-    [isStreaming, sendMessage]
-  )
+  const handleSend = useCallback((text: string) => {
+    if (!text.trim() || isStreaming) return
+    sendMessage(text)
+    setInput('')
+  }, [isStreaming, sendMessage])
 
-  // Voice input (STT) — continuous mode: keeps listening after each utterance
   const toggleListening = useCallback(() => {
-    if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
-      return
-    }
-
+    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return }
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognitionCtor) return
-
     const recognition = new SpeechRecognitionCtor()
     recognition.lang = getSpeechLang()
     recognition.interimResults = true
     recognition.continuous = true
     recognitionRef.current = recognition
-
     let silenceTimer: ReturnType<typeof setTimeout> | null = null
-
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let transcript = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
+      for (let i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript
       if (event.results[event.results.length - 1].isFinal) {
         if (transcript.trim()) handleSend(transcript.trim())
         setInput('')
-        // Auto-stop after 10 seconds of silence
         if (silenceTimer) clearTimeout(silenceTimer)
-        silenceTimer = setTimeout(() => {
-          recognitionRef.current?.stop()
-          setIsListening(false)
-        }, 10000)
-      } else {
-        setInput(transcript)
-      }
+        silenceTimer = setTimeout(() => { recognitionRef.current?.stop(); setIsListening(false) }, 10000)
+      } else { setInput(transcript) }
     }
-    recognition.onerror = () => {
-      if (!recognitionRef.current) return
-      setIsListening(false)
-      if (silenceTimer) clearTimeout(silenceTimer)
-    }
-    recognition.onend = () => {
-      if (!recognitionRef.current) return
-      setIsListening(false)
-      if (silenceTimer) clearTimeout(silenceTimer)
-    }
-
+    recognition.onerror = () => { if (!recognitionRef.current) return; setIsListening(false); if (silenceTimer) clearTimeout(silenceTimer) }
+    recognition.onend = () => { if (!recognitionRef.current) return; setIsListening(false); if (silenceTimer) clearTimeout(silenceTimer) }
     setIsListening(true)
     recognition.start()
   }, [isListening, handleSend])
@@ -178,87 +120,74 @@ export default function HomePage() {
 
   return (
     <div className="flex h-full">
-      {/* Conversation list panel */}
       <ConversationList />
 
       <div className="flex flex-col flex-1 min-w-0">
-      {/* API key missing banner */}
+      {/* API key banner */}
       {!hasApiKey && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-6 py-4">
-          <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <KeyRound size={22} className="text-amber-600 shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-amber-800 dark:text-amber-200" style={{ fontSize: 'var(--font-size-sm)' }}>
+        <div className="border-b border-[var(--color-warning)]/30 bg-[var(--color-surface-soft)]">
+          <div className="max-w-2xl mx-auto flex items-center gap-3 px-6 py-3">
+            <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--color-warning)]/10 flex items-center justify-center shrink-0">
+              <KeyRound size={16} className="text-[var(--color-warning)]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">
                 {t('home.apiKeyNeeded')}
               </p>
-              <p className="text-amber-600 dark:text-amber-400" style={{ fontSize: 'calc(13px * var(--font-scale))' }}>
+              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
                 {t('home.apiKeyHint')}
               </p>
             </div>
+            <ArrowRight size={16} className="text-[var(--color-text-muted)] shrink-0" />
           </div>
         </div>
       )}
 
       {/* Chat area */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-6 py-8">
         {!hasMessages ? (
-          /* Welcome + Quick Actions + Recent conversations */
-          <div className="flex flex-col items-center justify-center h-full gap-8">
+          <div className="flex flex-col items-center justify-center h-full gap-8 max-w-xl mx-auto animate-in">
+            {/* Welcome */}
             <div className="text-center">
-              <div className="text-6xl mb-4">🤖</div>
-              <h1
-                className="font-bold text-[var(--color-text)] mb-2"
-                style={{ fontSize: 'var(--font-size-xl)' }}
-              >
+              <h1 className="font-semibold tracking-tight text-[length:var(--text-2xl)] text-[var(--color-text)]">
                 {getGreeting()}
               </h1>
-              <p
-                className="text-[var(--color-text-muted)]"
-                style={{ fontSize: 'var(--font-size-sm)' }}
-              >
+              <div className="h-1 w-12 rounded-full bg-[var(--color-primary)] mx-auto mt-3 mb-2" />
+              <p className="text-[length:var(--text-md)] text-[var(--color-text-muted)] mt-2">
                 {t('home.welcomeSub')}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl w-full">
+            {/* Quick action cards */}
+            <div className="grid grid-cols-2 gap-3 w-full">
               {quickActions.map((action, i) => {
                 const Icon = action.icon
                 return (
                   <button
                     key={i}
-                    onClick={() => handleSend(action.prompt)}
-                    className="flex flex-col items-start gap-3 p-6 rounded-2xl glass hover:border-[var(--color-primary)] hover:shadow-lg transition-all text-left"
+                    onClick={() => handleSend(t(action.promptKey))}
+                    className="group flex items-center gap-3 p-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:shadow-[var(--shadow-md)] hover:-translate-y-px transition-all text-left shadow-[var(--shadow-sm)]"
                     style={{ minHeight: 'var(--min-target)' }}
                   >
-                    <div className="w-12 h-12 rounded-xl bg-[var(--color-primary-light)] flex items-center justify-center">
-                      <Icon size={24} className="text-[var(--color-primary)]" />
+                    <div className="w-11 h-11 rounded-[var(--radius-md)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0 group-hover:bg-[var(--color-primary)] group-hover:shadow-[var(--shadow-md)] transition-all">
+                      <Icon size={20} className="text-[var(--color-primary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
                     </div>
-                    <div>
-                      <div className="font-semibold" style={{ fontSize: 'var(--font-size-sm)' }}>
-                        {action.label}
-                      </div>
-                      <div
-                        className="text-[var(--color-text-muted)] mt-1"
-                        style={{ fontSize: 'calc(14px * var(--font-scale))' }}
-                      >
-                        {action.description}
-                      </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">{t(action.labelKey)}</div>
+                      <div className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] truncate">{t(action.descKey)}</div>
                     </div>
                   </button>
                 )
               })}
             </div>
 
-            {/* Recent conversations */}
+            {/* Recent tasks */}
             {conversations.length > 0 && (
-              <div className="max-w-3xl w-full">
-                <h2
-                  className="font-semibold text-[var(--color-text-muted)] mb-3"
-                  style={{ fontSize: 'var(--font-size-sm)' }}
-                >
+              <div className="w-full">
+                <h2 className="text-[length:var(--text-xs)] font-medium text-[var(--color-text-muted)] mb-2 uppercase tracking-wide">
                   {t('home.recentTasks')}
                 </h2>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col">
                   {[...conversations].sort((a, b) => {
                     const aTime = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : a.createdAt
                     const bTime = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : b.createdAt
@@ -267,15 +196,12 @@ export default function HomePage() {
                     <button
                       key={conv.id}
                       onClick={() => useChatStore.getState().setActiveConversation(conv.id)}
-                      className="flex items-center gap-3 px-5 py-3 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] hover:border-[var(--color-primary)] hover:shadow-sm transition-all text-left"
-                      style={{ minHeight: 'var(--min-target)' }}
+                      className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-soft)] transition-all text-left"
+                      style={{ minHeight: '48px' }}
+                      title={conv.title}
                     >
-                      <span className="flex-1 truncate font-medium" style={{ fontSize: 'var(--font-size-sm)' }}>
-                        {conv.title}
-                      </span>
-                      <span className="text-[var(--color-text-muted)] shrink-0" style={{ fontSize: 'calc(13px * var(--font-scale))' }}>
-                        {conv.messages.length} {t('chat.messages')}
-                      </span>
+                      <span className="flex-1 truncate text-[length:var(--text-md)] text-[var(--color-text)]">{conv.title}</span>
+                      <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] shrink-0">{conv.messages.length}</span>
                     </button>
                   ))}
                 </div>
@@ -283,96 +209,89 @@ export default function HomePage() {
             )}
           </div>
         ) : (
-          /* Messages */
-          <div className="max-w-3xl mx-auto flex flex-col gap-4">
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
-            ))}
-            {isStreaming && !streamingText && <SkeletonLoader />}
+          <div className="max-w-2xl mx-auto flex flex-col gap-3">
+            {messages.map((msg) => (<MessageBubble key={msg.id} message={msg} />))}
+            {isStreaming && !streamingText && <SkeletonLoader phase={streamingPhase === 'idle' ? 'waiting' : streamingPhase} />}
             {isStreaming && streamingText && <StreamingText text={streamingText} />}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
-      {/* Quick command chips */}
+      {/* Quick chips */}
       {!isStreaming && (
-        <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-card)] px-4 pt-3 pb-0">
-          <div className="max-w-3xl mx-auto flex gap-2 overflow-x-auto scrollbar-none">
-            {quickChips.map((chip, i) => (
-              <button
-                key={i}
-                onClick={() => handleSend(chip.prompt)}
-                className="shrink-0 px-4 py-2 rounded-full bg-[var(--color-surface-soft)] text-[var(--color-primary)] font-medium hover:bg-[var(--color-primary-light)] transition-all"
-                style={{ fontSize: 'calc(13px * var(--font-scale))', minHeight: '44px' }}
-              >
-                {chip.label}
-              </button>
-            ))}
+        <div className="border-t border-[var(--color-border)] px-4 pt-2 pb-0">
+          <div className="max-w-2xl mx-auto">
+            <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mb-1 uppercase tracking-wide">
+              {t('home.quickSuggestions')}
+            </p>
+            <div className="flex gap-2 overflow-x-auto scrollbar-none">
+              {quickActions.map((action, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSend(t(action.promptKey))}
+                  className="shrink-0 px-3 py-2 rounded-full border border-[var(--color-border)] text-[length:var(--text-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-light)] transition-all"
+                  style={{ minHeight: '48px' }}
+                >
+                  {t(action.labelKey)}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* Input area */}
-      <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          {/* Voice input button */}
+      <div className="border-t border-[var(--color-border)] p-3">
+        <div className="max-w-2xl mx-auto flex items-center gap-2">
           <button
             onClick={toggleListening}
-            className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shrink-0 ${
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${
               isListening
-                ? 'bg-red-500 text-white'
-                : 'bg-[var(--color-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-sidebar)]'
+                ? 'bg-[var(--color-danger)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
+                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-text)]'
             }`}
             aria-label={isListening ? t('home.voiceStop') : t('home.voiceStart')}
+            title={isListening ? t('home.voiceStop') : t('home.voiceStart')}
           >
             {isListening ? (
-              <div className="flex items-center gap-0.5">
-                <span className="voice-wave-bar" />
-                <span className="voice-wave-bar" />
-                <span className="voice-wave-bar" />
-                <span className="voice-wave-bar" />
-                <span className="voice-wave-bar" />
-              </div>
-            ) : (
-              <Mic size={26} />
-            )}
+              <div className="flex items-center gap-1"><span className="voice-wave-bar" /><span className="voice-wave-bar" /><span className="voice-wave-bar" /></div>
+            ) : (<Mic size={18} />)}
           </button>
 
-          {/* Text input */}
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
             placeholder={isListening ? t('home.listening') : t('home.inputPlaceholder')}
-            className="flex-1 h-14 px-5 rounded-2xl bg-[var(--color-bg)] border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] transition-all"
-            style={{ fontSize: 'var(--font-size-sm)' }}
+            className="flex-1 h-11 px-4 rounded-full bg-[var(--color-surface-soft)] border border-transparent text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:bg-[var(--color-bg-card)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
             disabled={isStreaming}
           />
 
-          {/* Send / Stop button */}
           {isStreaming ? (
             <button
               onClick={stopStreaming}
-              className="w-14 h-14 rounded-full bg-[var(--color-danger)] text-white flex items-center justify-center hover:bg-red-600 transition-all shrink-0"
+              className="w-10 h-10 rounded-full bg-[var(--color-danger)] text-[var(--color-text-inverse)] flex items-center justify-center hover:opacity-90 transition-all shrink-0 shadow-[var(--shadow-md)]"
               aria-label={t('home.stop')}
+              title={t('home.stop')}
             >
-              <Square size={20} />
+              <Square size={14} />
             </button>
           ) : (
             <button
               onClick={() => handleSend(input)}
               disabled={!input.trim()}
-              className="w-14 h-14 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center hover:bg-[var(--color-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0"
+              className="w-10 h-10 rounded-full bg-[var(--color-primary)] text-[var(--color-text-inverse)] flex items-center justify-center hover:bg-[var(--color-primary-hover)] shadow-[0_2px_4px_rgba(99,102,241,0.15)] disabled:opacity-30 disabled:shadow-none transition-all shrink-0"
               aria-label={t('home.send')}
+              title={t('home.send')}
             >
-              <Send size={22} />
+              <Send size={16} />
             </button>
           )}
         </div>
       </div>
-      </div>{/* end flex-col */}
+      </div>
     </div>
   )
 }

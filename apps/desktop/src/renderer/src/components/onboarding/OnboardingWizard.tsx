@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Monitor,
   FolderOpen,
@@ -7,14 +7,13 @@ import {
   Globe,
   Settings,
   ChevronRight,
-  Check,
-  Mic,
-  Volume2,
-  Play,
-  Square,
   MessageCircle,
+  Umbrella,
+  Type,
+  Sparkles,
 } from 'lucide-react'
-import { t, getSpeechLang } from '../../i18n'
+import { t } from '../../i18n'
+import { Button, Card } from '../ui'
 
 interface OnboardingWizardProps {
   onComplete: () => void
@@ -29,31 +28,21 @@ const PERMISSION_ITEMS = [
   { icon: Settings, labelKey: 'onboarding.perm.settings', descKey: 'onboarding.perm.settingsDesc' },
 ]
 
-const TOTAL_STEPS = 4
+const TOTAL_STEPS = 3
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState(0)
   const [fontScale, setFontScale] = useState(1.0)
-  const [voiceSpeed, setVoiceSpeed] = useState(1.0)
-  const [voiceEnabled, setVoiceEnabled] = useState(true)
-  const [micTested, setMicTested] = useState(false)
-  const [ttsTesting, setTtsTesting] = useState(false)
-  const [micListening, setMicListening] = useState(false)
-  const [micResult, setMicResult] = useState('')
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
-
-  // Cleanup speech recognition on unmount
-  useEffect(() => {
-    return () => { recognitionRef.current?.stop() }
-  }, [])
+  const [grantError, setGrantError] = useState('')
 
   const grantPermissions = async () => {
     try {
-      await window.usan?.permissions.grant()
+      setGrantError('')
+      await window.usan?.permissions.grant({ scope: 'all', confirmAll: true })
+      setStep(1)
     } catch {
-      // Dev mode — skip
+      setGrantError(t('onboarding.permissionGrantError'))
     }
-    setStep(1)
   }
 
   const updateFontScale = (val: number) => {
@@ -62,118 +51,66 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     window.usan?.settings.set({ fontScale: val })
   }
 
-  const testTTS = () => {
-    if (ttsTesting) {
-      speechSynthesis.cancel()
-      setTtsTesting(false)
-      return
-    }
-    setTtsTesting(true)
-    const utterance = new SpeechSynthesisUtterance(
-      t('onboarding.ttsTestSentence')
-    )
-    utterance.lang = getSpeechLang()
-    utterance.rate = voiceSpeed
-    utterance.onend = () => setTtsTesting(false)
-    utterance.onerror = () => setTtsTesting(false)
-    speechSynthesis.speak(utterance)
-  }
-
-  const testMic = () => {
-    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognitionCtor) {
-      setMicResult(t('onboarding.micNotSupported'))
-      return
-    }
-
-    if (micListening) {
-      recognitionRef.current?.stop()
-      setMicListening(false)
-      return
-    }
-
-    const recognition = new SpeechRecognitionCtor()
-    recognition.lang = getSpeechLang()
-    recognition.interimResults = false
-    recognition.maxAlternatives = 1
-    recognitionRef.current = recognition
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const text = event.results[0][0].transcript
-      setMicResult(text)
-      setMicTested(true)
-      setMicListening(false)
-    }
-    recognition.onerror = () => {
-      setMicResult(t('onboarding.micFailed'))
-      setMicListening(false)
-    }
-    recognition.onend = () => setMicListening(false)
-
-    setMicResult('')
-    setMicListening(true)
-    recognition.start()
-  }
-
-  const finishOnboarding = () => {
-    window.usan?.settings.set({ voiceSpeed, voiceEnabled })
-    onComplete()
-  }
-
   return (
-    <div className="flex items-center justify-center h-screen bg-[var(--color-bg)]">
-      <div className="max-w-lg w-full mx-4">
+    <div className="flex items-center justify-center h-full bg-[var(--color-bg)] py-8">
+      <div className="max-w-md w-full mx-6">
         {/* Step 0: Welcome + Permissions */}
         {step === 0 && (
-          <div className="bg-[var(--color-bg-card)] rounded-3xl shadow-xl p-8 text-center">
-            <div className="text-7xl mb-6">🤖</div>
-            <h1 className="font-bold mb-2" style={{ fontSize: 'var(--font-size-xl)' }}>
-              {t('onboarding.welcome')}
-            </h1>
-            <p className="mb-2" style={{ fontSize: 'var(--font-size-lg)' }}>
-              {t('onboarding.iAmUsanPrefix')}<strong>{t('onboarding.iAmUsanName')}</strong>{t('onboarding.iAmUsanSuffix')}
-            </p>
-            <p className="text-[var(--color-text-muted)] mb-6" style={{ fontSize: 'var(--font-size-sm)' }}>
-              {t('onboarding.permissionNeeded')}
-            </p>
+          <div className="animate-in">
+            <div className="text-center mb-8">
+              <div className="mb-4">
+                <div className="w-16 h-16 rounded-[var(--radius-lg)] bg-[var(--color-primary)] mx-auto flex items-center justify-center shadow-[var(--shadow-md)]">
+                  <Umbrella size={32} className="text-[var(--color-text-inverse)]" />
+                </div>
+              </div>
+              <h1 className="font-semibold text-[var(--color-text)] mb-1 text-[length:var(--text-xl)]">
+                {t('onboarding.welcome')}
+              </h1>
+              <p className="text-[length:var(--text-md)]">
+                {t('onboarding.iAmUsanPrefix')}<strong className="text-[var(--color-primary)]">{t('onboarding.iAmUsanName')}</strong>{t('onboarding.iAmUsanSuffix')}
+              </p>
+            </div>
 
-            <div className="flex flex-col gap-3 mb-6 text-left">
+            <Card variant="elevated" padding="none" className="mb-6">
+              <div className="px-4 py-3 border-b border-[var(--color-border)]">
+                <p className="text-[var(--color-text-muted)] font-medium text-[length:var(--text-md)]">
+                  {t('onboarding.permissionNeeded')}
+                </p>
+              </div>
               {PERMISSION_ITEMS.map((item, i) => {
                 const Icon = item.icon
                 return (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--color-primary-light)]">
-                    <div className="w-10 h-10 rounded-lg bg-[var(--color-primary-light)] flex items-center justify-center shrink-0">
-                      <Icon size={20} className="text-[var(--color-primary)]" />
+                  <div
+                    key={i}
+                    className={`flex items-center gap-3 px-4 py-3 ${i < PERMISSION_ITEMS.length - 1 ? 'border-b border-[var(--color-border)]' : ''}`}
+                  >
+                    <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] flex items-center justify-center shrink-0">
+                      <Icon size={18} className="text-[var(--color-primary)]" />
                     </div>
-                    <div>
-                      <div className="font-medium" style={{ fontSize: 'var(--font-size-sm)' }}>
+                    <div className="min-w-0">
+                      <div className="font-medium text-[var(--color-text)] text-[length:var(--text-md)]">
                         {t(item.labelKey)}
                       </div>
-                      <div
-                        className="text-[var(--color-text-muted)]"
-                        style={{ fontSize: 'calc(13px * var(--font-scale))' }}
-                      >
+                      <div className="text-[var(--color-text-muted)] text-[length:var(--text-sm)]">
                         {t(item.descKey)}
                       </div>
                     </div>
-                    <Check size={20} className="text-[var(--color-success)] ml-auto shrink-0" />
                   </div>
                 )
               })}
-            </div>
+            </Card>
 
-            <button
-              onClick={grantPermissions}
-              className="w-full h-16 rounded-2xl bg-[var(--color-primary)] text-white font-bold hover:bg-[var(--color-primary-hover)] transition-all shadow-lg"
-              style={{ fontSize: 'var(--font-size-lg)' }}
-            >
+            <Button size="lg" className="w-full h-14" onClick={grantPermissions}>
               {t('onboarding.agreeAll')}
-            </button>
+            </Button>
 
-            <p
-              className="mt-4 text-[var(--color-text-muted)]"
-              style={{ fontSize: 'calc(12px * var(--font-scale))' }}
-            >
+            {grantError && (
+              <p className="mt-3 text-center text-[var(--color-danger)] text-[length:var(--text-sm)]">
+                {grantError}
+              </p>
+            )}
+
+            <p className="mt-4 text-center text-[var(--color-text-muted)] text-[length:var(--text-sm)]">
               {t('onboarding.privacyNote')}
             </p>
           </div>
@@ -181,23 +118,29 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
         {/* Step 1: Font Size */}
         {step === 1 && (
-          <div className="bg-[var(--color-bg-card)] rounded-3xl shadow-xl p-8 text-center">
-            <div className="text-5xl mb-4">📏</div>
-            <h2 className="font-bold mb-2" style={{ fontSize: 'var(--font-size-xl)' }}>
-              {t('onboarding.fontTitle')}
-            </h2>
-            <p className="text-[var(--color-text-muted)] mb-8" style={{ fontSize: 'var(--font-size-sm)' }}>
-              {t('onboarding.fontHint')}
-            </p>
-
-            <div className="bg-[var(--color-primary-light)] rounded-2xl p-6 mb-6">
-              <p style={{ fontSize: 'var(--font-size-base)', whiteSpace: 'pre-line' }}>
-                {t('onboarding.fontPreview')}
+          <div className="animate-in">
+            <div className="text-center mb-8">
+              <div className="mb-4">
+                <div className="w-16 h-16 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)] mx-auto flex items-center justify-center">
+                  <Type size={32} className="text-[var(--color-primary)]" />
+                </div>
+              </div>
+              <h2 className="font-semibold text-[var(--color-text)] mb-1 text-[length:var(--text-xl)]">
+                {t('onboarding.fontTitle')}
+              </h2>
+              <p className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">
+                {t('onboarding.fontHint')}
               </p>
             </div>
 
-            <div className="flex items-center gap-4 mb-8 px-4">
-              <span style={{ fontSize: 'calc(16px * var(--font-scale))' }}>가</span>
+            <Card variant="elevated" className="mb-6">
+              <p className="text-[var(--color-text)] text-[length:var(--text-md)]" style={{ whiteSpace: 'pre-line', lineHeight: 1.7 }}>
+                {t('onboarding.fontPreview')}
+              </p>
+            </Card>
+
+            <div className="flex items-center gap-4 mb-8 px-2">
+              <span className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">가</span>
               <input
                 type="range"
                 min={1}
@@ -205,155 +148,39 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 step={0.1}
                 value={fontScale}
                 onChange={(e) => updateFontScale(parseFloat(e.target.value))}
-                className="flex-1 h-4 accent-[var(--color-primary)] cursor-pointer"
-                style={{ minHeight: '56px' }}
+                className="flex-1 h-2 accent-[var(--color-primary)] cursor-pointer"
+                style={{ minHeight: '48px' }}
+                aria-label={t('onboarding.fontTitle')}
+                aria-valuetext={`${Math.round(fontScale * 100)}%`}
               />
-              <span style={{ fontSize: 'calc(32px * var(--font-scale))' }}>가</span>
+              <span className="text-[var(--color-text)] text-[length:var(--text-2xl)]">가</span>
             </div>
 
-            <button
-              onClick={() => setStep(2)}
-              className="w-full h-16 rounded-2xl bg-[var(--color-primary)] text-white font-bold hover:bg-[var(--color-primary-hover)] transition-all flex items-center justify-center gap-2"
-              style={{ fontSize: 'var(--font-size-lg)' }}
-            >
-              {t('onboarding.next')} <ChevronRight size={24} />
-            </button>
+            <Button size="lg" className="w-full h-14" rightIcon={<ChevronRight size={20} />} onClick={() => setStep(2)}>
+              {t('onboarding.next')}
+            </Button>
           </div>
         )}
 
-        {/* Step 2: Voice Settings */}
+        {/* Step 2: Ready */}
         {step === 2 && (
-          <div className="bg-[var(--color-bg-card)] rounded-3xl shadow-xl p-8 text-center">
-            <div className="text-5xl mb-4">🎙️</div>
-            <h2 className="font-bold mb-2" style={{ fontSize: 'var(--font-size-xl)' }}>
-              {t('onboarding.voiceTitle')}
-            </h2>
-            <p className="text-[var(--color-text-muted)] mb-6" style={{ fontSize: 'var(--font-size-sm)' }}>
-              {t('onboarding.voiceHint')}
-            </p>
-
-            {/* TTS test */}
-            <div className="bg-[var(--color-primary-light)] rounded-2xl p-5 mb-4 text-left">
-              <div className="flex items-center gap-3 mb-3">
-                <Volume2 size={22} className="text-[var(--color-primary)]" />
-                <span className="font-semibold" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  {t('onboarding.voiceSpeedLabel')}
-                </span>
-              </div>
-              <div className="flex items-center gap-4 mb-3">
-                <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('settings.voiceSlow')}</span>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={2}
-                  step={0.1}
-                  value={voiceSpeed}
-                  onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))}
-                  className="flex-1 h-3 accent-[var(--color-primary)] cursor-pointer"
-                  style={{ minHeight: '56px' }}
-                />
-                <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('settings.voiceFast')}</span>
-              </div>
-              <button
-                onClick={testTTS}
-                className={`w-full h-14 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
-                  ttsTesting
-                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                    : 'bg-[var(--color-bg-card)] text-[var(--color-primary)] border border-[var(--color-primary)] hover:bg-[var(--color-primary-light)]'
-                }`}
-                style={{ fontSize: 'var(--font-size-sm)' }}
-              >
-                {ttsTesting ? (
-                  <>
-                    <Square size={18} /> {t('onboarding.ttsStop')}
-                  </>
-                ) : (
-                  <>
-                    <Play size={18} /> {t('onboarding.ttsPlay')}
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Mic test */}
-            <div className="bg-[var(--color-bg)] rounded-2xl p-5 mb-6 text-left">
-              <div className="flex items-center gap-3 mb-3">
-                <Mic size={22} className="text-[var(--color-success)]" />
-                <span className="font-semibold" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  {t('onboarding.micTitle')}
-                </span>
-              </div>
-              <button
-                onClick={testMic}
-                className={`w-full h-14 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
-                  micListening
-                    ? 'bg-red-500 text-white animate-pulse'
-                    : 'bg-[var(--color-bg-card)] text-[var(--color-success)] border border-[var(--color-success)] hover:bg-[var(--color-bg)]'
-                }`}
-                style={{ fontSize: 'var(--font-size-sm)' }}
-              >
-                {micListening ? (
-                  <>
-                    <Mic size={18} /> {t('onboarding.micListening')}
-                  </>
-                ) : (
-                  <>
-                    <Mic size={18} /> {micTested ? t('onboarding.micRetry') : t('onboarding.micStart')}
-                  </>
-                )}
-              </button>
-              {micResult && (
-                <div
-                  className="mt-3 p-3 rounded-xl bg-[var(--color-bg-card)] text-center"
-                  style={{ fontSize: 'var(--font-size-sm)' }}
-                >
-                  {micTested ? '✅' : '⚠️'} {micResult}
+          <div className="animate-in">
+            <div className="text-center mb-8">
+              <div className="mb-4">
+                <div className="w-16 h-16 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)] mx-auto flex items-center justify-center">
+                  <Sparkles size={32} className="text-[var(--color-primary)]" />
                 </div>
-              )}
+              </div>
+              <h2 className="font-semibold text-[var(--color-text)] mb-1 text-[length:var(--text-xl)]">
+                {t('onboarding.readyTitle')}
+              </h2>
+              <p className="text-[var(--color-text-muted)] text-[length:var(--text-md)]" style={{ whiteSpace: 'pre-line' }}>
+                {t('onboarding.readyDesc')}
+              </p>
             </div>
 
-            {/* Voice enable toggle */}
-            <div className="flex items-center justify-between bg-[var(--color-bg)] rounded-2xl p-4 mb-6">
-              <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('onboarding.voiceToggle')}</span>
-              <button
-                onClick={() => setVoiceEnabled(!voiceEnabled)}
-                className={`w-16 h-9 rounded-full transition-all relative ${
-                  voiceEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
-                }`}
-                role="switch"
-                aria-checked={voiceEnabled}
-              >
-                <span
-                  className={`absolute top-1 w-7 h-7 rounded-full bg-white shadow transition-transform ${
-                    voiceEnabled ? 'translate-x-8' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <button
-              onClick={() => setStep(3)}
-              className="w-full h-16 rounded-2xl bg-[var(--color-primary)] text-white font-bold hover:bg-[var(--color-primary-hover)] transition-all flex items-center justify-center gap-2"
-              style={{ fontSize: 'var(--font-size-lg)' }}
-            >
-              {t('onboarding.next')} <ChevronRight size={24} />
-            </button>
-          </div>
-        )}
-
-        {/* Step 3: First Chat (Ready) */}
-        {step === 3 && (
-          <div className="bg-[var(--color-bg-card)] rounded-3xl shadow-xl p-8 text-center">
-            <div className="text-7xl mb-6">🎉</div>
-            <h2 className="font-bold mb-2" style={{ fontSize: 'var(--font-size-xl)' }}>
-              {t('onboarding.readyTitle')}
-            </h2>
-            <p className="text-[var(--color-text-muted)] mb-8" style={{ fontSize: 'var(--font-size-sm)', whiteSpace: 'pre-line' }}>
-              {t('onboarding.readyDesc')}
-            </p>
-
-            <div className="bg-[var(--color-primary-light)] rounded-2xl p-6 mb-6 text-left">
-              <p className="font-medium mb-3" style={{ fontSize: 'var(--font-size-sm)' }}>
+            <Card variant="elevated" className="mb-6">
+              <p className="font-medium text-[var(--color-text)] mb-3 text-[length:var(--text-md)]">
                 {t('onboarding.readyHint')}
               </p>
               <ul className="flex flex-col gap-3">
@@ -365,32 +192,30 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 ].map((item, i) => {
                   const Icon = item.icon
                   return (
-                    <li key={i} className="flex items-center gap-3" style={{ fontSize: 'var(--font-size-sm)' }}>
-                      <Icon size={18} className="text-[var(--color-primary)] shrink-0" />
+                    <li key={i} className="flex items-center gap-3 text-[var(--color-text-muted)] text-[length:var(--text-md)]">
+                      <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] flex items-center justify-center shrink-0">
+                        <Icon size={16} className="text-[var(--color-primary)]" />
+                      </div>
                       {t(item.textKey)}
                     </li>
                   )
                 })}
               </ul>
-            </div>
+            </Card>
 
-            <button
-              onClick={finishOnboarding}
-              className="w-full h-16 rounded-2xl bg-[var(--color-primary)] text-white font-bold hover:bg-[var(--color-primary-hover)] transition-all"
-              style={{ fontSize: 'var(--font-size-xl)' }}
-            >
+            <Button size="lg" className="w-full h-14 text-[length:var(--text-lg)]" onClick={onComplete}>
               {t('onboarding.start')}
-            </button>
+            </Button>
           </div>
         )}
 
         {/* Progress dots */}
-        <div className="flex justify-center gap-2 mt-6">
+        <div className="flex justify-center gap-2 mt-8">
           {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
             <div
               key={i}
-              className={`h-3 rounded-full transition-all ${
-                i === step ? 'bg-[var(--color-primary)] w-8' : 'bg-[var(--color-border)] w-3'
+              className={`h-2 rounded-full transition-all ${
+                i === step ? 'bg-[var(--color-primary)] w-6' : 'bg-[var(--color-border)] w-2'
               }`}
             />
           ))}

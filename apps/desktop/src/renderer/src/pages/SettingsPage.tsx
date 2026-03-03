@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useId } from 'react'
 import {
-  Settings,
   Type,
   Sun,
   Moon,
@@ -11,11 +10,22 @@ import {
   RefreshCw,
   Languages,
   Power,
+  Settings,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react'
 import type { ModelInfo } from '@shared/types/ipc'
 import { useSettingsStore } from '../stores/settings.store'
 import { t } from '../i18n'
 import type { Locale } from '../i18n'
+import { Card, SectionHeader, Button, IconButton } from '../components/ui'
+
+const LANGUAGES: Array<{ id: Locale; label: string; flag: string }> = [
+  { id: 'ko', label: '한국어', flag: '🇰🇷' },
+  { id: 'en', label: 'English', flag: '🇺🇸' },
+  { id: 'ja', label: '日本語', flag: '🇯🇵' },
+]
 
 export default function SettingsPage() {
   const { settings, update: updateStore } = useSettingsStore()
@@ -24,6 +34,10 @@ export default function SettingsPage() {
   const [models, setModels] = useState<ModelInfo[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [keyValidation, setKeyValidation] = useState<{ status: 'idle' | 'loading' | 'valid' | 'error'; message?: string }>({ status: 'idle' })
+  const fontScaleId = useId()
+  const voiceSpeedId = useId()
+  const apiKeyId = useId()
+  const apiKeyHelpId = useId()
 
   const fontScale = settings.fontScale
   const highContrast = settings.highContrast
@@ -49,7 +63,6 @@ export default function SettingsPage() {
     loadModels()
   }, [loadModels])
 
-  // Theme sync with useEffect cleanup (replaces __usanThemeCleanup global)
   useEffect(() => {
     const root = document.documentElement
     root.classList.remove('dark')
@@ -80,371 +93,397 @@ export default function SettingsPage() {
     updateStore({ theme: newTheme })
   }
 
+  const validateApiKey = async () => {
+    const key = cloudApiKey.replace(/•/g, '')
+    if (!key || key === '••••••••') {
+      setKeyValidation({ status: 'error', message: t('settings.apiKeyEmpty') })
+      return
+    }
+    if (apiKeyDirty) {
+      updateStore({ cloudApiKey })
+      setApiKeyDirty(false)
+    }
+    setKeyValidation({ status: 'loading' })
+    try {
+      const result = await window.usan?.aiExtras.validateKey(key)
+      if (result?.valid) {
+        setKeyValidation({ status: 'valid', message: t('settings.keyValid') })
+      } else {
+        setKeyValidation({ status: 'error', message: result?.error ?? t('settings.apiKeyInvalid') })
+      }
+    } catch {
+      setKeyValidation({ status: 'error', message: t('settings.apiKeyCheckError') })
+    }
+  }
+
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      <div className="flex items-center gap-3 mb-8">
-        <Settings size={32} className="text-[var(--color-primary)]" />
-        <h1 className="font-bold" style={{ fontSize: 'var(--font-size-xl)' }}>
+    <div className="max-w-lg mx-auto p-8">
+      {/* Header */}
+      <div className="mb-8 pb-6 border-b border-[var(--color-border)]">
+        <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
           {t('settings.title')}
         </h1>
+        <p className="text-[length:var(--text-md)] text-[var(--color-text-muted)] mt-1">
+          {t('settings.subtitle')}
+        </p>
       </div>
 
       <div className="flex flex-col gap-6">
-        {/* Language */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Languages size={24} className="text-[var(--color-primary)]" />
-            <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-              {t('settings.language')}
-            </h2>
-          </div>
-          <p className="text-[var(--color-text-muted)] mb-4" style={{ fontSize: 'var(--font-size-sm)' }}>
-            {t('settings.languageHint')}
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            {([
-              { id: 'ko' as Locale, label: '한국어' },
-              { id: 'en' as Locale, label: 'English' },
-              { id: 'ja' as Locale, label: '日本語' },
-            ]).map((lang) => {
-              const isActive = settings.locale === lang.id
-              return (
-                <button
-                  key={lang.id}
-                  onClick={() => updateStore({ locale: lang.id })}
-                  className={`flex items-center justify-center gap-2 p-4 rounded-xl transition-all ${
-                    isActive
-                      ? 'bg-[var(--color-primary)] text-white'
-                      : 'bg-[var(--color-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-sidebar)]'
-                  }`}
-                  style={{ minHeight: 'var(--min-target)' }}
-                >
-                  <span className="font-medium" style={{ fontSize: 'var(--font-size-sm)' }}>
-                    {lang.label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
+        {/* ── Display ── */}
+        <section>
+          <SectionHeader title={t('settings.group.display')} icon={Palette} />
+          <div className="flex flex-col gap-3">
 
-        {/* Font Size */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Type size={24} className="text-[var(--color-primary)]" />
-            <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-              {t('settings.fontSize')}
-            </h2>
-          </div>
-          <p className="text-[var(--color-text-muted)] mb-4" style={{ fontSize: 'var(--font-size-sm)' }}>
-            {t('settings.fontSizeHint')}
-          </p>
-          <div className="flex items-center gap-4">
-            <span style={{ fontSize: 'calc(14px * var(--font-scale))' }}>{t('settings.fontSizeSmall')}</span>
-            <input
-              type="range"
-              min={1}
-              max={2}
-              step={0.1}
-              value={fontScale}
-              onChange={(e) => updateFontScale(parseFloat(e.target.value))}
-              className="flex-1 h-3 accent-[var(--color-primary)] cursor-pointer"
-              style={{ minHeight: '56px' }}
-            />
-            <span style={{ fontSize: 'calc(28px * var(--font-scale))' }}>{t('settings.fontSizeLarge')}</span>
-          </div>
-          <div
-            className="mt-3 text-center text-[var(--color-text-muted)]"
-            style={{ fontSize: 'var(--font-size-sm)' }}
-          >
-            {t('settings.fontSizeCurrent')}: {Math.round(fontScale * 100)}%
-          </div>
-        </div>
-
-        {/* Theme */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Palette size={24} className="text-[var(--color-primary)]" />
-            <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-              {t('settings.theme')}
-            </h2>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {(
-              [
-                { id: 'light' as const, label: t('settings.themeLight'), icon: Sun },
-                { id: 'dark' as const, label: t('settings.themeDark'), icon: Moon },
-                { id: 'system' as const, label: t('settings.themeSystem'), icon: Settings },
-              ]
-            ).map((item) => {
-              const Icon = item.icon
-              const isActive = theme === item.id
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => updateTheme(item.id)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all ${
-                    isActive
-                      ? 'bg-[var(--color-primary)] text-white'
-                      : 'bg-[var(--color-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-sidebar)]'
-                  }`}
-                  style={{ minHeight: 'var(--min-target)' }}
-                >
-                  <Icon size={24} />
-                  <span className="font-medium" style={{ fontSize: 'var(--font-size-sm)' }}>
-                    {item.label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* High Contrast */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {highContrast ? (
-                <Moon size={24} className="text-[var(--color-primary)]" />
-              ) : (
-                <Sun size={24} className="text-[var(--color-primary)]" />
-              )}
-              <div>
-                <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-                  {t('settings.highContrast')}
-                </h2>
-                <p className="text-[var(--color-text-muted)]" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  {t('settings.highContrastHint')}
-                </p>
+            {/* Language */}
+            <Card>
+              <div className="flex items-center gap-2 mb-3">
+                <Languages size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.language')}</h3>
               </div>
-            </div>
-            <button
-              onClick={toggleHighContrast}
-              className={`w-16 h-9 rounded-full transition-all relative ${
-                highContrast ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
-              }`}
-              style={{ minHeight: '56px' }}
-              role="switch"
-              aria-checked={highContrast}
-            >
-              <span
-                className={`absolute top-1 w-7 h-7 rounded-full bg-white shadow transition-transform ${
-                  highContrast ? 'translate-x-8' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* Voice */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Volume2 size={24} className="text-[var(--color-primary)]" />
-            <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-              {t('settings.voice')}
-            </h2>
-          </div>
-          <div className="flex items-center justify-between mb-4">
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('settings.voiceReadAloud')}</span>
-            <button
-              onClick={() => {
-                updateStore({ voiceEnabled: !voiceEnabled })
-              }}
-              className={`w-16 h-9 rounded-full transition-all relative ${
-                voiceEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
-              }`}
-              style={{ minHeight: '56px' }}
-              role="switch"
-              aria-checked={voiceEnabled}
-            >
-              <span
-                className={`absolute top-1 w-7 h-7 rounded-full bg-white shadow transition-transform ${
-                  voiceEnabled ? 'translate-x-8' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          <p className="text-[var(--color-text-muted)] mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>
-            {t('settings.voiceSpeed')}
-          </p>
-          <div className="flex items-center gap-4">
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('settings.voiceSlow')}</span>
-            <input
-              type="range"
-              min={0.5}
-              max={2}
-              step={0.1}
-              value={voiceSpeed}
-              onChange={(e) => {
-                updateStore({ voiceSpeed: parseFloat(e.target.value) })
-              }}
-              className="flex-1 h-3 accent-[var(--color-primary)] cursor-pointer"
-              style={{ minHeight: '56px' }}
-            />
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>{t('settings.voiceFast')}</span>
-          </div>
-        </div>
-
-        {/* Auto Start */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Power size={24} className="text-[var(--color-primary)]" />
-              <div>
-                <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-                  {t('settings.autoStart')}
-                </h2>
-                <p className="text-[var(--color-text-muted)]" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  {t('settings.autoStartHint')}
-                </p>
+              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
+                {t('settings.languageHint')}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {LANGUAGES.map((lang) => {
+                  const isActive = settings.locale === lang.id
+                  return (
+                    <button
+                      key={lang.id}
+                      onClick={() => updateStore({ locale: lang.id })}
+                      className={`flex flex-col items-center justify-center gap-2 py-3 rounded-[var(--radius-md)] transition-all ${
+                        isActive
+                          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
+                          : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-card)]'
+                      }`}
+                      style={{ minHeight: '64px' }}
+                    >
+                      <span className="text-[20px] leading-none">{lang.flag}</span>
+                      <span className="text-[length:var(--text-md)] font-medium">{lang.label}</span>
+                    </button>
+                  )
+                })}
               </div>
-            </div>
-            <button
-              onClick={() => updateStore({ openAtLogin: !settings.openAtLogin })}
-              className={`w-16 h-9 rounded-full transition-all relative ${
-                settings.openAtLogin ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
-              }`}
-              style={{ minHeight: '56px' }}
-              role="switch"
-              aria-checked={settings.openAtLogin}
-            >
-              <span
-                className={`absolute top-1 w-7 h-7 rounded-full bg-white shadow transition-transform ${
-                  settings.openAtLogin ? 'translate-x-8' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
+            </Card>
 
-        {/* AI Models */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Cpu size={24} className="text-[var(--color-primary)]" />
-              <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-                {t('settings.aiModels')}
-              </h2>
-            </div>
-            <button
-              onClick={loadModels}
-              disabled={loadingModels}
-              className="p-2 rounded-lg hover:bg-[var(--color-bg-sidebar)] transition-all text-[var(--color-text-muted)]"
-              aria-label={t('settings.refreshModels')}
-            >
-              <RefreshCw size={20} className={loadingModels ? 'animate-spin' : ''} />
-            </button>
-          </div>
+            {/* Font Size */}
+            <Card>
+              <div className="flex items-center gap-2 mb-3">
+                <Type size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.fontSize')}</h3>
+              </div>
+              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
+                {t('settings.fontSizeHint')}
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('settings.fontSizeSmall')}</span>
+                <input
+                  id={fontScaleId}
+                  type="range"
+                  min={1}
+                  max={2}
+                  step={0.1}
+                  value={fontScale}
+                  onChange={(e) => updateFontScale(parseFloat(e.target.value))}
+                  className="flex-1 h-2 accent-[var(--color-primary)] cursor-pointer rounded-full"
+                  style={{ minHeight: '48px' }}
+                  aria-label={t('settings.fontSize')}
+                />
+                <span className="text-[length:var(--text-lg)] text-[var(--color-text-muted)]">{t('settings.fontSizeLarge')}</span>
+              </div>
+              <div className="mt-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] text-center">
+                <span className="text-[var(--color-text)]" style={{ fontSize: `calc(14px * ${fontScale})` }}>
+                  {t('settings.fontSizeCurrent')}: {Math.round(fontScale * 100)}%
+                </span>
+              </div>
+            </Card>
 
-          {models.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {models.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-[var(--color-bg)]"
-                  style={{ minHeight: '56px' }}
-                >
-                  <span style={{ fontSize: 'var(--font-size-sm)' }}>{m.name}</span>
-                  <span
-                    className="text-[var(--color-text-muted)]"
-                    style={{ fontSize: 'calc(12px * var(--font-scale))' }}
-                  >
-                    {t('settings.provider')}
-                  </span>
+            {/* Theme */}
+            <Card>
+              <div className="flex items-center gap-2 mb-3">
+                <Palette size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.theme')}</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { id: 'light' as const, label: t('settings.themeLight'), icon: Sun },
+                  { id: 'dark' as const, label: t('settings.themeDark'), icon: Moon },
+                  { id: 'system' as const, label: t('settings.themeSystem'), icon: Settings },
+                ]).map((item) => {
+                  const Icon = item.icon
+                  const isActive = theme === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => updateTheme(item.id)}
+                      className={`flex flex-col items-center gap-2 py-3 rounded-[var(--radius-md)] transition-all ${
+                        isActive
+                          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
+                          : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-card)]'
+                      }`}
+                      style={{ minHeight: '64px' }}
+                    >
+                      <Icon size={20} />
+                      <span className="text-[length:var(--text-sm)] font-medium">{item.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Card>
+
+            {/* High Contrast */}
+            <Card>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0">
+                    {highContrast ? (
+                      <Moon size={18} className="text-[var(--color-primary)]" />
+                    ) : (
+                      <Sun size={18} className="text-[var(--color-primary)]" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.highContrast')}</h3>
+                    <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                      {t('settings.highContrastHint')}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div
-              className="p-4 rounded-xl bg-[var(--color-bg)] text-center text-[var(--color-text-muted)]"
-              style={{ fontSize: 'var(--font-size-sm)' }}
-            >
-              {loadingModels ? t('settings.loadingModels') : t('settings.noModels')}
-            </div>
-          )}
-        </div>
+                <button
+                  onClick={toggleHighContrast}
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                    highContrast ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={highContrast}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
+                      highContrast ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </Card>
 
-        {/* API Key */}
-        <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Key size={24} className="text-[var(--color-primary)]" />
-            <h2 className="font-semibold" style={{ fontSize: 'var(--font-size-lg)' }}>
-              {t('settings.apiKey')}
-            </h2>
           </div>
-          <p className="text-[var(--color-text-muted)] mb-4" style={{ fontSize: 'var(--font-size-sm)' }}>
-            {t('settings.apiKeyHint')}
-          </p>
+        </section>
 
-          <div>
-            <label
-              className="block mb-2 text-[var(--color-text-muted)]"
-              style={{ fontSize: 'var(--font-size-sm)' }}
-            >
-              {t('settings.apiKeyLabel')}
-            </label>
-            <input
-              type="password"
-              value={cloudApiKey}
-              onChange={(e) => {
-                setCloudApiKey(e.target.value)
-                setApiKeyDirty(true)
-                setKeyValidation({ status: 'idle' })
-              }}
-              onBlur={() => {
-                if (apiKeyDirty && cloudApiKey) {
-                  updateStore({ cloudApiKey })
-                  setApiKeyDirty(false)
-                }
-              }}
-              placeholder="sk-or-..."
-              className="w-full h-14 px-4 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)] transition-all"
-              style={{ fontSize: 'var(--font-size-sm)' }}
-            />
-            <div className="flex items-center gap-3 mt-3">
-              <button
-                onClick={async () => {
-                  const key = cloudApiKey.replace(/•/g, '')
-                  if (!key || key === '••••••••') {
-                    setKeyValidation({ status: 'error', message: t('settings.apiKeyEmpty') })
-                    return
-                  }
-                  // Save dirty key before validating
-                  if (apiKeyDirty) {
-                    updateStore({ cloudApiKey })
-                    setApiKeyDirty(false)
-                  }
-                  setKeyValidation({ status: 'loading' })
-                  try {
-                    const result = await window.usan?.aiExtras.validateKey(key)
-                    if (result?.valid) {
-                      setKeyValidation({ status: 'valid', message: t('settings.keyValid') })
-                    } else {
-                      setKeyValidation({ status: 'error', message: result?.error ?? t('settings.apiKeyInvalid') })
-                    }
-                  } catch {
-                    setKeyValidation({ status: 'error', message: t('settings.apiKeyCheckError') })
-                  }
-                }}
-                disabled={keyValidation.status === 'loading'}
-                className="px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-all"
-                style={{ fontSize: 'var(--font-size-sm)', minHeight: '56px' }}
-              >
-                {keyValidation.status === 'loading' ? t('settings.validating') : t('settings.validateKey')}
-              </button>
-              {keyValidation.status === 'valid' && (
-                <span className="text-green-600 font-medium" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  {keyValidation.message}
-                </span>
-              )}
-              {keyValidation.status === 'error' && (
-                <span className="text-red-500 font-medium" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  {keyValidation.message}
-                </span>
-              )}
-            </div>
+        {/* ── Sound ── */}
+        <section>
+          <SectionHeader title={t('settings.group.sound')} icon={Volume2} />
+          <div className="flex flex-col gap-3">
+
+            {/* Voice */}
+            <Card>
+              <div className="flex items-center gap-2 mb-3">
+                <Volume2 size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.voice')}</h3>
+              </div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[length:var(--text-md)]">{t('settings.voiceReadAloud')}</span>
+                <button
+                  onClick={() => updateStore({ voiceEnabled: !voiceEnabled })}
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                    voiceEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={voiceEnabled}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
+                      voiceEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-2">
+                {t('settings.voiceSpeed')}
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('settings.voiceSlow')}</span>
+                <input
+                  id={voiceSpeedId}
+                  type="range"
+                  min={0.5}
+                  max={2}
+                  step={0.1}
+                  value={voiceSpeed}
+                  onChange={(e) => updateStore({ voiceSpeed: parseFloat(e.target.value) })}
+                  className="flex-1 h-2 accent-[var(--color-primary)] cursor-pointer rounded-full"
+                  style={{ minHeight: '48px' }}
+                  aria-label={t('settings.voiceSpeed')}
+                />
+                <span className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('settings.voiceFast')}</span>
+              </div>
+            </Card>
+
           </div>
-        </div>
+        </section>
+
+        {/* ── System ── */}
+        <section>
+          <SectionHeader title={t('settings.group.system')} icon={Settings} />
+          <div className="flex flex-col gap-3">
+
+            {/* Auto Start */}
+            <Card>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0">
+                    <Power size={18} className="text-[var(--color-primary)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.autoStart')}</h3>
+                    <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                      {t('settings.autoStartHint')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => updateStore({ openAtLogin: !settings.openAtLogin })}
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                    settings.openAtLogin ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={settings.openAtLogin}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
+                      settings.openAtLogin ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </Card>
+
+          </div>
+        </section>
+
+        {/* ── Advanced ── */}
+        <section>
+          <SectionHeader title={t('settings.group.advanced')} icon={Cpu} />
+          <div className="flex flex-col gap-3">
+
+            {/* AI Models */}
+            <Card>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Cpu size={18} className="text-[var(--color-primary)]" />
+                  <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.aiModels')}</h3>
+                </div>
+                <IconButton
+                  icon={RefreshCw}
+                  size="sm"
+                  label={t('settings.refreshModels')}
+                  onClick={loadModels}
+                  disabled={loadingModels}
+                  className={loadingModels ? '[&>svg]:animate-spin' : ''}
+                />
+              </div>
+
+              {models.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {models.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)]/50 hover:border-[var(--color-primary)]/20 transition-all"
+                    >
+                      <div>
+                        <span className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">{m.name}</span>
+                        <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] ml-2">
+                          {t('settings.provider')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-6 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-dashed border-[var(--color-border)] text-center text-[length:var(--text-md)] text-[var(--color-text-muted)]">
+                  {loadingModels ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>{t('settings.loadingModels')}</span>
+                    </div>
+                  ) : t('settings.noModels')}
+                </div>
+              )}
+            </Card>
+
+            {/* API Key */}
+            <Card>
+              <div className="flex items-center gap-2 mb-3">
+                <Key size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.apiKey')}</h3>
+              </div>
+              <p id={apiKeyHelpId} className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
+                {t('settings.apiKeyHint')}
+              </p>
+
+              <div>
+                <label
+                  htmlFor={apiKeyId}
+                  className="block mb-1 text-[length:var(--text-sm)] font-medium text-[var(--color-text)]"
+                >
+                  {t('settings.apiKeyLabel')}
+                </label>
+                <div className="relative">
+                  <input
+                    id={apiKeyId}
+                    type="password"
+                    value={cloudApiKey}
+                    onChange={(e) => {
+                      setCloudApiKey(e.target.value)
+                      setApiKeyDirty(true)
+                      setKeyValidation({ status: 'idle' })
+                    }}
+                    onBlur={() => {
+                      if (apiKeyDirty && cloudApiKey) {
+                        updateStore({ cloudApiKey })
+                        setApiKeyDirty(false)
+                      }
+                    }}
+                    placeholder="sk-or-..."
+                    aria-describedby={apiKeyHelpId}
+                    aria-invalid={keyValidation.status === 'error' ? true : undefined}
+                    className={`w-full h-10 px-3 pr-10 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border transition-all text-[length:var(--text-md)] focus:outline-none focus:ring-2 ${
+                      keyValidation.status === 'valid'
+                        ? 'border-[var(--color-success)] focus:ring-[var(--color-success)]/20'
+                        : keyValidation.status === 'error'
+                        ? 'border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20'
+                        : 'border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]/20'
+                    }`}
+                  />
+                  {keyValidation.status === 'valid' && (
+                    <CheckCircle size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-success)]" />
+                  )}
+                  {keyValidation.status === 'error' && (
+                    <AlertCircle size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-danger)]" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    loading={keyValidation.status === 'loading'}
+                    onClick={validateApiKey}
+                  >
+                    {keyValidation.status === 'loading' ? t('settings.validating') : t('settings.validateKey')}
+                  </Button>
+                  {keyValidation.status === 'valid' && (
+                    <span className="text-[length:var(--text-sm)] text-[var(--color-success)] font-medium">
+                      {keyValidation.message}
+                    </span>
+                  )}
+                  {keyValidation.status === 'error' && (
+                    <span className="text-[length:var(--text-sm)] text-[var(--color-danger)] font-medium">
+                      {keyValidation.message}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+          </div>
+        </section>
       </div>
     </div>
   )
