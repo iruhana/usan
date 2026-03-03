@@ -7,6 +7,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
+import { resolve as resolvePath } from 'path'
 import { validatePath, validateCommand } from '../security'
 import { mouseClick, mouseDoubleClick, keyboardType, keyboardHotkey, listWindows, focusWindow } from '../computer/control'
 import { browserOpen, browserClick, browserType, browserRead, browserScreenshot } from '../browser/browser-manager'
@@ -523,11 +524,20 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
     const blocked = validateCommand(command)
     if (blocked) return { error: blocked }
     const rawCwd = args.cwd as string | undefined
+    const home = process.env.HOME || process.env.USERPROFILE || ''
+    const tempDir = process.env.TEMP || process.env.TMP || ''
     if (rawCwd) {
       const cwdBlocked = validatePath(rawCwd, 'read')
       if (cwdBlocked) return { error: `cwd blocked: ${cwdBlocked}` }
+      // Restrict cwd to user HOME or TEMP subtrees to prevent arbitrary directory execution
+      const resolved = resolvePath(rawCwd).toLowerCase()
+      const inHome = home && resolved.startsWith(resolvePath(home).toLowerCase())
+      const inTemp = tempDir && resolved.startsWith(resolvePath(tempDir).toLowerCase())
+      if (!inHome && !inTemp) {
+        return { error: '작업 디렉토리는 사용자 홈 폴더 또는 임시 폴더 내에서만 지정할 수 있습니다' }
+      }
     }
-    const cwd = rawCwd || process.env.HOME || process.env.USERPROFILE
+    const cwd = rawCwd || home
     try {
       // Use execFile with cmd.exe to avoid shell meta-character issues
       const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh'

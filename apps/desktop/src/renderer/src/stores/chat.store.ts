@@ -34,6 +34,7 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set, get) => {
   // Set up stream listener with retry
   let unsubscribe: (() => void) | null = null
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
 
   function setupStreamListener() {
     if (unsubscribe) return
@@ -46,7 +47,6 @@ export const useChatStore = create<ChatState>((set, get) => {
   // Retry until usan API is available (preload may not be ready immediately)
   if (typeof window !== 'undefined') {
     let retries = 0
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
     const MAX_RETRIES = 50
     const trySetup = () => {
       retryTimer = null
@@ -69,8 +69,9 @@ export const useChatStore = create<ChatState>((set, get) => {
       messages: c.messages.map((m) => {
         if (m.toolResults?.length) {
           return { ...m, toolResults: m.toolResults.map((tr) => {
-            const r = tr.result as Record<string, unknown> | null
-            if (r?.image) return { ...tr, result: { ...r, image: '[screenshot]' } }
+            if (!tr.result || typeof tr.result !== 'object') return tr
+            const r = tr.result as Record<string, unknown>
+            if (r.image) return { ...tr, result: { ...r, image: '[screenshot]' } }
             return tr
           })}
         }
@@ -88,9 +89,11 @@ export const useChatStore = create<ChatState>((set, get) => {
     }, 1000)
   }
 
-  // Flush pending save on app shutdown
+  // Cleanup listeners + flush pending save on app shutdown
   if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
+      if (retryTimer) clearTimeout(retryTimer)
+      if (unsubscribe) { unsubscribe(); unsubscribe = null }
       if (saveTimer) {
         clearTimeout(saveTimer)
         flushConversations()

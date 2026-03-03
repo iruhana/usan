@@ -209,25 +209,9 @@ export function validateCommand(command: string): string | null {
     }
   }
 
-  // Reject chained commands with dangerous patterns
+  // Block ALL chained/piped commands — argument injection risk too high
   if (/[|&;]/.test(trimmed)) {
-    const parts = trimmed.split(/[|&;]+/)
-    for (const part of parts) {
-      const partTrimmed = part.trim()
-      if (!partTrimmed) continue
-      // Check each segment against blocked patterns
-      for (const pattern of BLOCKED_COMMANDS) {
-        if (pattern.test(partTrimmed)) {
-          return '연결된 명령어에 위험한 패턴이 포함되어 있습니다'
-        }
-      }
-      const subWord = partTrimmed.split(/[\s]/)[0].toLowerCase().replace(/\.exe$/, '')
-      const subBase = subWord.includes('\\') ? subWord.split('\\').pop()! : subWord.includes('/') ? subWord.split('/').pop()! : subWord
-      const subAllowed = ALLOWED_COMMAND_PREFIXES.some((p) => subBase === p)
-      if (!subAllowed && subBase.length > 0) {
-        return `연결된 명령어가 허용 목록에 없습니다: ${subBase}`
-      }
-    }
+    return '명령어 연결(|, &, ;)은 보안상 허용되지 않습니다. 명령어를 하나씩 실행해주세요.'
   }
 
   return null // OK
@@ -260,7 +244,7 @@ export function isUrlSafe(url: string): boolean {
       /^0x[0-9a-f]+$/i.test(h) ||
       /^0[0-7]+\./.test(h) ||
       // Pure numeric IPs (decimal encoding like 2130706433 = 127.0.0.1)
-      /^\d{8,}$/.test(h) ||
+      /^\d+$/.test(h) ||
       // Block empty/whitespace hostnames
       !h || h.trim() === ''
     ) return false

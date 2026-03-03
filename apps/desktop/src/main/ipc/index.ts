@@ -241,25 +241,50 @@ export function registerIpcHandlers(): void {
   })
 
   // ─── Conversations (persistence) ────────────────
+  // Rate limit: max 1 save per 3 seconds, queue depth limit 2
+  let lastConvSave = 0
+  let convSaveQueue = 0
   ipcMain.handle(IPC.CONVERSATIONS_LOAD, (): StoredConversation[] => {
     return loadConversations()
   })
   ipcMain.handle(IPC.CONVERSATIONS_SAVE, async (_, conversations: StoredConversation[]) => {
     if (!Array.isArray(conversations)) throw new Error('Invalid data')
-    const serialized = JSON.stringify(conversations)
-    if (serialized.length > 50 * 1024 * 1024) throw new Error('Data too large')
-    await saveConversations(conversations)
+    if (conversations.length > 500) throw new Error('Too many conversations')
+    const now = Date.now()
+    if (now - lastConvSave < 3000) throw new Error('Too many save requests')
+    if (convSaveQueue >= 2) throw new Error('Save queue full')
+    convSaveQueue++
+    try {
+      const serialized = JSON.stringify(conversations)
+      if (serialized.length > 50 * 1024 * 1024) throw new Error('Data too large')
+      lastConvSave = now
+      await saveConversations(conversations)
+    } finally {
+      convSaveQueue--
+    }
   })
 
   // ─── Notes ──────────────────────────────────────
+  let lastNotesSave = 0
+  let notesSaveQueue = 0
   ipcMain.handle(IPC.NOTES_LOAD, (): Note[] => {
     return loadNotes()
   })
   ipcMain.handle(IPC.NOTES_SAVE, async (_, notes: Note[]) => {
     if (!Array.isArray(notes)) throw new Error('Invalid data')
-    const serialized = JSON.stringify(notes)
-    if (serialized.length > 50 * 1024 * 1024) throw new Error('Data too large')
-    await saveNotes(notes)
+    if (notes.length > 1000) throw new Error('Too many notes')
+    const now = Date.now()
+    if (now - lastNotesSave < 3000) throw new Error('Too many save requests')
+    if (notesSaveQueue >= 2) throw new Error('Save queue full')
+    notesSaveQueue++
+    try {
+      const serialized = JSON.stringify(notes)
+      if (serialized.length > 50 * 1024 * 1024) throw new Error('Data too large')
+      lastNotesSave = now
+      await saveNotes(notes)
+    } finally {
+      notesSaveQueue--
+    }
   })
 
   // ─── AI Key Validation ──────────────────────────
@@ -382,10 +407,15 @@ export function registerIpcHandlers(): void {
     if (!memory || !Array.isArray(memory.facts) || !Array.isArray(memory.preferences)) {
       throw new Error('Invalid memory format')
     }
+    // Limit array sizes to prevent OOM
+    if (memory.facts.length > 5000 || memory.preferences.length > 5000) {
+      throw new Error('Memory entry count exceeded (max 5000 per category)')
+    }
     const MAX_ENTRY_LEN = 10000
+    const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
     const sanitizeEntries = (arr: unknown[]) => arr.filter((e): e is { key: string; value: string; learnedAt: number; source: string } =>
       !!e && typeof e === 'object' &&
-      typeof (e as Record<string, unknown>).key === 'string' && (e as Record<string, unknown>).key !== '__proto__' &&
+      typeof (e as Record<string, unknown>).key === 'string' && !BLOCKED_KEYS.has((e as Record<string, unknown>).key as string) &&
       typeof (e as Record<string, unknown>).value === 'string' &&
       ((e as Record<string, unknown>).key as string).length <= MAX_ENTRY_LEN &&
       ((e as Record<string, unknown>).value as string).length <= MAX_ENTRY_LEN

@@ -6,7 +6,7 @@ import { create } from 'zustand'
 import type { Note } from '@shared/types/ipc'
 
 function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+  return crypto.randomUUID()
 }
 
 interface NotesState {

@@ -32,18 +32,24 @@ export function registerAiIpcHandlers(): void {
           : agentLoop.getLocale() === 'ja'
             ? 'AIモデルが見つかりません。設定でOpenRouter APIキーを入力してください。'
             : 'AI 모델을 찾을 수 없습니다. 설정에서 OpenRouter API 키를 입력해주세요.'
-        win.webContents.send(IPC.AI_CHAT_STREAM, { type: 'error', content: errMsg })
-        win.webContents.send(IPC.AI_CHAT_STREAM, { type: 'done', content: '' })
+        try {
+          win.webContents.send(IPC.AI_CHAT_STREAM, { type: 'error', content: errMsg })
+          win.webContents.send(IPC.AI_CHAT_STREAM, { type: 'done', content: '' })
+        } catch { /* window may have been destroyed */ }
         return
       }
       provider = auto.provider
       modelId = auto.modelId
     }
 
-    // Stream chunks to renderer
+    // Stream chunks to renderer (try-catch prevents crash if window closes mid-stream)
     await agentLoop.chat(provider, modelId, req.conversationId, req.message, (chunk) => {
-      if (!win.isDestroyed()) {
-        win.webContents.send(IPC.AI_CHAT_STREAM, chunk)
+      try {
+        if (!win.isDestroyed()) {
+          win.webContents.send(IPC.AI_CHAT_STREAM, chunk)
+        }
+      } catch {
+        // Window destroyed between isDestroyed() check and send() — safe to ignore
       }
     })
   })

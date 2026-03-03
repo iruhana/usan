@@ -16,14 +16,28 @@ interface SafetyState {
   cancel: () => void
 }
 
+const CONFIRMATION_TIMEOUT_MS = 60_000 // 60 seconds
+
 export const useSafetyStore = create<SafetyState>((set, get) => ({
   open: false,
   prompt: null,
   resolve: null,
 
   requestConfirmation: (prompt) => {
+    // Reject any pending confirmation before creating a new one
+    const prev = get().resolve
+    if (prev) prev(false)
+
     return new Promise<boolean>((resolve) => {
       set({ open: true, prompt, resolve })
+      // Auto-cancel after timeout to prevent dangling promises
+      setTimeout(() => {
+        const current = get().resolve
+        if (current === resolve) {
+          resolve(false)
+          set({ open: false, prompt: null, resolve: null })
+        }
+      }, CONFIRMATION_TIMEOUT_MS)
     })
   },
 

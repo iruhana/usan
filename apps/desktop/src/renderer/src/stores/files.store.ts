@@ -22,13 +22,14 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   error: null,
 
   loadDirectory: async (dir) => {
+    if (get().loading) return // Prevent concurrent loads
     set({ loading: true, error: null })
     try {
       const list = await window.usan?.fs.list(dir)
       if (list) {
         const sorted = [...list].sort((a, b) => {
           if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-          return a.name.localeCompare(b.name, 'ko')
+          return a.name.localeCompare(b.name)
         })
         set({ entries: sorted, currentPath: dir, loading: false })
       } else {
