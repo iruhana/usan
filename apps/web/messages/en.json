@@ -1,25 +1,33 @@
 {
   "common": {
     "appName": "Usan",
-    "tagline": "AI assistant that shields you from digital threats"
+    "tagline": "AI assistant that makes digital life easy"
   },
   "hero": {
     "badge": "AI Personal Assistant",
-    "title": "Technology is hard?\nWe've got you covered.",
-    "subtitle": "Usan blocks voice phishing, handles your computer tasks, and makes hard things easy.",
+    "title": "Digital life is hard?\nLeave it to Usan.",
+    "subtitle": "If computers feel overwhelming, just speak. Usan handles it for you. File search, font sizing, schedule management — your reliable AI assistant.",
     "cta": "Get notified at launch",
-    "ctaSub": "Free to start"
+    "ctaSub": "Free to start",
+    "stats": {
+      "target": "60+",
+      "targetLabel": "Target age group",
+      "voice": "Voice first",
+      "voiceLabel": "No menus needed",
+      "languages": "Korean",
+      "languagesLabel": "Natural language"
+    }
   },
   "trust": {
     "label": "People waiting for Usan",
     "items": ["Seniors 60+", "Those unfamiliar with tech", "Children worried about parents"]
   },
   "features": {
-    "title": "How Usan protects you",
+    "title": "How Usan helps you",
     "subtitle": "Complex technology is hidden inside Usan. You just need to speak.",
-    "voicePhishing": {
-      "title": "Voice phishing blocker",
-      "description": "AI analyzes your calls in real-time. When a dangerous conversation is detected, it warns you immediately and hangs up.",
+    "smartAssistant": {
+      "title": "Smart AI assistant",
+      "description": "File organization, schedule checking, document writing — just ask, and Usan handles it. The more you use it, the better it helps.",
       "badge": "Core Feature"
     },
     "easyToUse": {
@@ -28,7 +36,7 @@
     },
     "familyProtect": {
       "title": "Your family, at ease",
-      "description": "Install Usan on your parents' computer remotely. Check their protection status and help from anywhere."
+      "description": "Install Usan on your parents' computer. Check their usage status and help them remotely from anywhere."
     },
     "accessibility": {
       "title": "Large text, simple screens",
@@ -37,9 +45,9 @@
   },
   "howItWorks": {
     "title": "It's this simple",
-    "step1": {"title": "Install", "description": "Download and run — Usan guides you through setup"},
-    "step2": {"title": "Speak", "description": "Say \"Usan, help me\" and it listens"},
-    "step3": {"title": "Relax", "description": "Usan takes care of the rest"}
+    "step1": { "title": "Install", "description": "Download and run — Usan guides you through setup" },
+    "step2": { "title": "Speak", "description": "Say \"Usan, help me\" and it listens" },
+    "step3": { "title": "Relax", "description": "Usan takes care of the rest" }
   },
   "waitlist": {
     "title": "Be the first to know",

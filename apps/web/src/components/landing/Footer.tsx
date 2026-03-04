@@ -1,16 +1,16 @@
 import { useTranslations } from 'next-intl';
-import { Shield } from 'lucide-react';
+import { Umbrella } from 'lucide-react';
 
 export function Footer() {
   const t = useTranslations('footer');
 
   return (
-    <footer className="py-12 bg-gray-900">
+    <footer className="py-12 bg-gray-950">
       <div className="mx-auto max-w-6xl px-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <Shield className="h-4 w-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+              <Umbrella className="h-4 w-4 text-white" />
             </div>
             <div>
               <span className="text-white font-bold">{t('copyright')}</span>

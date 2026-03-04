@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Mail, CheckCircle, Loader2 } from 'lucide-react';
+import { Mail, CheckCircle, Loader2, Send } from 'lucide-react';
 
 export function WaitlistSection() {
   const t = useTranslations('waitlist');
@@ -33,9 +33,9 @@ export function WaitlistSection() {
   }
 
   return (
-    <section id="waitlist" className="py-24 sm:py-32 bg-gradient-to-b from-white to-blue-50">
+    <section id="waitlist" className="py-24 sm:py-32 bg-gradient-to-b from-white via-blue-50/50 to-indigo-50/50">
       <div className="mx-auto max-w-xl px-6 text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 text-white mb-6 shadow-lg shadow-blue-600/20">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white mb-6 shadow-lg shadow-blue-600/20">
           <Mail className="h-7 w-7" />
         </div>
 
@@ -61,17 +61,20 @@ export function WaitlistSection() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={status === 'loading'}
-                className="flex-1 h-13 px-5 rounded-xl bg-white text-base text-gray-900 placeholder:text-gray-400 ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all disabled:opacity-50"
+                className="flex-1 h-13 px-5 rounded-xl bg-white text-base text-gray-900 placeholder:text-gray-400 ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all disabled:opacity-50 shadow-sm"
               />
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="h-13 px-7 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 shadow-md shadow-blue-600/20 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="h-13 px-7 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-600/20 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {status === 'loading' ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  t('submit')
+                  <>
+                    <Send className="h-4 w-4" />
+                    {t('submit')}
+                  </>
                 )}
               </button>
             </div>

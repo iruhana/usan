@@ -16,8 +16,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const titles: Record<string, string> = {
-    ko: '우산 - 디지털 위험을 막아주는 AI',
-    en: 'Usan - AI that shields you from digital threats',
+    ko: '우산 - 디지털 생활을 쉽게 만들어주는 AI 비서',
+    en: 'Usan - AI assistant that makes digital life easy',
   };
   return {
     title: titles[locale] || titles.ko,
