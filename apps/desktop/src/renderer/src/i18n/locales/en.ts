@@ -263,11 +263,18 @@ export const en: Record<string, string> = {
   'home.quickAction.readAloudDesc': 'Read text out loud',
   'home.quickAction.readAloudPrompt': 'Read the clipboard contents aloud',
 
+  // ─── Chat Actions ─────────────────────────────
+  'chat.copy': 'Copy',
+  'chat.copied': 'Copied',
+
   // ─── Status Bar ──────────────────────────────
   'status.online': 'Online',
   'status.offline': 'Offline',
   'status.idle': 'Idle',
   'status.working': 'Working',
+  'status.toolRunning': 'Running tool',
+  'status.generating': 'Generating',
+  'status.messages': 'messages',
 
   // ─── Errors ───────────────────────────────────
   'error.title': 'Something went wrong',

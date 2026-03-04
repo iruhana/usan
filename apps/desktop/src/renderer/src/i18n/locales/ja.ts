@@ -263,11 +263,18 @@ export const ja: Record<string, string> = {
   'home.quickAction.readAloudDesc': 'テキストを読み上げます',
   'home.quickAction.readAloudPrompt': 'クリップボードの内容を読み上げて',
 
+  // ─── Chat Actions ─────────────────────────────
+  'chat.copy': 'コピー',
+  'chat.copied': 'コピーしました',
+
   // ─── Status Bar ──────────────────────────────
   'status.online': 'オンライン',
   'status.offline': 'オフライン',
   'status.idle': '待機中',
   'status.working': '作業中',
+  'status.toolRunning': 'ツール実行中',
+  'status.generating': '回答作成中',
+  'status.messages': 'メッセージ',
 
   // ─── Errors ───────────────────────────────────
   'error.title': '問題が発生しました',

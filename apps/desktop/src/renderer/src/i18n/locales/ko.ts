@@ -263,11 +263,18 @@ export const ko: Record<string, string> = {
   'home.quickAction.readAloudDesc': '텍스트를 읽어드립니다',
   'home.quickAction.readAloudPrompt': '클립보드 내용을 소리로 읽어줘',
 
+  // ─── Chat Actions ─────────────────────────────
+  'chat.copy': '복사',
+  'chat.copied': '복사됨',
+
   // ─── Status Bar ──────────────────────────────
   'status.online': '온라인',
   'status.offline': '오프라인',
   'status.idle': '대기 중',
   'status.working': '작업 중',
+  'status.toolRunning': '도구 실행 중',
+  'status.generating': '답변 작성 중',
+  'status.messages': '메시지',
 
   // ─── Errors ───────────────────────────────────
   'error.title': '문제가 발생했습니다',

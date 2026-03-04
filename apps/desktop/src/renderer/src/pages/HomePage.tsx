@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, Volume2, ArrowRight } from 'lucide-react'
+import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, Volume2, ArrowRight, MessageSquarePlus } from 'lucide-react'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
 import MessageBubble from '../components/chat/MessageBubble'
@@ -29,6 +29,7 @@ export default function HomePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const prevMessageCountRef = useRef(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const conversations = useChatStore((s) => s.conversations)
   const activeConversationId = useChatStore((s) => s.activeConversationId)
@@ -38,6 +39,7 @@ export default function HomePage() {
   const sendMessage = useChatStore((s) => s.sendMessage)
   const stopStreaming = useChatStore((s) => s.stopStreaming)
   const loadFromDisk = useChatStore((s) => s.loadFromDisk)
+  const newConversation = useChatStore((s) => s.newConversation)
 
   const { settings } = useSettingsStore()
   const { announce } = useAnnouncer()
@@ -82,6 +84,16 @@ export default function HomePage() {
       speechSynthesis.speak(utterance)
     }
   }, [messages, settings.voiceEnabled, settings.voiceSpeed])
+
+  // Auto-resize textarea
+  const resizeTextarea = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [])
+
+  useEffect(() => { resizeTextarea() }, [input, resizeTextarea])
 
   const handleSend = useCallback((text: string) => {
     if (!text.trim() || isStreaming) return
@@ -218,8 +230,8 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Quick chips */}
-      {!isStreaming && (
+      {/* Quick chips - only when no messages */}
+      {!isStreaming && !hasMessages && (
         <div className="border-t border-[var(--color-border)] px-4 pt-2 pb-0">
           <div className="max-w-2xl mx-auto">
             <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mb-1 uppercase tracking-wide">
@@ -243,7 +255,7 @@ export default function HomePage() {
 
       {/* Input area */}
       <div className="border-t border-[var(--color-border)] p-3">
-        <div className="max-w-2xl mx-auto flex items-center gap-2">
+        <div className="max-w-2xl mx-auto flex items-end gap-2">
           <button
             onClick={toggleListening}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${
@@ -259,15 +271,32 @@ export default function HomePage() {
             ) : (<Mic size={18} />)}
           </button>
 
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSend(input)
+              }
+            }}
+            rows={1}
             placeholder={isListening ? t('home.listening') : t('home.inputPlaceholder')}
-            className="flex-1 h-11 px-4 rounded-full bg-[var(--color-surface-soft)] border border-transparent text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:bg-[var(--color-bg-card)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
+            className="flex-1 min-h-[44px] max-h-[160px] px-4 py-2.5 rounded-2xl bg-[var(--color-surface-soft)] border border-transparent text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:bg-[var(--color-bg-card)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all resize-none leading-relaxed"
             disabled={isStreaming}
           />
+
+          {hasMessages && !isStreaming && (
+            <button
+              onClick={() => newConversation()}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-text)] transition-all shrink-0"
+              aria-label={t('chat.newConversation')}
+              title={t('chat.newConversation')}
+            >
+              <MessageSquarePlus size={18} />
+            </button>
+          )}
 
           {isStreaming ? (
             <button
