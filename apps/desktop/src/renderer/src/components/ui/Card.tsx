@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 
 type Variant = 'default' | 'elevated' | 'outline'
-type Padding = 'sm' | 'md' | 'lg'
+type Padding = 'none' | 'sm' | 'md' | 'lg'
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   variant?: Variant
@@ -16,6 +16,7 @@ const variantStyles: Record<Variant, string> = {
 }
 
 const paddingStyles: Record<Padding, string> = {
+  none: '',
   sm: 'p-3',
   md: 'p-4',
   lg: 'p-6',

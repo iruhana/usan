@@ -2,7 +2,7 @@
  * Notification system — tray notifications with priority levels.
  * Supports system native notifications + sound alerts.
  */
-import { Notification, app } from 'electron'
+import { Notification } from 'electron'
 import { getMainWindow } from './index'
 
 export type NotificationLevel = 'info' | 'warning' | 'danger'

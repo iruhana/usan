@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Command } from 'cmdk'
 import {
   Search, Monitor, FileSearch, Globe, Settings, FileText, Wrench,
-  Volume2, Bell, Home, FolderOpen, MessageSquarePlus, User,
+  Volume2, Bell, Home, FolderOpen, MessageSquarePlus, User, Workflow, BookOpen, Activity, Store,
 } from 'lucide-react'
 import FocusTrap from '../accessibility/FocusTrap'
 import { useChatStore } from '../../stores/chat.store'
@@ -11,7 +11,7 @@ import { t } from '../../i18n'
 interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onNavigate: (page: 'home' | 'tools' | 'notes' | 'files' | 'settings' | 'account') => void
+  onNavigate: (page: 'home' | 'tools' | 'notes' | 'files' | 'settings' | 'account' | 'workflows' | 'knowledge' | 'dashboard' | 'marketplace') => void
 }
 
 export default function CommandPalette({ open, onOpenChange, onNavigate }: CommandPaletteProps) {
@@ -148,6 +148,10 @@ export default function CommandPalette({ open, onOpenChange, onNavigate }: Comma
                 { page: 'files' as const, icon: FolderOpen, shortcut: '4' },
                 { page: 'settings' as const, icon: Settings, shortcut: '5' },
                 { page: 'account' as const, icon: User, shortcut: '6' },
+                { page: 'workflows' as const, icon: Workflow, shortcut: '7' },
+                { page: 'knowledge' as const, icon: BookOpen, shortcut: '8' },
+                { page: 'dashboard' as const, icon: Activity, shortcut: '9' },
+                { page: 'marketplace' as const, icon: Store, shortcut: '0' },
               ].map(({ page, icon: Icon, shortcut }) => (
                 <Command.Item
                   key={page}

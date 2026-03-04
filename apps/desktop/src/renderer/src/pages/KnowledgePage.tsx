@@ -1,0 +1,167 @@
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { FolderOpen, FilePlus2, Search, Loader2 } from 'lucide-react'
+import { Button, Card, Input, SectionHeader } from '../components/ui'
+import { useKnowledgeStore } from '../stores/knowledge.store'
+import DocumentList from '../components/knowledge/DocumentList'
+import SearchResults from '../components/knowledge/SearchResults'
+import { t } from '../i18n'
+
+export default function KnowledgePage() {
+  const {
+    documents,
+    searchResults,
+    indexingProgress,
+    indexSummary,
+    loading,
+    error,
+    initialize,
+    load,
+    indexFile,
+    indexFolder,
+    removeDocument,
+    search,
+    clearSearch,
+    clearIndexSummary,
+  } = useKnowledgeStore()
+
+  const [query, setQuery] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    initialize()
+    load().catch(() => {})
+  }, [initialize, load])
+
+  const hasSearch = query.trim().length > 0
+  const totalChunks = useMemo(() => documents.reduce((sum, item) => sum + item.chunks, 0), [documents])
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-4">
+        <div>
+          <h1 className="text-[length:var(--text-xl)] font-semibold text-[var(--color-text)]">{t('knowledge.title')}</h1>
+          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('knowledge.subtitle')}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" leftIcon={<FilePlus2 size={14} />} onClick={() => fileInputRef.current?.click()}>
+            {t('knowledge.addFile')}
+          </Button>
+          <Button variant="secondary" size="sm" leftIcon={<FolderOpen size={14} />} onClick={() => folderInputRef.current?.click()}>
+            {t('knowledge.addFolder')}
+          </Button>
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={async (event) => {
+          const file = event.target.files?.[0] as (File & { path?: string }) | undefined
+          if (file?.path) {
+            await indexFile(file.path)
+          }
+          event.currentTarget.value = ''
+        }}
+      />
+
+      <input
+        ref={folderInputRef}
+        type="file"
+        className="hidden"
+        // @ts-expect-error webkitdirectory is supported in Chromium/Electron
+        webkitdirectory="true"
+        directory="true"
+        onChange={async (event) => {
+          const file = event.target.files?.[0] as (File & { path?: string }) | undefined
+          if (file?.path) {
+            const normalized = file.path.replace(/\\[^\\]+$/, '')
+            await indexFolder(normalized)
+          }
+          event.currentTarget.value = ''
+        }}
+      />
+
+      {error && (
+        <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+          {error}
+        </div>
+      )}
+
+      {indexSummary && (
+        <Card variant="outline" className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--text-sm)]">
+            <span className="text-[var(--color-text-muted)]">
+              {indexSummary.scope === 'file'
+                ? indexSummary.skippedCount > 0
+                  ? t('knowledge.indexSummary.fileSkipped')
+                  : `${t('knowledge.indexSummary.fileIndexed')} (${indexSummary.totalChunks} ${t('knowledge.chunks')})`
+                : `${t('knowledge.indexSummary.folder')}: ${t('knowledge.indexSummary.indexed')} ${indexSummary.indexedCount}, ${t('knowledge.indexSummary.skipped')} ${indexSummary.skippedCount}, ${t('knowledge.indexSummary.failed')} ${indexSummary.failedCount}`}
+            </span>
+            <Button variant="ghost" size="sm" onClick={clearIndexSummary}>
+              {t('chat.cancel')}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
+        <div className="relative">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t('knowledge.searchPlaceholder')}
+            leftIcon={<Search size={16} />}
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="md"
+            onClick={() => search(query)}
+            disabled={!query.trim()}
+          >
+            {t('knowledge.search')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="md"
+            onClick={() => {
+              setQuery('')
+              clearSearch()
+            }}
+          >
+            {t('chat.cancel')}
+          </Button>
+        </div>
+      </div>
+
+      {indexingProgress && (
+        <Card variant="outline" className="mb-4">
+          <div className="flex items-center gap-2 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+            <Loader2 size={14} className="animate-spin" />
+            <span>
+              {t('knowledge.indexingProgress')}: {indexingProgress.current}/{indexingProgress.total} - {indexingProgress.fileName}
+            </span>
+          </div>
+        </Card>
+      )}
+
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
+        <div className="min-h-0 overflow-auto">
+          <SectionHeader title={hasSearch ? t('knowledge.search') : t('knowledge.documents')} indicator="var(--color-primary)" className="mb-3" />
+          {hasSearch ? <SearchResults results={searchResults} /> : <DocumentList documents={documents} onRemove={removeDocument} />}
+        </div>
+
+        <div className="min-h-0 overflow-auto">
+          <Card variant="elevated" className="space-y-2">
+            <h3 className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)]">{t('knowledge.stats')}</h3>
+            <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('knowledge.totalDocuments')}: {documents.length}</p>
+            <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('knowledge.totalChunks')}: {totalChunks}</p>
+            <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{loading ? t('files.loading') : t('skill.done')}</p>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}

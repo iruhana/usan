@@ -4,7 +4,7 @@
  */
 
 import { chromium, type Browser, type Page } from 'playwright-core'
-import { ensureCdpBrowser, getCdpEndpoint } from './cdp-launcher'
+import { ensureCdpBrowser } from './cdp-launcher'
 import { isUrlSafe } from '../security'
 
 let browser: Browser | null = null

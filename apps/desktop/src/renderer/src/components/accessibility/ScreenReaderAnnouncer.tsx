@@ -11,6 +11,7 @@ interface AnnouncerCtx {
 
 const AnnouncerContext = createContext<AnnouncerCtx>({ announce: () => {} })
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAnnouncer() {
   return useContext(AnnouncerContext)
 }

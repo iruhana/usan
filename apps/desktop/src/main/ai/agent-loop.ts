@@ -6,6 +6,9 @@ import { loadAllSkillsMultiSource, getEligibleSkills } from '../skills/skill-loa
 import { formatAvailableSkills } from '../skills/skill-matcher'
 import type { Skill } from '../skills/skill-loader'
 import { dirname } from 'path'
+import { buildContextPrompt } from '../context/context-injector'
+import { vectorStore } from '../rag/vector-store'
+import { generateEmbedding } from '../rag/embeddings'
 
 const MAX_TOOL_ROUNDS = 10
 const MAX_TOOLS_PER_ROUND = 5
@@ -136,6 +139,7 @@ export class AgentLoop {
   private skills: Skill[] = []
   private eligibleSkills: Skill[] = []
   private skillsPromise: Promise<void> | null = null
+  private skillsLoaded = false
   private currentLocale: Locale = 'ko'
 
   setLocale(locale: Locale): void {
@@ -171,11 +175,13 @@ export class AgentLoop {
   }
 
   private async ensureSkills(): Promise<void> {
+    if (this.skillsLoaded) return
     if (this.skillsPromise) return this.skillsPromise
     this.skillsPromise = (async () => {
       try {
         this.skills = await loadAllSkillsMultiSource()
         this.eligibleSkills = getEligibleSkills(this.skills)
+        this.skillsLoaded = true
       } catch {
         this.skills = []
         this.eligibleSkills = []
@@ -190,10 +196,31 @@ export class AgentLoop {
     const base = getSystemPrompt(this.currentLocale)
     const skillCatalog = formatAvailableSkills(this.eligibleSkills)
 
-    if (!skillCatalog) return base
+    // Dynamic context injection (F6)
+    const contextBlock = buildContextPrompt()
 
-    const skillInstruction = getSkillInstruction(this.currentLocale)
-    return `${base}\n\n${skillInstruction}\n\n${skillCatalog}`
+    let prompt = base
+    if (contextBlock) prompt += `\n${contextBlock}`
+    if (skillCatalog) {
+      const skillInstruction = getSkillInstruction(this.currentLocale)
+      prompt += `\n\n${skillInstruction}\n\n${skillCatalog}`
+    }
+    return prompt
+  }
+
+  /** Search RAG knowledge base for relevant context (F3) */
+  private async buildRagContext(userMessage: string): Promise<string> {
+    if (vectorStore.totalEntries === 0) return ''
+    try {
+      const embedding = await generateEmbedding(userMessage)
+      const results = vectorStore.search(embedding, 3)
+      const relevant = results.filter((r) => r.score >= 40)
+      if (relevant.length === 0) return ''
+      const chunks = relevant.map((r) => `[${r.documentName}] (관련도 ${r.score}%)\n${r.chunk}`).join('\n\n')
+      return `\n[지식 베이스 참고]\n${chunks}`
+    } catch {
+      return ''
+    }
   }
 
   async chat(
@@ -207,12 +234,17 @@ export class AgentLoop {
 
     const systemPrompt = this.buildSystemPrompt()
 
+    // RAG context injection — augment system prompt with relevant knowledge
+    const ragContext = await this.buildRagContext(userMessage)
+
+    const fullSystemPrompt = ragContext ? systemPrompt + ragContext : systemPrompt
+
     let session = this.sessions.get(conversationId)
     if (!session) {
       this.evictOldSessions()
       session = {
         conversationId,
-        messages: [{ role: 'system', content: systemPrompt }],
+        messages: [{ role: 'system', content: fullSystemPrompt }],
         abortController: new AbortController(),
         lastUsed: Date.now(),
         generation: 0,
@@ -225,7 +257,7 @@ export class AgentLoop {
       session.lastUsed = Date.now()
       session.generation++
       if (session.messages[0]?.role === 'system') {
-        session.messages[0].content = systemPrompt
+        session.messages[0].content = fullSystemPrompt
       }
     }
 

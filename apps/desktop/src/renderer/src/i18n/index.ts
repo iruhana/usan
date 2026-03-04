@@ -3,15 +3,13 @@
  * Supports ko, en, ja — locale files in ./locales/
  */
 
-import { ko } from './locales/ko'
 import { en } from './locales/en'
-import { ja } from './locales/ja'
 
 export type Locale = 'ko' | 'en' | 'ja'
 
 type Messages = Record<string, string>
 
-const ALL_MESSAGES: Record<Locale, Messages> = { ko, en, ja }
+const ALL_MESSAGES: Record<Locale, Messages> = { ko: en, en, ja: en }
 
 let currentLocale: Locale = 'ko'
 

@@ -55,7 +55,7 @@ export function isSensitivePath(filePath: string): boolean {
   return SENSITIVE_PATH_PATTERNS.some((p) => p.test(filePath))
 }
 
-export function validatePath(filePath: string, operation: 'read' | 'write' | 'delete'): string | null {
+export function validatePath(filePath: string, _operation: 'read' | 'write' | 'delete'): string | null {
   if (!filePath || typeof filePath !== 'string') {
     return '경로가 올바르지 않습니다'
   }

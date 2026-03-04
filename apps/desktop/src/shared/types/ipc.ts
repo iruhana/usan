@@ -7,6 +7,8 @@ import type { PermissionGrant, PermissionGrantRequest, PermissionRevokeRequest }
 import type { ToolResult } from './tools'
 
 export type Locale = 'ko' | 'en' | 'ja'
+export type UpdateChannel = 'stable' | 'beta'
+export type PermissionProfile = 'full' | 'balanced' | 'strict'
 
 // ─── AI ──────────────────────────────────────────
 
@@ -82,6 +84,7 @@ export interface Note {
 // ─── Settings ────────────────────────────────────
 
 export interface AppSettings {
+  schemaVersion: number
   fontScale: number
   highContrast: boolean
   voiceEnabled: boolean
@@ -89,7 +92,24 @@ export interface AppSettings {
   locale: Locale
   theme: 'light' | 'dark' | 'system'
   openAtLogin: boolean
+  updateChannel: UpdateChannel
+  autoDownloadUpdates: boolean
+  permissionProfile: PermissionProfile
+  sidebarCollapsed: boolean
+  enterToSend: boolean
   cloudApiKey?: string
+}
+
+export interface UpdaterStatus {
+  enabled: boolean
+  channel: UpdateChannel
+  autoDownload: boolean
+  checking: boolean
+  updateAvailableVersion: string | null
+  downloadedVersion: string | null
+  lastCheckAt: number | null
+  lastError: string | null
+  crashStreak: number
 }
 
 // ─── Permissions ─────────────────────────────────
@@ -120,6 +140,12 @@ export interface IPCChannels {
   // Settings
   'settings:get': { request: void; response: AppSettings }
   'settings:set': { request: Partial<AppSettings>; response: void }
+
+  // Updater
+  'updater:status': { request: void; response: UpdaterStatus }
+  'updater:check-now': { request: void; response: UpdaterStatus }
+  'updater:download': { request: void; response: UpdaterStatus }
+  'updater:install': { request: void; response: { queued: boolean } }
 
   // Permissions
   'permissions:get': { request: void; response: PermissionGrant }

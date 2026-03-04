@@ -15,35 +15,59 @@ export default function App() {
   const loadSettings = useSettingsStore((s) => s.load)
 
   useEffect(() => {
-    // Load persisted settings, then detect locale on first launch
-    loadSettings().then(async () => {
-      const s = useSettingsStore.getState().settings
-      if (!s.locale || s.locale === 'ko') {
-        try {
-          const detected = await window.usan?.system.detectLocale()
-          if (detected && detected !== 'ko') {
-            await window.usan?.settings.set({ locale: detected })
-            setLocale(detected)
-          }
-        } catch { /* ignore */ }
-      }
-    }).catch(() => {})
+    let cancelled = false
 
-    window.usan?.permissions.get().then((grant) => {
-      const now = Date.now()
-      const hasGranularGrant =
-        Object.values(grant.toolGrants ?? {}).some((item) => isTimedGrantActive(item, now)) ||
-        Object.values(grant.featureGrants ?? {}).some((item) => isTimedGrantActive(item, now)) ||
-        Object.values(grant.skillGrants ?? {}).some((item) => isTimedGrantActive(item, now))
-      if (grant.grantedAll || hasGranularGrant) {
-        setShowOnboarding(false)
+    const init = async () => {
+      try {
+        // Load persisted settings, then detect locale on first launch
+        await loadSettings()
+        const s = useSettingsStore.getState().settings
+        if (!s.locale || s.locale === 'ko') {
+          try {
+            const detected = await window.usan?.system.detectLocale()
+            if (detected && detected !== 'ko') {
+              await window.usan?.settings.set({ locale: detected })
+              setLocale(detected)
+            }
+          } catch {
+            // ignore locale detection failures
+          }
+        }
+      } catch {
+        // ignore settings load failures
       }
-      setLoading(false)
-    }).catch(() => {
-      // If IPC not available (dev without electron), skip onboarding
-      setShowOnboarding(false)
-      setLoading(false)
-    })
+
+      if (cancelled) return
+
+      try {
+        const grant = await window.usan?.permissions.get()
+        if (!grant) {
+          setShowOnboarding(false)
+          return
+        }
+        const now = Date.now()
+        const hasGranularGrant =
+          Object.values(grant.toolGrants ?? {}).some((item) => isTimedGrantActive(item, now)) ||
+          Object.values(grant.featureGrants ?? {}).some((item) => isTimedGrantActive(item, now)) ||
+          Object.values(grant.skillGrants ?? {}).some((item) => isTimedGrantActive(item, now))
+        if (grant.grantedAll || hasGranularGrant) {
+          setShowOnboarding(false)
+        }
+      } catch {
+        // If IPC not available (dev without electron), skip onboarding
+        setShowOnboarding(false)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void init()
+
+    return () => {
+      cancelled = true
+    }
   }, [loadSettings])
 
   if (loading) {

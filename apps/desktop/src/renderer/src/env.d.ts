@@ -45,7 +45,6 @@ declare global {
     confidence: number
   }
 
-  // eslint-disable-next-line no-var
   var SpeechRecognition: {
     new (): SpeechRecognition
   }

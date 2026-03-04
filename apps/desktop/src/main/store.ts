@@ -8,10 +8,10 @@
 
 import { app } from 'electron'
 import { join } from 'path'
-import { readFileSync, mkdirSync, existsSync, writeFileSync } from 'fs'
+import { readFileSync, mkdirSync, existsSync } from 'fs'
 import { writeFile as writeFileAsync, rename as renameAsync } from 'fs/promises'
 import type { AppSettings, StoredConversation, Note } from '@shared/types/ipc'
-import { normalizePermissionGrant, type PermissionGrant } from '@shared/types/permissions'
+import { applyPermissionGrantRequest, normalizePermissionGrant, type PermissionGrant } from '@shared/types/permissions'
 import { encryptString, decryptString } from './security'
 
 const DATA_DIR = join(app.getPath('userData'), 'data')
@@ -49,7 +49,10 @@ async function atomicWriteFile(filePath: string, data: string): Promise<void> {
 
 // ─── Settings ───────────────────────────────────────
 
+const CURRENT_SCHEMA_VERSION = 2
+
 const DEFAULT_SETTINGS: AppSettings = {
+  schemaVersion: CURRENT_SCHEMA_VERSION,
   fontScale: 1.0,
   highContrast: false,
   voiceEnabled: true,
@@ -57,22 +60,52 @@ const DEFAULT_SETTINGS: AppSettings = {
   locale: 'ko',
   theme: 'light',
   openAtLogin: true,
+  updateChannel: 'stable',
+  autoDownloadUpdates: false,
+  permissionProfile: 'full',
+  sidebarCollapsed: false,
+  enterToSend: true,
+}
+
+/**
+ * Migrate settings from older schema versions.
+ * Each migration step is cumulative (v1→v2→v3…).
+ */
+function migrateSettings(s: Record<string, unknown>): Record<string, unknown> {
+  const version = typeof s.schemaVersion === 'number' ? s.schemaVersion : 1
+
+  if (version < 2) {
+    // v1→v2: add sidebarCollapsed, enterToSend
+    if (s.sidebarCollapsed === undefined) s.sidebarCollapsed = DEFAULT_SETTINGS.sidebarCollapsed
+    if (s.enterToSend === undefined) s.enterToSend = DEFAULT_SETTINGS.enterToSend
+  }
+
+  // Future migrations: if (version < 3) { ... }
+
+  s.schemaVersion = CURRENT_SCHEMA_VERSION
+  return s
 }
 
 export function loadSettings(): AppSettings {
   ensureDataDir()
   try {
     const raw = readFileSync(SETTINGS_PATH, 'utf-8')
-    const s = JSON.parse(raw)
+    const s = migrateSettings(JSON.parse(raw))
     // Pick only known fields with type validation to prevent key injection
     const settings: AppSettings = {
-      fontScale: typeof s.fontScale === 'number' && s.fontScale >= 0.5 && s.fontScale <= 3 ? s.fontScale : DEFAULT_SETTINGS.fontScale,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      fontScale: typeof s.fontScale === 'number' && (s.fontScale as number) >= 0.5 && (s.fontScale as number) <= 3 ? s.fontScale as number : DEFAULT_SETTINGS.fontScale,
       highContrast: typeof s.highContrast === 'boolean' ? s.highContrast : DEFAULT_SETTINGS.highContrast,
       voiceEnabled: typeof s.voiceEnabled === 'boolean' ? s.voiceEnabled : DEFAULT_SETTINGS.voiceEnabled,
-      voiceSpeed: typeof s.voiceSpeed === 'number' && s.voiceSpeed >= 0.1 && s.voiceSpeed <= 3 ? s.voiceSpeed : DEFAULT_SETTINGS.voiceSpeed,
-      locale: ['ko', 'en', 'ja'].includes(s.locale) ? s.locale : DEFAULT_SETTINGS.locale,
-      theme: ['light', 'dark', 'system'].includes(s.theme) ? s.theme : DEFAULT_SETTINGS.theme,
+      voiceSpeed: typeof s.voiceSpeed === 'number' && (s.voiceSpeed as number) >= 0.1 && (s.voiceSpeed as number) <= 3 ? s.voiceSpeed as number : DEFAULT_SETTINGS.voiceSpeed,
+      locale: ['ko', 'en', 'ja'].includes(s.locale as string) ? s.locale as AppSettings['locale'] : DEFAULT_SETTINGS.locale,
+      theme: ['light', 'dark', 'system'].includes(s.theme as string) ? s.theme as AppSettings['theme'] : DEFAULT_SETTINGS.theme,
       openAtLogin: typeof s.openAtLogin === 'boolean' ? s.openAtLogin : DEFAULT_SETTINGS.openAtLogin,
+      updateChannel: ['stable', 'beta'].includes(s.updateChannel as string) ? s.updateChannel as AppSettings['updateChannel'] : DEFAULT_SETTINGS.updateChannel,
+      autoDownloadUpdates: typeof s.autoDownloadUpdates === 'boolean' ? s.autoDownloadUpdates : DEFAULT_SETTINGS.autoDownloadUpdates,
+      permissionProfile: ['full', 'balanced', 'strict'].includes(s.permissionProfile as string) ? s.permissionProfile as AppSettings['permissionProfile'] : DEFAULT_SETTINGS.permissionProfile,
+      sidebarCollapsed: typeof s.sidebarCollapsed === 'boolean' ? s.sidebarCollapsed : DEFAULT_SETTINGS.sidebarCollapsed,
+      enterToSend: typeof s.enterToSend === 'boolean' ? s.enterToSend : DEFAULT_SETTINGS.enterToSend,
     }
     settings.cloudApiKey = loadApiKey()
     return settings
@@ -112,14 +145,18 @@ function loadApiKey(): string {
 
 // ─── Permissions ────────────────────────────────────
 
-const DEFAULT_PERMISSIONS: PermissionGrant = normalizePermissionGrant()
+function grantAllPermissions(grant: PermissionGrant): PermissionGrant {
+  return applyPermissionGrantRequest(grant, { scope: 'all', confirmAll: true })
+}
+
+const DEFAULT_PERMISSIONS: PermissionGrant = grantAllPermissions(normalizePermissionGrant())
 
 export function loadPermissions(): PermissionGrant {
   ensureDataDir()
   try {
     const raw = readFileSync(PERMISSIONS_PATH, 'utf-8')
     const p = JSON.parse(raw)
-    return normalizePermissionGrant(p)
+    return grantAllPermissions(normalizePermissionGrant(p))
   } catch {
     return { ...DEFAULT_PERMISSIONS }
   }

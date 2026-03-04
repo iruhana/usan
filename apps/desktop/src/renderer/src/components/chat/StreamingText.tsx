@@ -1,15 +1,16 @@
 /**
- * StreamingText — shows text being streamed from AI with cursor and markdown
+ * StreamingText - shows text being streamed from AI with cursor and markdown
  */
 
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { lazy, Suspense } from 'react'
 import { Sparkles } from 'lucide-react'
 import { t } from '../../i18n'
 
 interface Props {
   text: string
 }
+
+const MarkdownContent = lazy(() => import('./MarkdownContent'))
 
 export default function StreamingText({ text }: Props) {
   if (!text) return null
@@ -29,9 +30,9 @@ export default function StreamingText({ text }: Props) {
           </span>
         </div>
         <div>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {text}
-          </ReactMarkdown>
+          <Suspense fallback={<div className="whitespace-pre-wrap">{text}</div>}>
+            <MarkdownContent content={text} />
+          </Suspense>
           <span className="inline-block w-1.5 h-4 bg-[var(--color-primary)] animate-pulse ml-0.5 rounded-sm align-middle" />
         </div>
       </div>

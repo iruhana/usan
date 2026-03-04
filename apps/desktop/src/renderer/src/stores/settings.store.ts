@@ -14,6 +14,7 @@ interface SettingsState {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
+  schemaVersion: 2,
   fontScale: 1.0,
   highContrast: false,
   voiceEnabled: true,
@@ -21,6 +22,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   locale: 'ko',
   theme: 'light',
   openAtLogin: true,
+  updateChannel: 'stable',
+  autoDownloadUpdates: false,
+  permissionProfile: 'full',
+  sidebarCollapsed: false,
+  enterToSend: true,
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({

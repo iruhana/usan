@@ -1,9 +1,16 @@
-import { useMemo, useState, useCallback } from 'react'
-import { Plus, Trash2, MessageSquare } from 'lucide-react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
+import { Plus, Trash2, MessageSquare, RotateCcw, Archive } from 'lucide-react'
 import { useChatStore } from '../../stores/chat.store'
 import { useUndoStore } from '../../stores/undo.store'
 import { t } from '../../i18n'
 import { IconButton, Button } from '../ui'
+
+interface TrashItem {
+  id: string
+  title: string
+  deletedAt: number
+  messageCount: number
+}
 
 function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts
@@ -32,19 +39,56 @@ export default function ConversationList() {
   const showUndo = useUndoStore((s) => s.show)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [focusIndex, setFocusIndex] = useState(-1)
+  const [showTrash, setShowTrash] = useState(false)
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([])
 
-  const handleDelete = useCallback((convId: string) => {
-    const conv = conversations.find((c) => c.id === convId)
-    deleteConversation(convId)
+  const loadTrash = useCallback(async () => {
+    try {
+      const items = await window.usan?.conversations.trashList() as TrashItem[]
+      setTrashItems(items || [])
+    } catch { setTrashItems([]) }
+  }, [])
+
+  useEffect(() => {
+    if (showTrash) loadTrash()
+  }, [showTrash, loadTrash])
+
+  const handleDelete = useCallback(async (convId: string) => {
     setPendingDeleteId(null)
-    if (conv) {
-      showUndo(t('undo.conversationDeleted'), () => {
+    try {
+      await window.usan?.conversations.softDelete(convId)
+    } catch { /* fallback */ }
+    deleteConversation(convId)
+    showUndo(t('undo.conversationDeleted'), async () => {
+      try {
+        const restored = await window.usan?.conversations.restore(convId)
+        if (restored) {
+          useChatStore.setState((s) => ({
+            conversations: [restored, ...s.conversations],
+          }))
+        }
+      } catch { /* restore failed */ }
+    })
+  }, [deleteConversation, showUndo])
+
+  const handleRestore = useCallback(async (id: string) => {
+    try {
+      const restored = await window.usan?.conversations.restore(id)
+      if (restored) {
         useChatStore.setState((s) => ({
-          conversations: [conv, ...s.conversations],
+          conversations: [restored, ...s.conversations],
         }))
-      })
-    }
-  }, [conversations, deleteConversation, showUndo])
+        loadTrash()
+      }
+    } catch { /* restore failed */ }
+  }, [loadTrash])
+
+  const handlePermanentDelete = useCallback(async (id: string) => {
+    try {
+      await window.usan?.conversations.trashPermanentDelete(id)
+      loadTrash()
+    } catch { /* delete failed */ }
+  }, [loadTrash])
 
   const sorted = useMemo(
     () => [...conversations].sort((a, b) => getLastActivity(b) - getLastActivity(a)),
@@ -198,6 +242,56 @@ export default function ConversationList() {
               </button>
             )
           })
+        )}
+      </div>
+
+      {/* Trash toggle */}
+      <div className="border-t border-[var(--color-border)]">
+        <button
+          onClick={() => setShowTrash(!showTrash)}
+          className="w-full flex items-center gap-2 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] transition-all"
+        >
+          <Archive size={14} />
+          <span>{t('chat.trash')}</span>
+          {trashItems.length > 0 && (
+            <span className="ml-auto text-[length:var(--text-xs)] bg-[var(--color-surface-soft)] px-1.5 rounded-full">
+              {trashItems.length}
+            </span>
+          )}
+        </button>
+
+        {showTrash && (
+          <div className="max-h-48 overflow-y-auto">
+            {trashItems.length === 0 ? (
+              <p className="px-3 py-3 text-center text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+                {t('chat.trashEmpty')}
+              </p>
+            ) : (
+              trashItems.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 px-3 py-1.5 group hover:bg-[var(--color-surface-soft)]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] truncate">
+                      {item.title || t('chat.newConversation')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRestore(item.id)}
+                    className="p-1 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-success-bg)] text-[var(--color-success)] transition-all"
+                    title={t('chat.restore')}
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+                  <button
+                    onClick={() => handlePermanentDelete(item.id)}
+                    className="p-1 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger-bg)] text-[var(--color-danger)] transition-all"
+                    title={t('chat.permanentDelete')}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         )}
       </div>
     </div>

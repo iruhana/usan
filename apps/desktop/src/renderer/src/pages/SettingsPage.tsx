@@ -14,8 +14,10 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  ShieldCheck,
+  Download,
 } from 'lucide-react'
-import type { ModelInfo } from '@shared/types/ipc'
+import type { ModelInfo, UpdaterStatus } from '@shared/types/ipc'
 import { useSettingsStore } from '../stores/settings.store'
 import { t } from '../i18n'
 import type { Locale } from '../i18n'
@@ -27,13 +29,25 @@ const LANGUAGES: Array<{ id: Locale; label: string; flag: string }> = [
   { id: 'ja', label: '日本語', flag: '🇯🇵' },
 ]
 
+type SettingsTab = 'display' | 'sound' | 'system' | 'advanced'
+
+const TABS: Array<{ id: SettingsTab; labelKey: string; icon: typeof Palette }> = [
+  { id: 'display', labelKey: 'settings.group.display', icon: Palette },
+  { id: 'sound', labelKey: 'settings.group.sound', icon: Volume2 },
+  { id: 'system', labelKey: 'settings.group.system', icon: Settings },
+  { id: 'advanced', labelKey: 'settings.group.advanced', icon: Cpu },
+]
+
 export default function SettingsPage() {
   const { settings, update: updateStore } = useSettingsStore()
+  const [activeTab, setActiveTab] = useState<SettingsTab>('display')
   const [cloudApiKey, setCloudApiKey] = useState('')
   const [apiKeyDirty, setApiKeyDirty] = useState(false)
   const [models, setModels] = useState<ModelInfo[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [keyValidation, setKeyValidation] = useState<{ status: 'idle' | 'loading' | 'valid' | 'error'; message?: string }>({ status: 'idle' })
+  const [updaterStatus, setUpdaterStatus] = useState<UpdaterStatus | null>(null)
+  const [updaterBusy, setUpdaterBusy] = useState<'idle' | 'checking' | 'downloading' | 'installing'>('idle')
   const fontScaleId = useId()
   const voiceSpeedId = useId()
   const apiKeyId = useId()
@@ -44,6 +58,9 @@ export default function SettingsPage() {
   const voiceEnabled = settings.voiceEnabled
   const voiceSpeed = settings.voiceSpeed
   const theme = settings.theme as 'light' | 'dark' | 'system'
+  const updateChannel = settings.updateChannel
+  const autoDownloadUpdates = settings.autoDownloadUpdates
+  const permissionProfile = settings.permissionProfile
 
   const loadModels = useCallback(async () => {
     setLoadingModels(true)
@@ -56,12 +73,41 @@ export default function SettingsPage() {
     setLoadingModels(false)
   }, [])
 
+  const refreshUpdaterStatus = useCallback(async () => {
+    try {
+      const next = await window.usan?.updates.status()
+      if (next) setUpdaterStatus(next)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const runUpdaterAction = useCallback(async (action: 'checking' | 'downloading' | 'installing') => {
+    setUpdaterBusy(action)
+    try {
+      if (action === 'checking') {
+        const next = await window.usan?.updates.checkNow()
+        if (next) setUpdaterStatus(next)
+      } else if (action === 'downloading') {
+        const next = await window.usan?.updates.download()
+        if (next) setUpdaterStatus(next)
+      } else {
+        await window.usan?.updates.install()
+      }
+    } catch {
+      // ignore
+    } finally {
+      setUpdaterBusy('idle')
+    }
+  }, [])
+
   useEffect(() => {
     window.usan?.settings.get().then((s) => {
       setCloudApiKey(s.cloudApiKey ?? '')
     })
     loadModels()
-  }, [loadModels])
+    refreshUpdaterStatus()
+  }, [loadModels, refreshUpdaterStatus])
 
   useEffect(() => {
     const root = document.documentElement
@@ -119,7 +165,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-lg mx-auto p-8">
       {/* Header */}
-      <div className="mb-8 pb-6 border-b border-[var(--color-border)]">
+      <div className="mb-6 pb-4 border-b border-[var(--color-border)]">
         <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
           {t('settings.title')}
         </h1>
@@ -128,9 +174,33 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {/* Tab navigation */}
+      <div className="flex gap-1 mb-6 p-1 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)]" role="tablist">
+        {TABS.map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
+                isActive
+                  ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-[var(--shadow-sm)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              <Icon size={16} />
+              <span className="hidden sm:inline">{t(tab.labelKey)}</span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="flex flex-col gap-6">
         {/* ── Display ── */}
-        <section>
+        {activeTab === 'display' && <section>
           <SectionHeader title={t('settings.group.display')} icon={Palette} />
           <div className="flex flex-col gap-3">
 
@@ -265,11 +335,37 @@ export default function SettingsPage() {
               </div>
             </Card>
 
+            {/* Enter key behavior */}
+            <Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[length:var(--text-md)] font-medium">Enter 키로 전송</h3>
+                  <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mt-1">
+                    {settings.enterToSend ? 'Enter = 전송, Shift+Enter = 줄바꿈' : 'Enter = 줄바꿈, 버튼 클릭 = 전송'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateStore({ enterToSend: !settings.enterToSend })}
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                    settings.enterToSend ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={settings.enterToSend}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
+                      settings.enterToSend ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </Card>
+
           </div>
-        </section>
+        </section>}
 
         {/* ── Sound ── */}
-        <section>
+        {activeTab === 'sound' && <section>
           <SectionHeader title={t('settings.group.sound')} icon={Volume2} />
           <div className="flex flex-col gap-3">
 
@@ -318,10 +414,10 @@ export default function SettingsPage() {
             </Card>
 
           </div>
-        </section>
+        </section>}
 
         {/* ── System ── */}
-        <section>
+        {activeTab === 'system' && <section>
           <SectionHeader title={t('settings.group.system')} icon={Settings} />
           <div className="flex flex-col gap-3">
 
@@ -356,11 +452,151 @@ export default function SettingsPage() {
               </div>
             </Card>
 
+            {/* Update Channel */}
+            <Card>
+              <div className="flex items-center gap-2 mb-3">
+                <Download size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.updateChannel')}</h3>
+              </div>
+              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
+                {t('settings.updateChannelHint')}
+              </p>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {([
+                  { id: 'stable' as const, label: t('settings.updateChannelStable') },
+                  { id: 'beta' as const, label: t('settings.updateChannelBeta') },
+                ]).map((item) => {
+                  const isActive = updateChannel === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={async () => {
+                        await updateStore({ updateChannel: item.id })
+                        await refreshUpdaterStatus()
+                      }}
+                      className={`py-2 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
+                        isActive
+                          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
+                          : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                      }`}
+                      style={{ minHeight: '44px' }}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[length:var(--text-md)]">{t('settings.updateAutoDownload')}</span>
+                <button
+                  onClick={async () => {
+                    await updateStore({ autoDownloadUpdates: !autoDownloadUpdates })
+                    await refreshUpdaterStatus()
+                  }}
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                    autoDownloadUpdates ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={autoDownloadUpdates}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
+                      autoDownloadUpdates ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  loading={updaterBusy === 'checking'}
+                  onClick={() => runUpdaterAction('checking')}
+                >
+                  {t('settings.updateCheckNow')}
+                </Button>
+                {updaterStatus?.updateAvailableVersion && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={updaterBusy === 'downloading'}
+                    onClick={() => runUpdaterAction('downloading')}
+                  >
+                    {t('settings.updateDownload')}
+                  </Button>
+                )}
+                {updaterStatus?.downloadedVersion && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={updaterBusy === 'installing'}
+                    onClick={() => runUpdaterAction('installing')}
+                  >
+                    {t('settings.updateInstall')}
+                  </Button>
+                )}
+              </div>
+              {updaterStatus && (
+                <p className="mt-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                  {t('settings.updateStatus')}: {updaterStatus.downloadedVersion
+                    ? `${t('settings.updateReady')} ${updaterStatus.downloadedVersion}`
+                    : updaterStatus.updateAvailableVersion
+                      ? `${t('settings.updateAvailable')} ${updaterStatus.updateAvailableVersion}`
+                      : t('settings.updateUpToDate')}
+                </p>
+              )}
+              {updaterStatus?.lastCheckAt && (
+                <p className="mt-1 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+                  {t('settings.updateLastCheck')}: {new Date(updaterStatus.lastCheckAt).toLocaleString()}
+                </p>
+              )}
+              {updaterStatus?.lastError && (
+                <p className="mt-1 text-[length:var(--text-xs)] text-[var(--color-danger)]">
+                  {t('settings.updateLastError')}: {updaterStatus.lastError}
+                </p>
+              )}
+            </Card>
+
+            {/* Permission Profile */}
+            <Card>
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldCheck size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.permissionProfile')}</h3>
+              </div>
+              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
+                {t('settings.permissionProfileHint')}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { id: 'full' as const, label: t('settings.permissionProfileFull') },
+                  { id: 'balanced' as const, label: t('settings.permissionProfileBalanced') },
+                  { id: 'strict' as const, label: t('settings.permissionProfileStrict') },
+                ]).map((item) => {
+                  const isActive = permissionProfile === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => updateStore({ permissionProfile: item.id })}
+                      className={`py-2 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
+                        isActive
+                          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
+                          : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                      }`}
+                      style={{ minHeight: '44px' }}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Card>
+
           </div>
-        </section>
+        </section>}
 
         {/* ── Advanced ── */}
-        <section>
+        {activeTab === 'advanced' && <section>
           <SectionHeader title={t('settings.group.advanced')} icon={Cpu} />
           <div className="flex flex-col gap-3">
 
@@ -483,7 +719,7 @@ export default function SettingsPage() {
             </Card>
 
           </div>
-        </section>
+        </section>}
       </div>
     </div>
   )

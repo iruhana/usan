@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, Volume2, ArrowRight, MessageSquarePlus } from 'lucide-react'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
@@ -13,7 +13,6 @@ const quickActions = [
   { icon: Monitor, labelKey: 'home.quickAction.screenError', descKey: 'home.quickAction.screenErrorDesc', promptKey: 'home.quickAction.screenErrorPrompt' },
   { icon: FileSearch, labelKey: 'home.quickAction.findFile', descKey: 'home.quickAction.findFileDesc', promptKey: 'home.quickAction.findFilePrompt' },
   { icon: Globe, labelKey: 'home.quickAction.weather', descKey: 'home.quickAction.weatherDesc', promptKey: 'home.quickAction.weatherPrompt' },
-  { icon: Volume2, labelKey: 'home.quickAction.readAloud', descKey: 'home.quickAction.readAloudDesc', promptKey: 'home.quickAction.readAloudPrompt' },
 ] as const
 
 function getGreeting(): string {
@@ -40,6 +39,7 @@ export default function HomePage() {
   const stopStreaming = useChatStore((s) => s.stopStreaming)
   const loadFromDisk = useChatStore((s) => s.loadFromDisk)
   const newConversation = useChatStore((s) => s.newConversation)
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation)
 
   const { settings } = useSettingsStore()
   const { announce } = useAnnouncer()
@@ -51,8 +51,20 @@ export default function HomePage() {
     prevStreamingRef.current = isStreaming
   }, [isStreaming, announce])
 
-  const activeConversation = conversations.find((c) => c.id === activeConversationId)
-  const messages = activeConversation?.messages ?? []
+  const activeConversation = useMemo(
+    () => conversations.find((c) => c.id === activeConversationId),
+    [conversations, activeConversationId],
+  )
+  const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation])
+  const recentConversations = useMemo(() => {
+    return [...conversations]
+      .sort((a, b) => {
+        const aTime = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : a.createdAt
+        const bTime = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : b.createdAt
+        return bTime - aTime
+      })
+      .slice(0, 5)
+  }, [conversations])
 
   useEffect(() => { loadFromDisk() }, [loadFromDisk])
   useEffect(() => { return () => { recognitionRef.current?.stop(); recognitionRef.current = null } }, [])
@@ -68,6 +80,17 @@ export default function HomePage() {
     }
     window.addEventListener('blur', handleBlur)
     return () => window.removeEventListener('blur', handleBlur)
+  }, [])
+
+  // Feed Whisper STT results into input field
+  useEffect(() => {
+    const unsubscribe = window.usan?.voice.onStatus((event) => {
+      if (event.status === 'idle' && event.text) {
+        const t = event.text
+        setInput((prev) => prev ? `${prev} ${t}` : t)
+      }
+    })
+    return () => { if (unsubscribe) unsubscribe() }
   }, [])
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streamingText])
@@ -171,22 +194,22 @@ export default function HomePage() {
             </div>
 
             {/* Quick action cards */}
-            <div className="grid grid-cols-2 gap-3 w-full">
+            <div className="flex flex-col gap-3 w-full">
               {quickActions.map((action, i) => {
                 const Icon = action.icon
                 return (
                   <button
                     key={i}
                     onClick={() => handleSend(t(action.promptKey))}
-                    className="group flex items-center gap-3 p-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:shadow-[var(--shadow-md)] hover:-translate-y-px transition-all text-left shadow-[var(--shadow-sm)]"
-                    style={{ minHeight: 'var(--min-target)' }}
+                    className="group flex items-center gap-4 p-5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:shadow-[var(--shadow-md)] hover:-translate-y-px transition-all text-left shadow-[var(--shadow-sm)]"
+                    style={{ minHeight: '72px' }}
                   >
-                    <div className="w-11 h-11 rounded-[var(--radius-md)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0 group-hover:bg-[var(--color-primary)] group-hover:shadow-[var(--shadow-md)] transition-all">
-                      <Icon size={20} className="text-[var(--color-primary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
+                    <div className="w-14 h-14 rounded-[var(--radius-lg)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0 group-hover:bg-[var(--color-primary)] group-hover:shadow-[var(--shadow-md)] transition-all">
+                      <Icon size={24} className="text-[var(--color-primary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">{t(action.labelKey)}</div>
-                      <div className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] truncate">{t(action.descKey)}</div>
+                      <div className="text-[length:var(--text-lg)] font-medium text-[var(--color-text)]">{t(action.labelKey)}</div>
+                      <div className="text-[length:var(--text-md)] text-[var(--color-text-muted)]">{t(action.descKey)}</div>
                     </div>
                   </button>
                 )
@@ -200,14 +223,10 @@ export default function HomePage() {
                   {t('home.recentTasks')}
                 </h2>
                 <div className="flex flex-col">
-                  {[...conversations].sort((a, b) => {
-                    const aTime = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : a.createdAt
-                    const bTime = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : b.createdAt
-                    return bTime - aTime
-                  }).slice(0, 5).map((conv) => (
+                  {recentConversations.map((conv) => (
                     <button
                       key={conv.id}
-                      onClick={() => useChatStore.getState().setActiveConversation(conv.id)}
+                      onClick={() => setActiveConversation(conv.id)}
                       className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-soft)] transition-all text-left"
                       style={{ minHeight: '48px' }}
                       title={conv.title}
@@ -276,7 +295,8 @@ export default function HomePage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              const enterToSend = useSettingsStore.getState().settings.enterToSend
+              if (e.key === 'Enter' && !e.shiftKey && enterToSend) {
                 e.preventDefault()
                 handleSend(input)
               }

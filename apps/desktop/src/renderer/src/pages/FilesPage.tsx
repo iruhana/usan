@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   FolderOpen,
   File,
@@ -8,6 +8,13 @@ import {
   ArrowUp,
   Loader2,
   AlertCircle,
+  Search,
+  Image,
+  FileText,
+  Music,
+  Film,
+  Archive,
+  Code,
 } from 'lucide-react'
 import type { FileEntry } from '@shared/types/ipc'
 import { useFilesStore } from '../stores/files.store'
@@ -25,6 +32,24 @@ function formatDate(ts: number): string {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico'])
+const AUDIO_EXT = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'])
+const VIDEO_EXT = new Set(['mp4', 'avi', 'mkv', 'mov', 'wmv', 'webm'])
+const ARCHIVE_EXT = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'bz2'])
+const CODE_EXT = new Set(['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'c', 'cpp', 'rs', 'go', 'html', 'css', 'json'])
+const DOC_EXT = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'hwp'])
+
+function FileIcon({ name, size = 18 }: { name: string; size?: number }) {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (IMAGE_EXT.has(ext)) return <Image size={size} className="text-[var(--color-success)]" />
+  if (AUDIO_EXT.has(ext)) return <Music size={size} className="text-[var(--color-primary)]" />
+  if (VIDEO_EXT.has(ext)) return <Film size={size} className="text-purple-500" />
+  if (ARCHIVE_EXT.has(ext)) return <Archive size={size} className="text-orange-500" />
+  if (CODE_EXT.has(ext)) return <Code size={size} className="text-cyan-500" />
+  if (DOC_EXT.has(ext)) return <FileText size={size} className="text-blue-500" />
+  return <File size={size} className="text-[var(--color-text-muted)]" />
+}
+
 export default function FilesPage() {
   const currentPath = useFilesStore((s) => s.currentPath)
   const entries = useFilesStore((s) => s.entries)
@@ -32,6 +57,13 @@ export default function FilesPage() {
   const error = useFilesStore((s) => s.error)
   const loadDirectory = useFilesStore((s) => s.loadDirectory)
   const init = useFilesStore((s) => s.init)
+  const [search, setSearch] = useState('')
+
+  const filteredEntries = useMemo(() => {
+    if (!search.trim()) return entries
+    const q = search.toLowerCase()
+    return entries.filter((e) => e.name.toLowerCase().includes(q))
+  }, [entries, search])
 
   useEffect(() => {
     init()
@@ -105,6 +137,18 @@ export default function FilesPage() {
         </div>
       </div>
 
+      {/* Search bar */}
+      <div className="relative mb-4">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('files.search')}
+          className="w-full pl-9 pr-3 py-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[length:var(--text-md)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-primary)]"
+        />
+      </div>
+
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12 text-[var(--color-text-muted)]">
@@ -124,14 +168,14 @@ export default function FilesPage() {
       {/* File list */}
       {!loading && !error && (
         <div className="flex-1 overflow-y-auto">
-          {entries.length === 0 ? (
+          {filteredEntries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-[var(--color-text-muted)]">
               <FolderOpen size={40} className="mb-3 opacity-20" />
               <p className="text-[length:var(--text-md)]">{t('files.empty')}</p>
             </div>
           ) : (
             <div className="flex flex-col">
-              {entries.map((entry) => (
+              {filteredEntries.map((entry) => (
                 <button
                   key={entry.path}
                   onClick={() => handleClick(entry)}
@@ -142,7 +186,7 @@ export default function FilesPage() {
                     {entry.isDirectory ? (
                       <Folder size={18} className="text-[var(--color-warning)]" />
                     ) : (
-                      <File size={18} className="text-[var(--color-text-muted)]" />
+                      <FileIcon name={entry.name} />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

@@ -1,0 +1,6 @@
+[
+  { "id": "browser", "labelKey": "orchestration.app.browser", "command": "chrome" },
+  { "id": "terminal", "labelKey": "orchestration.app.terminal", "command": "wt" },
+  { "id": "explorer", "labelKey": "orchestration.app.explorer", "command": "explorer" },
+  { "id": "vscode", "labelKey": "orchestration.app.vscode", "command": "code" }
+]

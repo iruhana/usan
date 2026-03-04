@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useSettingsStore } from '../../stores/settings.store'
 import { t } from '../../i18n'
+import ContextIndicator from '../context/ContextIndicator'
+import VoiceIndicator from '../voice/VoiceIndicator'
 
 export default function StatusBar() {
   const [online, setOnline] = useState(navigator.onLine)
@@ -35,36 +37,34 @@ export default function StatusBar() {
 
   return (
     <div
-      className="flex items-center justify-between h-6 px-4 bg-transparent border-t border-[var(--color-border)] text-[length:var(--text-xs)] text-[var(--color-text-muted)] chrome-no-select shrink-0"
+      className="flex items-center justify-between h-8 px-4 bg-transparent border-t border-[var(--color-border)] text-[length:var(--text-xs)] text-[var(--color-text-muted)] chrome-no-select shrink-0"
     >
-      {/* Left: online/offline */}
-      <div className="flex items-center gap-2">
-        <span
-          className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]'}`}
-          role="status"
-          aria-label={online ? t('status.online') : t('status.offline')}
-        />
-        <span>{online ? t('status.online') : t('status.offline')}</span>
+      {/* Left group: connection + messages + voice/context */}
+      <div className="flex items-center gap-3">
+        <span className="flex items-center gap-1.5">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]'}`}
+            role="status"
+            aria-label={online ? t('status.online') : t('status.offline')}
+          />
+          <span>{online ? t('status.online') : t('status.offline')}</span>
+        </span>
         {msgCount > 0 && (
-          <>
-            <span className="text-[var(--color-border)]">|</span>
-            <span>{msgCount} {t('status.messages')}</span>
-          </>
+          <span>{msgCount} {t('status.messages')}</span>
         )}
+        <ContextIndicator />
+        <VoiceIndicator />
       </div>
 
-      {/* Center: current status */}
-      {phaseLabel && (
-        <span className="flex items-center gap-1">
-          <span className="w-1 h-1 rounded-full bg-[var(--color-primary)] animate-pulse" />
-          {phaseLabel}
-        </span>
-      )}
-
-      {/* Right: locale + shortcut hint */}
-      <div className="flex items-center gap-2">
+      {/* Right group: streaming status + locale + shortcut */}
+      <div className="flex items-center gap-3">
+        {phaseLabel && (
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] animate-pulse" />
+            {phaseLabel}
+          </span>
+        )}
         <span>{settings.locale.toUpperCase()}</span>
-        <span className="text-[var(--color-border)]">|</span>
         <span className="opacity-60">Ctrl+K</span>
       </div>
     </div>

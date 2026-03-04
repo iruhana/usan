@@ -1,4 +1,4 @@
-import type { Skill, SkillMeta } from './skill-loader'
+import type { Skill } from './skill-loader'
 
 export interface SkillMatch {
   skill: Skill

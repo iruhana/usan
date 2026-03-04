@@ -1,8 +1,18 @@
-import { Minus, Square, X } from 'lucide-react'
+import { Minus, Square, X, Sun, Moon } from 'lucide-react'
 import { IconButton } from '../ui'
 import { t } from '../../i18n'
+import { useSettingsStore } from '../../stores/settings.store'
 
 export default function TitleBar() {
+  const theme = useSettingsStore((s) => s.settings.theme)
+  const update = useSettingsStore((s) => s.update)
+
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+  const toggleTheme = () => {
+    update({ theme: isDark ? 'light' : 'dark' })
+  }
+
   return (
     <div className="drag-region flex items-center justify-between h-11 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 chrome-no-select shrink-0">
       {/* App brand */}
@@ -15,6 +25,12 @@ export default function TitleBar() {
 
       {/* Window controls */}
       <div className="no-drag flex items-center gap-1">
+        <IconButton
+          icon={isDark ? Sun : Moon}
+          size="sm"
+          label={isDark ? t('settings.themeLight') : t('settings.themeDark')}
+          onClick={toggleTheme}
+        />
         <IconButton
           icon={Minus}
           size="sm"

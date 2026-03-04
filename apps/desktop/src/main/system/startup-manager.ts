@@ -18,6 +18,8 @@ import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
 
+const DISABLED_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run-Disabled'
+
 const PROTECTED_PROGRAMS = new Set([
   'SecurityHealth',
   'Windows Defender',
@@ -88,7 +90,7 @@ async function listStartupFolderItems(): Promise<StartupProgram[]> {
 export async function listStartupPrograms(): Promise<StartupProgram[]> {
   const programs: StartupProgram[] = []
 
-  // 1. HKCU Run
+  // 1. HKCU Run (enabled)
   const hkcuItems = await queryRegistry('HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run')
   for (const item of hkcuItems) {
     programs.push({
@@ -96,6 +98,18 @@ export async function listStartupPrograms(): Promise<StartupProgram[]> {
       command: item.value,
       source: 'hkcu',
       enabled: true,
+      protected: PROTECTED_PROGRAMS.has(item.name),
+    })
+  }
+
+  // 1b. HKCU Run-Disabled (disabled by us)
+  const hkcuDisabled = await queryRegistry(DISABLED_KEY)
+  for (const item of hkcuDisabled) {
+    programs.push({
+      name: item.name,
+      command: item.value,
+      source: 'hkcu',
+      enabled: false,
       protected: PROTECTED_PROGRAMS.has(item.name),
     })
   }
@@ -139,16 +153,31 @@ export async function toggleStartupProgram(
   }
 
   if (source === 'hkcu') {
+    const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
     try {
       if (enabled) {
-        // Re-enable: we would need the original value, which we don't store
-        return { success: false, error: '레지스트리 항목 재활성화는 아직 지원되지 않습니다' }
+        // Re-enable: move from Run-Disabled → Run
+        const disabled = await queryRegistry(DISABLED_KEY)
+        const entry = disabled.find((e) => e.name === name)
+        if (!entry) return { success: false, error: '비활성화된 항목을 찾을 수 없습니다' }
+        await execFileAsync('reg', ['add', RUN_KEY, '/v', name, '/t', 'REG_SZ', '/d', entry.value, '/f'], {
+          timeout: 10000, windowsHide: true,
+        })
+        await execFileAsync('reg', ['delete', DISABLED_KEY, '/v', name, '/f'], {
+          timeout: 10000, windowsHide: true,
+        })
+      } else {
+        // Disable: move from Run → Run-Disabled
+        const active = await queryRegistry(RUN_KEY)
+        const entry = active.find((e) => e.name === name)
+        if (!entry) return { success: false, error: '활성화된 항목을 찾을 수 없습니다' }
+        await execFileAsync('reg', ['add', DISABLED_KEY, '/v', name, '/t', 'REG_SZ', '/d', entry.value, '/f'], {
+          timeout: 10000, windowsHide: true,
+        })
+        await execFileAsync('reg', ['delete', RUN_KEY, '/v', name, '/f'], {
+          timeout: 10000, windowsHide: true,
+        })
       }
-      // Disable: delete the registry entry
-      await execFileAsync('reg', ['delete', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', name, '/f'], {
-        timeout: 10000,
-        windowsHide: true,
-      })
       return { success: true }
     } catch (err) {
       return { success: false, error: (err as Error).message }
