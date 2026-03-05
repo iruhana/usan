@@ -1,13 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Umbrella } from 'lucide-react'
-import AppLayout from './components/layout/AppLayout'
-import OnboardingWizard from './components/onboarding/OnboardingWizard'
 import ErrorBoundary from './components/ErrorBoundary'
-import OfflineBanner from './components/OfflineBanner'
 import TitleBar from './components/layout/TitleBar'
 import { useSettingsStore } from './stores/settings.store'
 import { setLocale, t } from './i18n'
 import { isTimedGrantActive } from '@shared/types/permissions'
+
+const AppLayout = lazy(() => import('./components/layout/AppLayout'))
+const OnboardingWizard = lazy(() => import('./components/onboarding/OnboardingWizard'))
+const OfflineBanner = lazy(() => import('./components/OfflineBanner'))
+
+function BootFallback() {
+  return (
+    <div className="flex flex-col h-screen bg-[var(--color-bg)]">
+      <TitleBar />
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 animate-bounce"><Umbrella size={48} className="text-[var(--color-primary)] mx-auto" /></div>
+          <p className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">
+            {t('app.loading')}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(true)
@@ -88,19 +105,23 @@ export default function App() {
 
   if (showOnboarding) {
     return (
-      <div className="flex flex-col h-screen bg-[var(--color-bg)]">
-        <TitleBar />
-        <div className="flex-1 overflow-auto">
-          <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+      <Suspense fallback={<BootFallback />}>
+        <div className="flex flex-col h-screen bg-[var(--color-bg)]">
+          <TitleBar />
+          <div className="flex-1 overflow-auto">
+            <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+          </div>
         </div>
-      </div>
+      </Suspense>
     )
   }
 
   return (
     <ErrorBoundary>
-      <OfflineBanner />
-      <AppLayout />
+      <Suspense fallback={<BootFallback />}>
+        <OfflineBanner />
+        <AppLayout />
+      </Suspense>
     </ErrorBoundary>
   )
 }

@@ -1,17 +1,17 @@
 import { useCallback, useEffect, lazy, Suspense, useState } from 'react'
 import TitleBar from './TitleBar'
 import Sidebar from './Sidebar'
-import CommandPalette from './CommandPalette'
 import { SkipLink, AnnouncerProvider } from '../accessibility'
 import NotificationToast from '../NotificationToast'
 import UndoToast from '../UndoToast'
-import SafetyConfirmationModal from '../modal/SafetyConfirmationModal'
 import StatusBar from './StatusBar'
-import VoiceOverlay from '../voice/VoiceOverlay'
-import HomePage from '../../pages/HomePage'
 import { useChatStore } from '../../stores/chat.store'
 import { useNotesStore } from '../../stores/notes.store'
 
+const HomePage = lazy(() => import('../../pages/HomePage'))
+const CommandPalette = lazy(() => import('./CommandPalette'))
+const VoiceOverlay = lazy(() => import('../voice/VoiceOverlay'))
+const SafetyConfirmationModal = lazy(() => import('../modal/SafetyConfirmationModal'))
 const ToolsPage = lazy(() => import('../../pages/ToolsPage'))
 const NotesPage = lazy(() => import('../../pages/NotesPage'))
 const FilesPage = lazy(() => import('../../pages/FilesPage'))
@@ -86,9 +86,12 @@ export default function AppLayout() {
         <div className="flex flex-1 overflow-hidden">
           <Sidebar activePage={activePage} onNavigate={navigate} />
           <main id="main-content" className="flex-1 overflow-hidden bg-[var(--color-bg)]">
-            <div className="h-full" style={{ display: activePage === 'home' ? 'flex' : 'none' }}><HomePage /></div>
             <Suspense fallback={null}>
-              {activePage !== 'home' && (
+              {activePage === 'home' ? (
+                <div className="h-full" style={{ display: 'flex' }}>
+                  <HomePage />
+                </div>
+              ) : (
                 <div key={animKey} className="h-full overflow-auto animate-in">
                   {activePage === 'tools' && <ToolsPage />}
                   {activePage === 'notes' && <NotesPage />}
@@ -105,15 +108,19 @@ export default function AppLayout() {
           </main>
         </div>
         <StatusBar />
-        <CommandPalette
-          open={commandOpen}
-          onOpenChange={setCommandOpen}
-          onNavigate={navigate}
-        />
         <NotificationToast />
         <UndoToast />
-        <VoiceOverlay />
-        <SafetyConfirmationModal />
+        <Suspense fallback={null}>
+          {commandOpen && (
+            <CommandPalette
+              open={commandOpen}
+              onOpenChange={setCommandOpen}
+              onNavigate={navigate}
+            />
+          )}
+          <VoiceOverlay />
+          <SafetyConfirmationModal />
+        </Suspense>
       </div>
     </AnnouncerProvider>
   )
