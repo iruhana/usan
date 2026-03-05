@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, Volume2, ArrowRight, MessageSquarePlus } from 'lucide-react'
+import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, ArrowRight, MessageSquarePlus } from 'lucide-react'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
 import MessageBubble from '../components/chat/MessageBubble'

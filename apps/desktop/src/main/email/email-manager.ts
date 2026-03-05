@@ -19,6 +19,7 @@ import {
   sendOutlookMessage,
   type MicrosoftOAuthExchangeInput,
 } from './outlook-client'
+import { loadGoogleTokens } from '../auth/oauth-google'
 import type { DesktopOAuthAuthorizationRequest } from '../auth/oauth-policy'
 
 export interface EmailMessage {
@@ -52,11 +53,8 @@ function resolveEmailProvider(explicit?: EmailProvider): EmailProvider {
 function getProviderAccessToken(provider: EmailProvider): string {
   if (provider === 'google') {
     // Try stored OAuth token first, fall back to env var
-    try {
-      const { loadGoogleTokens } = require('../auth/oauth-google') as typeof import('../auth/oauth-google')
-      const tokens = loadGoogleTokens()
-      if (tokens?.accessToken) return tokens.accessToken
-    } catch { /* oauth module not available */ }
+    const tokens = loadGoogleTokens()
+    if (tokens?.accessToken) return tokens.accessToken
     return process.env['USAN_GOOGLE_ACCESS_TOKEN']?.trim() ?? ''
   }
   return process.env['USAN_MICROSOFT_ACCESS_TOKEN']?.trim() ?? ''

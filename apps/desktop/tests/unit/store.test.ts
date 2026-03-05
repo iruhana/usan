@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { readFileSync, mkdirSync, existsSync } from 'fs'
-import { writeFile as writeFileAsync, rename as renameAsync } from 'fs/promises'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'fs'
 
 // Mock electron before importing store
 vi.mock('electron', () => ({

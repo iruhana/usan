@@ -2,8 +2,8 @@
  * Google OAuth flow for desktop — loopback server + token persistence via safeStorage.
  * Handles Gmail + Calendar scopes in a single consent flow.
  */
-import { createServer, type Server } from 'http'
-import { readFileSync, writeFileSync } from 'fs'
+import { createServer } from 'http'
+import { readFileSync } from 'fs'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { app } from 'electron'

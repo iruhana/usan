@@ -59,12 +59,13 @@ export class MacroRecorder {
   private macros: Map<string, StoredMacro> = new Map()
 
   // Bound listeners so we can remove them later
-  private onMouseClick = (e: { x: number; y: number; button: number }) => {
+  private onMouseClick = (e: { x: number; y: number; button: unknown }) => {
+    const buttonCode = typeof e.button === 'number' ? e.button : 0
     this.addEvent({
       type: 'mouse_click',
       x: e.x,
       y: e.y,
-      button: e.button === 1 ? 'left' : e.button === 2 ? 'right' : 'middle',
+      button: buttonCode === 1 ? 'left' : buttonCode === 2 ? 'right' : 'middle',
     })
   }
 
