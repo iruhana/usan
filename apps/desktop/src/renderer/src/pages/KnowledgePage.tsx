@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FolderOpen, FilePlus2, Search, Loader2 } from 'lucide-react'
 import { Button, Card, Input, SectionHeader } from '../components/ui'
 import { useKnowledgeStore } from '../stores/knowledge.store'
@@ -27,6 +27,7 @@ export default function KnowledgePage() {
   const [query, setQuery] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+  const queryInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     initialize()
@@ -35,6 +36,40 @@ export default function KnowledgePage() {
 
   const hasSearch = query.trim().length > 0
   const totalChunks = useMemo(() => documents.reduce((sum, item) => sum + item.chunks, 0), [documents])
+  const hasDocuments = documents.length > 0
+
+  const clearQuery = useCallback(() => {
+    setQuery('')
+    clearSearch()
+  }, [clearSearch])
+
+  const runSearch = useCallback(() => {
+    const normalized = query.trim()
+    if (!normalized) {
+      clearSearch()
+      return
+    }
+    search(normalized)
+  }, [clearSearch, query, search])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        queryInputRef.current?.focus()
+        queryInputRef.current?.select()
+        return
+      }
+
+      if (event.key === 'Escape' && (query.trim().length > 0 || searchResults.length > 0)) {
+        event.preventDefault()
+        clearQuery()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [clearQuery, query, searchResults.length])
 
   return (
     <div className="flex h-full flex-col overflow-hidden p-6">
@@ -51,6 +86,21 @@ export default function KnowledgePage() {
             {t('knowledge.addFolder')}
           </Button>
         </div>
+      </div>
+
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Card variant="outline" className="py-3">
+          <p className="text-[length:var(--text-xs)] uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.totalDocuments')}</p>
+          <p className="mt-1 text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{documents.length}</p>
+        </Card>
+        <Card variant="outline" className="py-3">
+          <p className="text-[length:var(--text-xs)] uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.totalChunks')}</p>
+          <p className="mt-1 text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{totalChunks}</p>
+        </Card>
+        <Card variant="outline" className="py-3">
+          <p className="text-[length:var(--text-xs)] uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.searchResults')}</p>
+          <p className="mt-1 text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{searchResults.length}</p>
+        </Card>
       </div>
 
       <input
@@ -91,15 +141,27 @@ export default function KnowledgePage() {
 
       {indexSummary && (
         <Card variant="outline" className="mb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[length:var(--text-sm)]">
-            <span className="text-[var(--color-text-muted)]">
+          <div className="flex flex-wrap items-center gap-2 text-[length:var(--text-sm)]">
+            <span className="font-medium text-[var(--color-text)]">
               {indexSummary.scope === 'file'
                 ? indexSummary.skippedCount > 0
                   ? t('knowledge.indexSummary.fileSkipped')
-                  : `${t('knowledge.indexSummary.fileIndexed')} (${indexSummary.totalChunks} ${t('knowledge.chunks')})`
-                : `${t('knowledge.indexSummary.folder')}: ${t('knowledge.indexSummary.indexed')} ${indexSummary.indexedCount}, ${t('knowledge.indexSummary.skipped')} ${indexSummary.skippedCount}, ${t('knowledge.indexSummary.failed')} ${indexSummary.failedCount}`}
+                  : t('knowledge.indexSummary.fileIndexed')
+                : t('knowledge.indexSummary.folder')}
             </span>
-            <Button variant="ghost" size="sm" onClick={clearIndexSummary}>
+            <span className="rounded-full bg-[var(--color-primary)]/10 px-2 py-0.5 text-[length:var(--text-xs)] text-[var(--color-primary)]">
+              {t('knowledge.indexSummary.indexed')}: {indexSummary.indexedCount}
+            </span>
+            <span className="rounded-full bg-[var(--color-warning)]/10 px-2 py-0.5 text-[length:var(--text-xs)] text-[var(--color-warning)]">
+              {t('knowledge.indexSummary.skipped')}: {indexSummary.skippedCount}
+            </span>
+            <span className="rounded-full bg-[var(--color-danger)]/10 px-2 py-0.5 text-[length:var(--text-xs)] text-[var(--color-danger)]">
+              {t('knowledge.indexSummary.failed')}: {indexSummary.failedCount}
+            </span>
+            <span className="rounded-full bg-[var(--color-surface-soft)] px-2 py-0.5 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+              {t('knowledge.totalChunks')}: {indexSummary.totalChunks}
+            </span>
+            <Button variant="ghost" size="sm" onClick={clearIndexSummary} className="ml-auto">
               {t('chat.cancel')}
             </Button>
           </div>
@@ -109,8 +171,20 @@ export default function KnowledgePage() {
       <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
         <div className="relative">
           <Input
+            ref={queryInputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                runSearch()
+              }
+
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                clearQuery()
+              }
+            }}
             placeholder={t('knowledge.searchPlaceholder')}
             leftIcon={<Search size={16} />}
           />
@@ -118,7 +192,7 @@ export default function KnowledgePage() {
         <div className="flex gap-2">
           <Button
             size="md"
-            onClick={() => search(query)}
+            onClick={runSearch}
             disabled={!query.trim()}
           >
             {t('knowledge.search')}
@@ -126,15 +200,13 @@ export default function KnowledgePage() {
           <Button
             variant="ghost"
             size="md"
-            onClick={() => {
-              setQuery('')
-              clearSearch()
-            }}
+            onClick={clearQuery}
           >
             {t('chat.cancel')}
           </Button>
         </div>
       </div>
+      <p className="mb-3 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">{t('knowledge.shortcutsHint')}</p>
 
       {indexingProgress && (
         <Card variant="outline" className="mb-4">
@@ -143,6 +215,23 @@ export default function KnowledgePage() {
             <span>
               {t('knowledge.indexingProgress')}: {indexingProgress.current}/{indexingProgress.total} - {indexingProgress.fileName}
             </span>
+          </div>
+        </Card>
+      )}
+
+      {!hasSearch && !hasDocuments && !loading && !indexingProgress && (
+        <Card variant="outline" className="mb-4 border-dashed">
+          <div className="text-center py-6">
+            <h3 className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)]">{t('knowledge.emptyTitle')}</h3>
+            <p className="mt-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('knowledge.emptyHint')}</p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <Button size="sm" leftIcon={<FilePlus2 size={14} />} onClick={() => fileInputRef.current?.click()}>
+                {t('knowledge.addFile')}
+              </Button>
+              <Button size="sm" variant="secondary" leftIcon={<FolderOpen size={14} />} onClick={() => folderInputRef.current?.click()}>
+                {t('knowledge.addFolder')}
+              </Button>
+            </div>
           </div>
         </Card>
       )}

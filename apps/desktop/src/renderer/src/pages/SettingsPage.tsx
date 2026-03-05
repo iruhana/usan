@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useId } from 'react'
+﻿import { useState, useEffect, useCallback, useId } from 'react'
 import {
   Type,
   Sun,
@@ -23,12 +23,11 @@ import { t } from '../i18n'
 import type { Locale } from '../i18n'
 import { Card, SectionHeader, Button, IconButton } from '../components/ui'
 
-const LANGUAGES: Array<{ id: Locale; label: string; flag: string }> = [
-  { id: 'ko', label: '한국어', flag: '🇰🇷' },
-  { id: 'en', label: 'English', flag: '🇺🇸' },
-  { id: 'ja', label: '日本語', flag: '🇯🇵' },
+const LANGUAGES: Array<{ id: Locale; label: string; code: string }> = [
+  { id: 'ko', label: 'Korean', code: 'KO' },
+  { id: 'en', label: 'English', code: 'EN' },
+  { id: 'ja', label: 'Japanese', code: 'JA' },
 ]
-
 type SettingsTab = 'display' | 'sound' | 'system' | 'advanced'
 
 const TABS: Array<{ id: SettingsTab; labelKey: string; icon: typeof Palette }> = [
@@ -36,6 +35,12 @@ const TABS: Array<{ id: SettingsTab; labelKey: string; icon: typeof Palette }> =
   { id: 'sound', labelKey: 'settings.group.sound', icon: Volume2 },
   { id: 'system', labelKey: 'settings.group.system', icon: Settings },
   { id: 'advanced', labelKey: 'settings.group.advanced', icon: Cpu },
+]
+
+const PROFILE_OPTIONS = [
+  { id: 'full' as const, labelKey: 'settings.permissionProfileFull', descKey: 'settings.permissionProfileFullDesc' },
+  { id: 'balanced' as const, labelKey: 'settings.permissionProfileBalanced', descKey: 'settings.permissionProfileBalancedDesc' },
+  { id: 'strict' as const, labelKey: 'settings.permissionProfileStrict', descKey: 'settings.permissionProfileStrictDesc' },
 ]
 
 export default function SettingsPage() {
@@ -61,6 +66,29 @@ export default function SettingsPage() {
   const updateChannel = settings.updateChannel
   const autoDownloadUpdates = settings.autoDownloadUpdates
   const permissionProfile = settings.permissionProfile
+  const updaterBusyAny = updaterBusy !== 'idle'
+
+  const updateStatusTone =
+    updaterBusy === 'checking'
+      ? 'text-[var(--color-warning)] bg-[var(--color-warning)]/10 border-[var(--color-warning)]/20'
+      : updaterStatus?.lastError
+        ? 'text-[var(--color-danger)] bg-[var(--color-danger)]/10 border-[var(--color-danger)]/20'
+        : updaterStatus?.downloadedVersion
+          ? 'text-[var(--color-success)] bg-[var(--color-success)]/10 border-[var(--color-success)]/20'
+          : updaterStatus?.updateAvailableVersion
+            ? 'text-[var(--color-primary)] bg-[var(--color-primary)]/10 border-[var(--color-primary)]/20'
+            : 'text-[var(--color-text-muted)] bg-[var(--color-surface-soft)] border-[var(--color-border)]/60'
+
+  const updateStatusText =
+    updaterBusy === 'checking'
+      ? t('settings.updateChecking')
+      : updaterStatus?.lastError
+        ? t('settings.updateError')
+        : updaterStatus?.downloadedVersion
+          ? t('settings.updateReady')
+          : updaterStatus?.updateAvailableVersion
+            ? t('settings.updateAvailable')
+            : t('settings.updateUpToDate')
 
   const loadModels = useCallback(async () => {
     setLoadingModels(true)
@@ -140,8 +168,8 @@ export default function SettingsPage() {
   }
 
   const validateApiKey = async () => {
-    const key = cloudApiKey.replace(/•/g, '')
-    if (!key || key === '••••••••') {
+    const key = cloudApiKey.trim()
+    if (!key || key === '********') {
       setKeyValidation({ status: 'error', message: t('settings.apiKeyEmpty') })
       return
     }
@@ -175,16 +203,43 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 mb-6 p-1 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)]" role="tablist">
-        {TABS.map((tab) => {
+      <div className="flex gap-1 mb-6 p-1 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)]" role="tablist" aria-label={t('settings.title')}>
+        {TABS.map((tab, index) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
             <button
               key={tab.id}
+              id={`settings-tab-${tab.id}`}
+              data-settings-tab={tab.id}
               role="tab"
               aria-selected={isActive}
+              aria-controls={`settings-panel-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(event) => {
+                if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) {
+                  return
+                }
+
+                event.preventDefault()
+                let nextIndex = index
+                if (event.key === 'Home') {
+                  nextIndex = 0
+                } else if (event.key === 'End') {
+                  nextIndex = TABS.length - 1
+                } else if (event.key === 'ArrowRight') {
+                  nextIndex = (index + 1) % TABS.length
+                } else if (event.key === 'ArrowLeft') {
+                  nextIndex = (index - 1 + TABS.length) % TABS.length
+                }
+
+                const nextTab = TABS[nextIndex]?.id ?? tab.id
+                setActiveTab(nextTab)
+                requestAnimationFrame(() => {
+                  document.querySelector<HTMLButtonElement>(`[data-settings-tab="${nextTab}"]`)?.focus()
+                })
+              }}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
                 isActive
                   ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-[var(--shadow-sm)]'
@@ -199,8 +254,8 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex flex-col gap-6">
-        {/* ── Display ── */}
-        {activeTab === 'display' && <section>
+        {/* ?? Display ?? */}
+        {activeTab === 'display' && <section role="tabpanel" id="settings-panel-display" aria-labelledby="settings-tab-display">
           <SectionHeader title={t('settings.group.display')} icon={Palette} />
           <div className="flex flex-col gap-3">
 
@@ -227,7 +282,7 @@ export default function SettingsPage() {
                       }`}
                       style={{ minHeight: '64px' }}
                     >
-                      <span className="text-[20px] leading-none">{lang.flag}</span>
+                      <span className="text-[length:var(--text-xs)] leading-none font-semibold tracking-wide">{lang.code}</span>
                       <span className="text-[length:var(--text-md)] font-medium">{lang.label}</span>
                     </button>
                   )
@@ -339,9 +394,9 @@ export default function SettingsPage() {
             <Card>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-[length:var(--text-md)] font-medium">Enter 키로 전송</h3>
+                  <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.enterToSendTitle')}</h3>
                   <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mt-1">
-                    {settings.enterToSend ? 'Enter = 전송, Shift+Enter = 줄바꿈' : 'Enter = 줄바꿈, 버튼 클릭 = 전송'}
+                    {settings.enterToSend ? t('settings.enterToSendOnHint') : t('settings.enterToSendOffHint')}
                   </p>
                 </div>
                 <button
@@ -364,8 +419,8 @@ export default function SettingsPage() {
           </div>
         </section>}
 
-        {/* ── Sound ── */}
-        {activeTab === 'sound' && <section>
+        {/* ?? Sound ?? */}
+        {activeTab === 'sound' && <section role="tabpanel" id="settings-panel-sound" aria-labelledby="settings-tab-sound">
           <SectionHeader title={t('settings.group.sound')} icon={Volume2} />
           <div className="flex flex-col gap-3">
 
@@ -416,8 +471,8 @@ export default function SettingsPage() {
           </div>
         </section>}
 
-        {/* ── System ── */}
-        {activeTab === 'system' && <section>
+        {/* ?? System ?? */}
+        {activeTab === 'system' && <section role="tabpanel" id="settings-panel-system" aria-labelledby="settings-tab-system">
           <SectionHeader title={t('settings.group.system')} icon={Settings} />
           <div className="flex flex-col gap-3">
 
@@ -454,9 +509,23 @@ export default function SettingsPage() {
 
             {/* Update Channel */}
             <Card>
-              <div className="flex items-center gap-2 mb-3">
-                <Download size={18} className="text-[var(--color-primary)]" />
-                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.updateChannel')}</h3>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <Download size={18} className="text-[var(--color-primary)]" />
+                  <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.updateChannel')}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded-full border text-[length:var(--text-xs)] font-medium ${updateStatusTone}`}>
+                    {updateStatusText}
+                  </span>
+                  <IconButton
+                    icon={RefreshCw}
+                    size="sm"
+                    label={t('settings.updateRefresh')}
+                    onClick={refreshUpdaterStatus}
+                    disabled={updaterBusyAny}
+                  />
+                </div>
               </div>
               <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
                 {t('settings.updateChannelHint')}
@@ -513,6 +582,7 @@ export default function SettingsPage() {
                   size="sm"
                   loading={updaterBusy === 'checking'}
                   onClick={() => runUpdaterAction('checking')}
+                  disabled={updaterBusyAny && updaterBusy !== 'checking'}
                 >
                   {t('settings.updateCheckNow')}
                 </Button>
@@ -522,6 +592,7 @@ export default function SettingsPage() {
                     variant="secondary"
                     loading={updaterBusy === 'downloading'}
                     onClick={() => runUpdaterAction('downloading')}
+                    disabled={updaterBusyAny && updaterBusy !== 'downloading'}
                   >
                     {t('settings.updateDownload')}
                   </Button>
@@ -532,6 +603,7 @@ export default function SettingsPage() {
                     variant="secondary"
                     loading={updaterBusy === 'installing'}
                     onClick={() => runUpdaterAction('installing')}
+                    disabled={updaterBusyAny && updaterBusy !== 'installing'}
                   >
                     {t('settings.updateInstall')}
                   </Button>
@@ -567,25 +639,23 @@ export default function SettingsPage() {
               <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
                 {t('settings.permissionProfileHint')}
               </p>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { id: 'full' as const, label: t('settings.permissionProfileFull') },
-                  { id: 'balanced' as const, label: t('settings.permissionProfileBalanced') },
-                  { id: 'strict' as const, label: t('settings.permissionProfileStrict') },
-                ]).map((item) => {
-                  const isActive = permissionProfile === item.id
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {PROFILE_OPTIONS.map((option) => {
+                  const isActive = permissionProfile === option.id
                   return (
                     <button
-                      key={item.id}
-                      onClick={() => updateStore({ permissionProfile: item.id })}
-                      className={`py-2 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
+                      key={option.id}
+                      onClick={() => updateStore({ permissionProfile: option.id })}
+                      className={`rounded-[var(--radius-md)] border px-3 py-2 text-left transition-all ${
                         isActive
-                          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
-                          : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] border-[var(--color-primary)] shadow-[var(--shadow-md)]'
+                          : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:text-[var(--color-text)]'
                       }`}
-                      style={{ minHeight: '44px' }}
                     >
-                      {item.label}
+                      <span className="block text-[length:var(--text-sm)] font-semibold">{t(option.labelKey)}</span>
+                      <span className={`mt-1 block text-[length:var(--text-xs)] ${isActive ? 'text-[var(--color-text-inverse)]/85' : 'text-[var(--color-text-muted)]'}`}>
+                        {t(option.descKey)}
+                      </span>
                     </button>
                   )
                 })}
@@ -595,8 +665,8 @@ export default function SettingsPage() {
           </div>
         </section>}
 
-        {/* ── Advanced ── */}
-        {activeTab === 'advanced' && <section>
+        {/* ?? Advanced ?? */}
+        {activeTab === 'advanced' && <section role="tabpanel" id="settings-panel-advanced" aria-labelledby="settings-tab-advanced">
           <SectionHeader title={t('settings.group.advanced')} icon={Cpu} />
           <div className="flex flex-col gap-3">
 
@@ -724,3 +794,5 @@ export default function SettingsPage() {
     </div>
   )
 }
+
+
