@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { HotkeyBinding } from '@shared/types/infrastructure'
 import { Keyboard, Plus, Trash2, RefreshCw } from 'lucide-react'
-import { Card, Button, Input, SectionHeader } from '../ui'
+import { Card, Button, InlineNotice, Input, SectionHeader } from '../ui'
 import HotkeyRecorder from './HotkeyRecorder'
 import { t } from '../../i18n'
 import { useHotkeyStore } from '../../stores/hotkey.store'
@@ -41,18 +41,18 @@ export default function HotkeySettings() {
         )}
       />
 
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+      {error ? (
+        <InlineNotice tone="error" title={t('hotkey.helpTitle')}>
           {error}
-        </p>
-      )}
+        </InlineNotice>
+      ) : null}
 
       <div className="grid gap-2 md:grid-cols-2">
         <Input
           label={t('hotkey.id')}
           value={form.id}
           onChange={(event) => setForm((state) => ({ ...state, id: event.target.value }))}
-          placeholder="open-dashboard"
+          placeholder={t('hotkey.idPlaceholder')}
         />
         <div className="space-y-1">
           <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] font-medium">{t('hotkey.accelerator')}</p>
@@ -71,7 +71,7 @@ export default function HotkeySettings() {
           label={t('hotkey.action')}
           value={form.action}
           onChange={(event) => setForm((state) => ({ ...state, action: event.target.value }))}
-          placeholder="navigate:dashboard"
+          placeholder={t('hotkey.actionPlaceholder')}
         />
       </div>
 
@@ -110,7 +110,7 @@ export default function HotkeySettings() {
       ) : (
         <div className="max-h-72 space-y-2 overflow-auto">
           {items.map((binding) => (
-            <div key={binding.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-2">
+            <div key={binding.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] px-3 py-2 transition-all hover:ring-[var(--color-border)]">
               <div className="min-w-0">
                 <p className="truncate text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">{binding.label}</p>
                 <p className="truncate text-[length:var(--text-xs)] text-[var(--color-text-muted)]">{binding.accelerator} - {binding.action}</p>

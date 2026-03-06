@@ -1,20 +1,40 @@
 import { useEffect } from 'react'
 import { Command } from 'cmdk'
 import {
-  Search, Monitor, FileSearch, Globe, Settings, FileText, Wrench,
-  Volume2, Bell, Home, FolderOpen, MessageSquarePlus, User, Workflow, BookOpen, Activity, Store,
+  Activity,
+  Bell,
+  BookOpen,
+  FileSearch,
+  FileText,
+  FolderOpen,
+  Globe,
+  Home,
+  MessageSquarePlus,
+  Monitor,
+  Search,
+  Settings,
+  Store,
+  User,
+  Volume2,
+  Workflow,
+  Wrench,
 } from 'lucide-react'
 import FocusTrap from '../accessibility/FocusTrap'
 import { useChatStore } from '../../stores/chat.store'
+import { useSettingsStore } from '../../stores/settings.store'
 import { t } from '../../i18n'
+import type { AppPage } from '../../constants/navigation'
+import { isPageVisible } from '../../constants/navigation'
 
 interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onNavigate: (page: 'home' | 'tools' | 'notes' | 'files' | 'settings' | 'account' | 'workflows' | 'knowledge' | 'dashboard' | 'marketplace') => void
+  onNavigate: (page: AppPage) => void
 }
 
 export default function CommandPalette({ open, onOpenChange, onNavigate }: CommandPaletteProps) {
+  const beginnerMode = useSettingsStore((s) => s.settings.beginnerMode)
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -27,152 +47,142 @@ export default function CommandPalette({ open, onOpenChange, onNavigate }: Comma
 
   if (!open) return null
 
-  const itemClass = "flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] cursor-pointer hover:bg-[var(--color-primary-light)] aria-selected:bg-[var(--color-primary-light)] transition-colors"
-  const itemStyle = { minHeight: 'var(--min-target)' }
+  const itemClass =
+    'flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] cursor-pointer text-[var(--color-text)] hover:bg-[var(--color-surface-soft)] aria-selected:bg-[var(--color-primary-muted)] aria-selected:text-[var(--color-primary)] transition-colors duration-100'
+
+  const allNavigationItems: Array<{ page: AppPage; icon: typeof Home; shortcut: string }> = [
+    { page: 'home', icon: Home, shortcut: '1' },
+    { page: 'tools', icon: Wrench, shortcut: '2' },
+    { page: 'notes', icon: FileText, shortcut: '3' },
+    { page: 'files', icon: FolderOpen, shortcut: '4' },
+    { page: 'settings', icon: Settings, shortcut: '5' },
+    { page: 'account', icon: User, shortcut: '6' },
+    { page: 'workflows', icon: Workflow, shortcut: '7' },
+    { page: 'knowledge', icon: BookOpen, shortcut: '8' },
+    { page: 'dashboard', icon: Activity, shortcut: '9' },
+    { page: 'marketplace', icon: Store, shortcut: '0' },
+  ]
+  const navigationItems = allNavigationItems.filter((item) => isPageVisible(item.page, beginnerMode))
 
   return (
     <FocusTrap active={open}>
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-[var(--color-backdrop)] backdrop-blur-sm"
-        onClick={() => onOpenChange(false)}
-      />
+      <div className="fixed inset-0 z-50 flex items-start justify-center pt-[18vh]">
+        <div
+          className="absolute inset-0 bg-[var(--color-backdrop)] animate-backdrop"
+          onClick={() => onOpenChange(false)}
+          aria-hidden="true"
+        />
 
-      {/* Command dialog */}
-      <div className="relative w-full max-w-lg bg-[var(--color-bg-card)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] overflow-hidden border border-[var(--color-border)]">
-        <Command className="flex flex-col" label={t('command.placeholder')}>
-          <div className="flex items-center gap-3 px-4 border-b border-[var(--color-border)]">
-            <Search size={20} className="text-[var(--color-text-muted)]" />
-            <Command.Input
-              placeholder={t('command.inputPlaceholder')}
-              className="w-full h-14 bg-transparent outline-none text-[length:var(--text-md)]"
-              aria-label={t('command.inputPlaceholder')}
-            />
-            <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-soft)] rounded border border-[var(--color-border)]">
-              ESC
-            </kbd>
-          </div>
-          <Command.List className="max-h-80 overflow-auto p-2">
-            <Command.Empty
-              className="p-6 text-center text-[length:var(--text-md)] text-[var(--color-text-muted)]"
-            >
-              {t('command.noResults')}
-            </Command.Empty>
+        <div className="relative w-full max-w-lg bg-[var(--color-bg-card)] rounded-[var(--radius-xl)] shadow-[var(--shadow-xl)] overflow-hidden ring-1 ring-[var(--color-border-subtle)] animate-scale-in">
+          <Command className="flex flex-col" label={t('command.placeholder')}>
+            <div className="flex items-center gap-3 px-4 border-b border-[var(--color-border-subtle)]">
+              <Search size={18} className="text-[var(--color-text-muted)]" />
+              <Command.Input
+                placeholder={t('command.inputPlaceholder')}
+                className="w-full h-12 bg-transparent outline-none text-[length:var(--text-md)] placeholder:text-[var(--color-text-muted)]"
+                aria-label={t('command.inputPlaceholder')}
+              />
+              <kbd className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-soft)] rounded-[var(--radius-xs)]">
+                ESC
+              </kbd>
+            </div>
+            <Command.List className="max-h-72 overflow-auto p-1.5">
+              <Command.Empty className="p-8 text-center text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                {t('command.noResults')}
+              </Command.Empty>
 
-            {/* Quick actions */}
-            <Command.Group heading={t('command.actions')} className="px-2 py-1">
-              <Command.Item
-                onSelect={() => {
-                  onNavigate('home')
-                  useChatStore.getState().newConversation()
-                  onOpenChange(false)
-                }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <MessageSquarePlus size={20} className="text-[var(--color-primary)]" />
-                <div className="flex-1">
-                  <span className="text-[length:var(--text-md)]">{t('chat.newConversation')}</span>
-                </div>
-                <kbd className="text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-soft)] px-1.5 py-0.5 rounded border border-[var(--color-border)]">
-                  Ctrl+N
-                </kbd>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => { onNavigate('home'); onOpenChange(false) }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <Monitor size={20} className="text-[var(--color-primary)]" />
-                <span className="text-[length:var(--text-md)]">{t('command.screenAnalyze')}</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => { onNavigate('files'); onOpenChange(false) }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <FileSearch size={20} className="text-[var(--color-primary)]" />
-                <span className="text-[length:var(--text-md)]">{t('command.findFile')}</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => { onNavigate('home'); onOpenChange(false) }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <Globe size={20} className="text-[var(--color-primary)]" />
-                <span className="text-[length:var(--text-md)]">{t('command.search')}</span>
-              </Command.Item>
-            </Command.Group>
-
-            <Command.Group heading={t('nav.tools')} className="px-2 py-1">
-              <Command.Item
-                onSelect={() => { onNavigate('tools'); onOpenChange(false) }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <Monitor size={20} className="text-[var(--color-primary)]" />
-                <span className="text-[length:var(--text-md)]">{t('tools.screenCapture')}</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => { onNavigate('tools'); onOpenChange(false) }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <Globe size={20} className="text-[var(--color-primary)]" />
-                <span className="text-[length:var(--text-md)]">{t('tools.webSearch')}</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => { onNavigate('tools'); onOpenChange(false) }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <Volume2 size={20} className="text-[var(--color-primary)]" />
-                <span className="text-[length:var(--text-md)]">{t('tools.tts')}</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => { onNavigate('tools'); onOpenChange(false) }}
-                className={itemClass}
-                style={itemStyle}
-              >
-                <Bell size={20} className="text-[var(--color-primary)]" />
-                <span className="text-[length:var(--text-md)]">{t('tools.reminder')}</span>
-              </Command.Item>
-            </Command.Group>
-
-            <Command.Group heading={t('command.navigate')} className="px-2 py-1">
-              {[
-                { page: 'home' as const, icon: Home, shortcut: '1' },
-                { page: 'tools' as const, icon: Wrench, shortcut: '2' },
-                { page: 'notes' as const, icon: FileText, shortcut: '3' },
-                { page: 'files' as const, icon: FolderOpen, shortcut: '4' },
-                { page: 'settings' as const, icon: Settings, shortcut: '5' },
-                { page: 'account' as const, icon: User, shortcut: '6' },
-                { page: 'workflows' as const, icon: Workflow, shortcut: '7' },
-                { page: 'knowledge' as const, icon: BookOpen, shortcut: '8' },
-                { page: 'dashboard' as const, icon: Activity, shortcut: '9' },
-                { page: 'marketplace' as const, icon: Store, shortcut: '0' },
-              ].map(({ page, icon: Icon, shortcut }) => (
+              <Command.Group heading={t('command.actions')} className="px-1 py-1 [&_[cmdk-group-heading]]:text-[length:var(--text-xs)] [&_[cmdk-group-heading]]:text-[var(--color-text-muted)] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5">
                 <Command.Item
-                  key={page}
-                  onSelect={() => { onNavigate(page); onOpenChange(false) }}
+                  onSelect={() => {
+                    onNavigate('home')
+                    useChatStore.getState().newConversation()
+                    onOpenChange(false)
+                  }}
                   className={itemClass}
-                  style={itemStyle}
                 >
-                  <Icon size={20} className="text-[var(--color-text-muted)]" />
-                  <div className="flex-1">
-                    <span className="text-[length:var(--text-md)]">{t(`nav.${page}`)}</span>
-                  </div>
-                  <kbd className="text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-soft)] px-1.5 py-0.5 rounded border border-[var(--color-border)]">
-                    Ctrl+{shortcut}
+                  <MessageSquarePlus size={18} className="text-[var(--color-primary)] shrink-0" />
+                  <span className="flex-1 text-[length:var(--text-sm)]">{t('chat.newConversation')}</span>
+                  <kbd className="text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-soft)] px-1.5 py-0.5 rounded-[var(--radius-xs)]">
+                    Ctrl+N
                   </kbd>
                 </Command.Item>
-              ))}
-            </Command.Group>
-          </Command.List>
-        </Command>
+                <Command.Item
+                  onSelect={() => {
+                    onNavigate('home')
+                    onOpenChange(false)
+                  }}
+                  className={itemClass}
+                >
+                  <Monitor size={18} className="text-[var(--color-primary)] shrink-0" />
+                  <span className="text-[length:var(--text-sm)]">{t('command.screenAnalyze')}</span>
+                </Command.Item>
+                <Command.Item
+                  onSelect={() => {
+                    if (isPageVisible('files', beginnerMode)) {
+                      onNavigate('files')
+                    }
+                    onOpenChange(false)
+                  }}
+                  className={itemClass}
+                >
+                  <FileSearch size={18} className="text-[var(--color-primary)] shrink-0" />
+                  <span className="text-[length:var(--text-sm)]">{t('command.findFile')}</span>
+                </Command.Item>
+                <Command.Item
+                  onSelect={() => {
+                    onNavigate('home')
+                    onOpenChange(false)
+                  }}
+                  className={itemClass}
+                >
+                  <Globe size={18} className="text-[var(--color-primary)] shrink-0" />
+                  <span className="text-[length:var(--text-sm)]">{t('command.search')}</span>
+                </Command.Item>
+              </Command.Group>
+
+              <Command.Group heading={t('nav.tools')} className="px-1 py-1 [&_[cmdk-group-heading]]:text-[length:var(--text-xs)] [&_[cmdk-group-heading]]:text-[var(--color-text-muted)] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5">
+                <Command.Item onSelect={() => { onNavigate('tools'); onOpenChange(false) }} className={itemClass}>
+                  <Monitor size={18} className="text-[var(--color-text-muted)] shrink-0" />
+                  <span className="text-[length:var(--text-sm)]">{t('tools.screenCapture')}</span>
+                </Command.Item>
+                <Command.Item onSelect={() => { onNavigate('tools'); onOpenChange(false) }} className={itemClass}>
+                  <Globe size={18} className="text-[var(--color-text-muted)] shrink-0" />
+                  <span className="text-[length:var(--text-sm)]">{t('tools.webSearch')}</span>
+                </Command.Item>
+                <Command.Item onSelect={() => { onNavigate('tools'); onOpenChange(false) }} className={itemClass}>
+                  <Volume2 size={18} className="text-[var(--color-text-muted)] shrink-0" />
+                  <span className="text-[length:var(--text-sm)]">{t('tools.tts')}</span>
+                </Command.Item>
+                <Command.Item onSelect={() => { onNavigate('tools'); onOpenChange(false) }} className={itemClass}>
+                  <Bell size={18} className="text-[var(--color-text-muted)] shrink-0" />
+                  <span className="text-[length:var(--text-sm)]">{t('tools.reminder')}</span>
+                </Command.Item>
+              </Command.Group>
+
+              <Command.Group heading={t('command.navigate')} className="px-1 py-1 [&_[cmdk-group-heading]]:text-[length:var(--text-xs)] [&_[cmdk-group-heading]]:text-[var(--color-text-muted)] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5">
+                {navigationItems.map(({ page, icon: Icon, shortcut }) => (
+                  <Command.Item
+                    key={page}
+                    onSelect={() => {
+                      if (isPageVisible(page, beginnerMode)) {
+                        onNavigate(page)
+                      }
+                      onOpenChange(false)
+                    }}
+                    className={itemClass}
+                  >
+                    <Icon size={18} className="text-[var(--color-text-muted)] shrink-0" />
+                    <span className="flex-1 text-[length:var(--text-sm)]">{t(`nav.${page}`)}</span>
+                    <kbd className="text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-soft)] px-1.5 py-0.5 rounded-[var(--radius-xs)]">
+                      Ctrl+{shortcut}
+                    </kbd>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            </Command.List>
+          </Command>
+        </div>
       </div>
-    </div>
     </FocusTrap>
   )
 }

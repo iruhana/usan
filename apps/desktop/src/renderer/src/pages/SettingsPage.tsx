@@ -5,31 +5,31 @@ import {
   Moon,
   Volume2,
   Cpu,
-  Key,
   Palette,
   RefreshCw,
   Languages,
   Power,
   Settings,
-  CheckCircle,
-  AlertCircle,
   Loader2,
   ShieldCheck,
   Download,
+  KeyRound,
+  Trash2,
 } from 'lucide-react'
-import type { ModelInfo, UpdaterStatus } from '@shared/types/ipc'
+import type { CredentialVaultSummary, ModelInfo, UpdaterStatus } from '@shared/types/ipc'
 import { useSettingsStore } from '../stores/settings.store'
+import { useSafetyStore } from '../stores/safety.store'
 import { t } from '../i18n'
 import type { Locale } from '../i18n'
-import { Card, SectionHeader, Button, IconButton } from '../components/ui'
+import { DEFAULT_SETTINGS_TAB, type SettingsTab } from '../constants/settings'
+import { Card, SectionHeader, Button, IconButton, InlineNotice } from '../components/ui'
+import { toTechnicalErrorDetails, toUpdaterErrorMessage } from '../lib/user-facing-errors'
 
 const LANGUAGES: Array<{ id: Locale; label: string; code: string }> = [
   { id: 'ko', label: 'Korean', code: 'KO' },
   { id: 'en', label: 'English', code: 'EN' },
   { id: 'ja', label: 'Japanese', code: 'JA' },
 ]
-type SettingsTab = 'display' | 'sound' | 'system' | 'advanced'
-
 const TABS: Array<{ id: SettingsTab; labelKey: string; icon: typeof Palette }> = [
   { id: 'display', labelKey: 'settings.group.display', icon: Palette },
   { id: 'sound', labelKey: 'settings.group.sound', icon: Volume2 },
@@ -37,36 +37,49 @@ const TABS: Array<{ id: SettingsTab; labelKey: string; icon: typeof Palette }> =
   { id: 'advanced', labelKey: 'settings.group.advanced', icon: Cpu },
 ]
 
+interface SettingsPageProps {
+  requestedTab?: SettingsTab
+  requestedTabNonce?: number
+}
+
 const PROFILE_OPTIONS = [
   { id: 'full' as const, labelKey: 'settings.permissionProfileFull', descKey: 'settings.permissionProfileFullDesc' },
   { id: 'balanced' as const, labelKey: 'settings.permissionProfileBalanced', descKey: 'settings.permissionProfileBalancedDesc' },
   { id: 'strict' as const, labelKey: 'settings.permissionProfileStrict', descKey: 'settings.permissionProfileStrictDesc' },
 ]
 
-export default function SettingsPage() {
+export default function SettingsPage({ requestedTab, requestedTabNonce = 0 }: SettingsPageProps) {
   const { settings, update: updateStore } = useSettingsStore()
-  const [activeTab, setActiveTab] = useState<SettingsTab>('display')
-  const [cloudApiKey, setCloudApiKey] = useState('')
-  const [apiKeyDirty, setApiKeyDirty] = useState(false)
+  const requestConfirmation = useSafetyStore((s) => s.requestConfirmation)
+  const [activeTab, setActiveTab] = useState<SettingsTab>(requestedTab ?? DEFAULT_SETTINGS_TAB)
   const [models, setModels] = useState<ModelInfo[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
-  const [keyValidation, setKeyValidation] = useState<{ status: 'idle' | 'loading' | 'valid' | 'error'; message?: string }>({ status: 'idle' })
   const [updaterStatus, setUpdaterStatus] = useState<UpdaterStatus | null>(null)
   const [updaterBusy, setUpdaterBusy] = useState<'idle' | 'checking' | 'downloading' | 'installing'>('idle')
+  const [credentialSummary, setCredentialSummary] = useState<CredentialVaultSummary | null>(null)
+  const [credentialBusy, setCredentialBusy] = useState<'idle' | 'importing' | 'clearing'>('idle')
+  const [credentialNotice, setCredentialNotice] = useState<{ tone: 'idle' | 'success' | 'error'; text: string; kind: 'import' | 'clear' | null }>({
+    tone: 'idle',
+    text: '',
+    kind: null,
+  })
   const fontScaleId = useId()
   const voiceSpeedId = useId()
-  const apiKeyId = useId()
-  const apiKeyHelpId = useId()
 
   const fontScale = settings.fontScale
   const highContrast = settings.highContrast
   const voiceEnabled = settings.voiceEnabled
+  const voiceOverlayEnabled = settings.voiceOverlayEnabled
   const voiceSpeed = settings.voiceSpeed
   const theme = settings.theme as 'light' | 'dark' | 'system'
   const updateChannel = settings.updateChannel
   const autoDownloadUpdates = settings.autoDownloadUpdates
   const permissionProfile = settings.permissionProfile
+  const beginnerMode = settings.beginnerMode
+  const advancedMenusEnabled = !beginnerMode
+  const browserCredentialAutoImportEnabled = settings.browserCredentialAutoImportEnabled
   const updaterBusyAny = updaterBusy !== 'idle'
+  const visibleTabs = TABS
 
   const updateStatusTone =
     updaterBusy === 'checking'
@@ -88,7 +101,10 @@ export default function SettingsPage() {
           ? t('settings.updateReady')
           : updaterStatus?.updateAvailableVersion
             ? t('settings.updateAvailable')
-            : t('settings.updateUpToDate')
+          : t('settings.updateUpToDate')
+  const updaterFriendlyError = toUpdaterErrorMessage(updaterStatus?.lastError)
+  const updaterTechnicalDetails = toTechnicalErrorDetails(updaterStatus?.lastError)
+  const updaterSummaryNotice = getUpdaterSummaryNotice(updaterBusy, updaterStatus, updaterFriendlyError)
 
   const loadModels = useCallback(async () => {
     setLoadingModels(true)
@@ -105,6 +121,15 @@ export default function SettingsPage() {
     try {
       const next = await window.usan?.updates.status()
       if (next) setUpdaterStatus(next)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const refreshCredentialSummary = useCallback(async () => {
+    try {
+      const summary = await window.usan?.credentials.getSummary()
+      if (summary) setCredentialSummary(summary)
     } catch {
       // ignore
     }
@@ -129,13 +154,63 @@ export default function SettingsPage() {
     }
   }, [])
 
-  useEffect(() => {
-    window.usan?.settings.get().then((s) => {
-      setCloudApiKey(s.cloudApiKey ?? '')
+  const handleImportCredentials = useCallback(async () => {
+    setCredentialBusy('importing')
+    setCredentialNotice({ tone: 'idle', text: '', kind: 'import' })
+    try {
+      const result = await window.usan?.credentials.importBrowserCsv()
+      if (!result) return
+      const msg = t('settings.passwordImportResult')
+        .replace('{imported}', String(result.importedCount))
+        .replace('{skipped}', String(result.skippedCount))
+      setCredentialNotice({ tone: 'success', text: msg, kind: 'import' })
+      await refreshCredentialSummary()
+    } catch {
+      setCredentialNotice({ tone: 'error', text: t('settings.passwordImportFailed'), kind: 'import' })
+    } finally {
+      setCredentialBusy('idle')
+    }
+  }, [refreshCredentialSummary])
+
+  const handleClearCredentials = useCallback(async () => {
+    const confirmed = await requestConfirmation({
+      title: t('settings.passwordVaultClearTitle'),
+      summary: [
+        t('settings.passwordVaultClearSummarySaved'),
+        t('settings.passwordVaultClearSummaryBrowser'),
+      ],
+      rollback: [t('settings.passwordVaultClearRollback')],
+      actionId: 'settings.passwordVaultClear',
     })
+
+    if (!confirmed) {
+      return
+    }
+
+    setCredentialBusy('clearing')
+    setCredentialNotice({ tone: 'idle', text: '', kind: 'clear' })
+    try {
+      await window.usan?.credentials.clear()
+      setCredentialNotice({ tone: 'success', text: t('settings.passwordVaultCleared'), kind: 'clear' })
+      await refreshCredentialSummary()
+    } catch {
+      setCredentialNotice({ tone: 'error', text: t('settings.passwordClearFailed'), kind: 'clear' })
+    } finally {
+      setCredentialBusy('idle')
+    }
+  }, [refreshCredentialSummary, requestConfirmation])
+
+  useEffect(() => {
     loadModels()
     refreshUpdaterStatus()
-  }, [loadModels, refreshUpdaterStatus])
+    refreshCredentialSummary()
+  }, [loadModels, refreshUpdaterStatus, refreshCredentialSummary])
+
+  useEffect(() => {
+    if (requestedTab) {
+      setActiveTab(requestedTab)
+    }
+  }, [requestedTab, requestedTabNonce])
 
   useEffect(() => {
     const root = document.documentElement
@@ -167,28 +242,7 @@ export default function SettingsPage() {
     updateStore({ theme: newTheme })
   }
 
-  const validateApiKey = async () => {
-    const key = cloudApiKey.trim()
-    if (!key || key === '********') {
-      setKeyValidation({ status: 'error', message: t('settings.apiKeyEmpty') })
-      return
-    }
-    if (apiKeyDirty) {
-      updateStore({ cloudApiKey })
-      setApiKeyDirty(false)
-    }
-    setKeyValidation({ status: 'loading' })
-    try {
-      const result = await window.usan?.aiExtras.validateKey(key)
-      if (result?.valid) {
-        setKeyValidation({ status: 'valid', message: t('settings.keyValid') })
-      } else {
-        setKeyValidation({ status: 'error', message: result?.error ?? t('settings.apiKeyInvalid') })
-      }
-    } catch {
-      setKeyValidation({ status: 'error', message: t('settings.apiKeyCheckError') })
-    }
-  }
+  const formatImportedAt = (ts: number) => new Date(ts).toLocaleString()
 
   return (
     <div className="max-w-lg mx-auto p-8">
@@ -204,7 +258,7 @@ export default function SettingsPage() {
 
       {/* Tab navigation */}
       <div className="flex gap-1 mb-6 p-1 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)]" role="tablist" aria-label={t('settings.title')}>
-        {TABS.map((tab, index) => {
+        {visibleTabs.map((tab, index) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
@@ -227,14 +281,14 @@ export default function SettingsPage() {
                 if (event.key === 'Home') {
                   nextIndex = 0
                 } else if (event.key === 'End') {
-                  nextIndex = TABS.length - 1
+                  nextIndex = visibleTabs.length - 1
                 } else if (event.key === 'ArrowRight') {
-                  nextIndex = (index + 1) % TABS.length
+                  nextIndex = (index + 1) % visibleTabs.length
                 } else if (event.key === 'ArrowLeft') {
-                  nextIndex = (index - 1 + TABS.length) % TABS.length
+                  nextIndex = (index - 1 + visibleTabs.length) % visibleTabs.length
                 }
 
-                const nextTab = TABS[nextIndex]?.id ?? tab.id
+                const nextTab = visibleTabs[nextIndex]?.id ?? tab.id
                 setActiveTab(nextTab)
                 requestAnimationFrame(() => {
                   document.querySelector<HTMLButtonElement>(`[data-settings-tab="${nextTab}"]`)?.focus()
@@ -280,10 +334,9 @@ export default function SettingsPage() {
                           ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
                           : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-card)]'
                       }`}
-                      style={{ minHeight: '64px' }}
                     >
                       <span className="text-[length:var(--text-xs)] leading-none font-semibold tracking-wide">{lang.code}</span>
-                      <span className="text-[length:var(--text-md)] font-medium">{lang.label}</span>
+                      <span className="text-[length:var(--text-sm)] font-medium">{lang.label}</span>
                     </button>
                   )
                 })}
@@ -310,7 +363,7 @@ export default function SettingsPage() {
                   value={fontScale}
                   onChange={(e) => updateFontScale(parseFloat(e.target.value))}
                   className="flex-1 h-2 accent-[var(--color-primary)] cursor-pointer rounded-full"
-                  style={{ minHeight: '48px' }}
+                  style={{ minHeight: '36px' }}
                   aria-label={t('settings.fontSize')}
                 />
                 <span className="text-[length:var(--text-lg)] text-[var(--color-text-muted)]">{t('settings.fontSizeLarge')}</span>
@@ -345,9 +398,8 @@ export default function SettingsPage() {
                           ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
                           : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-card)]'
                       }`}
-                      style={{ minHeight: '64px' }}
                     >
-                      <Icon size={20} />
+                      <Icon size={18} />
                       <span className="text-[length:var(--text-sm)] font-medium">{item.label}</span>
                     </button>
                   )
@@ -375,15 +427,16 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={toggleHighContrast}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                  className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
                     highContrast ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
                   }`}
                   role="switch"
                   aria-checked={highContrast}
+                  aria-label={t('settings.highContrast')}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
-                      highContrast ? 'translate-x-5' : 'translate-x-0'
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      highContrast ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -401,15 +454,16 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={() => updateStore({ enterToSend: !settings.enterToSend })}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                  className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
                     settings.enterToSend ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
                   }`}
                   role="switch"
                   aria-checked={settings.enterToSend}
+                  aria-label={t('settings.enterToSendTitle')}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
-                      settings.enterToSend ? 'translate-x-5' : 'translate-x-0'
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      settings.enterToSend ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -425,7 +479,7 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-3">
 
             {/* Voice */}
-            <Card>
+            <Card data-settings-card="voice">
               <div className="flex items-center gap-2 mb-3">
                 <Volume2 size={18} className="text-[var(--color-primary)]" />
                 <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.voice')}</h3>
@@ -434,15 +488,39 @@ export default function SettingsPage() {
                 <span className="text-[length:var(--text-md)]">{t('settings.voiceReadAloud')}</span>
                 <button
                   onClick={() => updateStore({ voiceEnabled: !voiceEnabled })}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                  className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
                     voiceEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
                   }`}
                   role="switch"
                   aria-checked={voiceEnabled}
+                  aria-label={t('settings.voiceReadAloud')}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
-                      voiceEnabled ? 'translate-x-5' : 'translate-x-0'
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      voiceEnabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="mb-3 flex items-center justify-between border-t border-[var(--color-border)] pt-3">
+                <div>
+                  <span className="text-[length:var(--text-md)]">{t('settings.voiceOverlayTitle')}</span>
+                  <p className="mt-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                    {voiceOverlayEnabled ? t('settings.voiceOverlayHintOn') : t('settings.voiceOverlayHintOff')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateStore({ voiceOverlayEnabled: !voiceOverlayEnabled })}
+                  className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
+                    voiceOverlayEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={voiceOverlayEnabled}
+                  aria-label={t('settings.voiceOverlayTitle')}
+                >
+                  <span
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      voiceOverlayEnabled ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -461,7 +539,7 @@ export default function SettingsPage() {
                   value={voiceSpeed}
                   onChange={(e) => updateStore({ voiceSpeed: parseFloat(e.target.value) })}
                   className="flex-1 h-2 accent-[var(--color-primary)] cursor-pointer rounded-full"
-                  style={{ minHeight: '48px' }}
+                  style={{ minHeight: '36px' }}
                   aria-label={t('settings.voiceSpeed')}
                 />
                 <span className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('settings.voiceFast')}</span>
@@ -472,12 +550,19 @@ export default function SettingsPage() {
         </section>}
 
         {/* ?? System ?? */}
-        {activeTab === 'system' && <section role="tabpanel" id="settings-panel-system" aria-labelledby="settings-tab-system">
+        {activeTab === 'system' && <section role="tabpanel" id="settings-panel-system" aria-labelledby="settings-tab-system" data-settings-panel="system">
           <SectionHeader title={t('settings.group.system')} icon={Settings} />
           <div className="flex flex-col gap-3">
 
+            <Card variant="outline" data-settings-card="system-note">
+              <h3 className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">{t('settings.systemNoteTitle')}</h3>
+              <p className="mt-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                {t('settings.systemNoteHint')}
+              </p>
+            </Card>
+
             {/* Auto Start */}
-            <Card>
+            <Card data-settings-card="auto-start">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0">
@@ -492,30 +577,119 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={() => updateStore({ openAtLogin: !settings.openAtLogin })}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                  className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
                     settings.openAtLogin ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
                   }`}
                   role="switch"
                   aria-checked={settings.openAtLogin}
+                  aria-label={t('settings.autoStart')}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
-                      settings.openAtLogin ? 'translate-x-5' : 'translate-x-0'
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      settings.openAtLogin ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>
               </div>
             </Card>
 
+            {/* Advanced Menus */}
+            <Card data-settings-card="advanced-menus">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0">
+                    <Settings size={18} className="text-[var(--color-primary)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.advancedMenusTitle')}</h3>
+                    <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                      {advancedMenusEnabled ? t('settings.advancedMenusHintOn') : t('settings.advancedMenusHintOff')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  data-action="toggle-advanced-menus"
+                  onClick={() => updateStore({ beginnerMode: advancedMenusEnabled })}
+                  className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
+                    advancedMenusEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={advancedMenusEnabled}
+                  aria-label={t('settings.advancedMenusTitle')}
+                >
+                  <span
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      advancedMenusEnabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </Card>
+
+            {/* Browser Password Import */}
+            <Card data-settings-card="password-auto-import">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0">
+                    <KeyRound size={18} className="text-[var(--color-primary)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.passwordAutoImportTitle')}</h3>
+                    <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                      {t('settings.passwordAutoImportHint')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => updateStore({ browserCredentialAutoImportEnabled: !browserCredentialAutoImportEnabled })}
+                  className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
+                    browserCredentialAutoImportEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                  }`}
+                  role="switch"
+                  aria-checked={browserCredentialAutoImportEnabled}
+                  aria-label={t('settings.passwordAutoImportTitle')}
+                >
+                  <span
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      browserCredentialAutoImportEnabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="mt-3 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+                {t('settings.passwordAutoImportInstallHint')}
+              </p>
+            </Card>
+
+          </div>
+        </section>}
+
+        {/* ?? Advanced ?? */}
+        {activeTab === 'advanced' && <section role="tabpanel" id="settings-panel-advanced" aria-labelledby="settings-tab-advanced" data-settings-panel="advanced">
+          <SectionHeader title={t('settings.group.advanced')} icon={Cpu} />
+          <div className="flex flex-col gap-3">
+
+            <Card variant="outline" data-settings-card="developer-note">
+              <h3 className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">{t('settings.developerNoteTitle')}</h3>
+              <p className="mt-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                {t('settings.developerNoteHint')}
+              </p>
+            </Card>
+
+            <SectionHeader title={t('settings.developerGroupUpdates')} indicator="var(--color-primary)" />
+            <p className="mt-[-8px] mb-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+              {t('settings.developerGroupUpdatesHint')}
+            </p>
+
             {/* Update Channel */}
-            <Card>
-              <div className="flex items-center justify-between gap-2 mb-3">
+            <Card data-settings-card="update-channel">
+              <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Download size={18} className="text-[var(--color-primary)]" />
                   <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.updateChannel')}</h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full border text-[length:var(--text-xs)] font-medium ${updateStatusTone}`}>
+                  <span className={`rounded-full border px-2 py-0.5 text-[length:var(--text-xs)] font-medium ${updateStatusTone}`}>
                     {updateStatusText}
                   </span>
                   <IconButton
@@ -527,10 +701,10 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
-                {t('settings.updateChannelHint')}
+              <p className="mb-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                {t(beginnerMode ? 'settings.updateChannelHintSimple' : 'settings.updateChannelHint')}
               </p>
-              <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="mb-3 grid grid-cols-2 gap-2">
                 {([
                   { id: 'stable' as const, label: t('settings.updateChannelStable') },
                   { id: 'beta' as const, label: t('settings.updateChannelBeta') },
@@ -539,16 +713,17 @@ export default function SettingsPage() {
                   return (
                     <button
                       key={item.id}
+                      type="button"
                       onClick={async () => {
                         await updateStore({ updateChannel: item.id })
                         await refreshUpdaterStatus()
                       }}
-                      className={`py-2 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
+                      className={`rounded-[var(--radius-md)] py-2 text-[length:var(--text-sm)] font-medium transition-all ${
                         isActive
                           ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
                           : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                       }`}
-                      style={{ minHeight: '44px' }}
+                      style={{ minHeight: '36px' }}
                     >
                       {item.label}
                     </button>
@@ -556,22 +731,24 @@ export default function SettingsPage() {
                 })}
               </div>
 
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3 flex items-center justify-between">
                 <span className="text-[length:var(--text-md)]">{t('settings.updateAutoDownload')}</span>
                 <button
+                  type="button"
                   onClick={async () => {
                     await updateStore({ autoDownloadUpdates: !autoDownloadUpdates })
                     await refreshUpdaterStatus()
                   }}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                  className={`relative w-9 h-5 shrink-0 rounded-full transition-colors ${
                     autoDownloadUpdates ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
                   }`}
                   role="switch"
                   aria-checked={autoDownloadUpdates}
+                  aria-label={t('settings.updateAutoDownload')}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-[var(--color-text-inverse)] shadow-sm transition-transform ${
-                      autoDownloadUpdates ? 'translate-x-5' : 'translate-x-0'
+                    className={`absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-[var(--color-text-inverse)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.06)] transition-transform ${
+                      autoDownloadUpdates ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -609,52 +786,65 @@ export default function SettingsPage() {
                   </Button>
                 )}
               </div>
-              {updaterStatus && (
-                <p className="mt-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
-                  {t('settings.updateStatus')}: {updaterStatus.downloadedVersion
-                    ? `${t('settings.updateReady')} ${updaterStatus.downloadedVersion}`
-                    : updaterStatus.updateAvailableVersion
-                      ? `${t('settings.updateAvailable')} ${updaterStatus.updateAvailableVersion}`
-                      : t('settings.updateUpToDate')}
-                </p>
-              )}
+              {updaterSummaryNotice ? (
+                <InlineNotice tone={updaterSummaryNotice.tone} title={updaterSummaryNotice.title} className="mt-3">
+                  <p>{updaterSummaryNotice.body}</p>
+                </InlineNotice>
+              ) : null}
               {updaterStatus?.lastCheckAt && (
                 <p className="mt-1 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
                   {t('settings.updateLastCheck')}: {new Date(updaterStatus.lastCheckAt).toLocaleString()}
                 </p>
               )}
-              {updaterStatus?.lastError && (
-                <p className="mt-1 text-[length:var(--text-xs)] text-[var(--color-danger)]">
-                  {t('settings.updateLastError')}: {updaterStatus.lastError}
-                </p>
-              )}
+              {updaterFriendlyError ? (
+                <div className="mt-3">
+                  <InlineNotice tone="warning" title={t('settings.updateErrorHelpTitle')}>
+                    <p>{updaterFriendlyError}</p>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-[length:var(--text-xs)] font-medium text-[var(--color-text-muted)]">
+                        {t('settings.technicalDetails')}
+                      </summary>
+                      <p className="mt-1 break-all text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+                        {updaterTechnicalDetails}
+                      </p>
+                    </details>
+                  </InlineNotice>
+                </div>
+              ) : null}
             </Card>
 
+            <SectionHeader title={t('settings.developerGroupAccess')} indicator="var(--color-primary)" className="mt-1" />
+            <p className="mt-[-8px] mb-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+              {t('settings.developerGroupAccessHint')}
+            </p>
+
             {/* Permission Profile */}
-            <Card>
-              <div className="flex items-center gap-2 mb-3">
+            <Card data-settings-card="permission-profile">
+              <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck size={18} className="text-[var(--color-primary)]" />
                 <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.permissionProfile')}</h3>
               </div>
-              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
-                {t('settings.permissionProfileHint')}
+              <p className="mb-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                {t(beginnerMode ? 'settings.permissionProfileHintSimple' : 'settings.permissionProfileHint')}
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {PROFILE_OPTIONS.map((option) => {
                   const isActive = permissionProfile === option.id
+                  const descKey = beginnerMode ? `${option.descKey}Simple` : option.descKey
                   return (
                     <button
                       key={option.id}
+                      type="button"
                       onClick={() => updateStore({ permissionProfile: option.id })}
-                      className={`rounded-[var(--radius-md)] border px-3 py-2 text-left transition-all ${
+                      className={`rounded-[var(--radius-md)] ring-1 px-3 py-2 text-left transition-all ${
                         isActive
-                          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)] border-[var(--color-primary)] shadow-[var(--shadow-md)]'
-                          : 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:text-[var(--color-text)]'
+                          ? 'ring-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
+                          : 'ring-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:ring-[var(--color-border)]'
                       }`}
                     >
                       <span className="block text-[length:var(--text-sm)] font-semibold">{t(option.labelKey)}</span>
                       <span className={`mt-1 block text-[length:var(--text-xs)] ${isActive ? 'text-[var(--color-text-inverse)]/85' : 'text-[var(--color-text-muted)]'}`}>
-                        {t(option.descKey)}
+                        {t(descKey)}
                       </span>
                     </button>
                   )
@@ -662,16 +852,87 @@ export default function SettingsPage() {
               </div>
             </Card>
 
-          </div>
-        </section>}
+            <SectionHeader title={t('settings.developerGroupPasswords')} indicator="var(--color-primary)" className="mt-1" />
+            <p className="mt-[-8px] mb-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+              {t('settings.developerGroupPasswordsHint')}
+            </p>
 
-        {/* ?? Advanced ?? */}
-        {activeTab === 'advanced' && <section role="tabpanel" id="settings-panel-advanced" aria-labelledby="settings-tab-advanced">
-          <SectionHeader title={t('settings.group.advanced')} icon={Cpu} />
-          <div className="flex flex-col gap-3">
+            {/* Password Tools */}
+            <Card data-settings-card="password-tools">
+              <div className="mb-3 flex items-center gap-2">
+                <KeyRound size={18} className="text-[var(--color-primary)]" />
+                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.passwordImportTitle')}</h3>
+              </div>
+              <p className="mb-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                {t('settings.passwordImportHint')}
+              </p>
+              <p className="mb-3 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+                {t('settings.passwordImportHowTo')}
+              </p>
+
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] p-3">
+                  <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)]">{t('settings.passwordVaultCount')}</p>
+                  <p className="text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{credentialSummary?.totalCount ?? 0}</p>
+                </div>
+                <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] p-3">
+                  <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)]">{t('settings.passwordVaultLastImport')}</p>
+                  <p className="text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">
+                    {credentialSummary?.lastImportedAt ? formatImportedAt(credentialSummary.lastImportedAt) : t('settings.passwordVaultNever')}
+                  </p>
+                </div>
+              </div>
+
+              {credentialSummary?.preview?.length ? (
+                <div className="mb-3 rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)]">
+                  {credentialSummary.preview.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-3 py-2 last:border-b-0">
+                      <span className="max-w-[50%] truncate text-[length:var(--text-sm)] text-[var(--color-text)]">{item.site}</span>
+                      <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)]">{item.usernameMasked}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {credentialNotice.text ? (
+                <InlineNotice
+                  tone={credentialNotice.tone === 'error' ? 'error' : 'success'}
+                  title={getCredentialNoticeTitle(credentialNotice)}
+                  className="mb-3"
+                >
+                  <p>{credentialNotice.text}</p>
+                </InlineNotice>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  loading={credentialBusy === 'importing'}
+                  disabled={credentialBusy !== 'idle'}
+                  onClick={handleImportCredentials}
+                >
+                  {t('settings.passwordImportButton')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={credentialBusy === 'clearing'}
+                  disabled={credentialBusy !== 'idle' || (credentialSummary?.totalCount ?? 0) === 0}
+                  onClick={handleClearCredentials}
+                >
+                  <Trash2 size={14} className="mr-1" />
+                  {t('settings.passwordVaultClear')}
+                </Button>
+              </div>
+            </Card>
+
+            <SectionHeader title={t('settings.developerGroupDiagnostics')} indicator="var(--color-primary)" className="mt-1" />
+            <p className="mt-[-8px] mb-3 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+              {t('settings.developerGroupDiagnosticsHint')}
+            </p>
 
             {/* AI Models */}
-            <Card>
+            <Card data-settings-card="ai-models">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Cpu size={18} className="text-[var(--color-primary)]" />
@@ -692,7 +953,7 @@ export default function SettingsPage() {
                   {models.map((m) => (
                     <div
                       key={m.id}
-                      className="flex items-center justify-between px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)]/50 hover:border-[var(--color-primary)]/20 transition-all"
+                      className="flex items-center justify-between px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] ring-1 ring-[var(--color-border-subtle)] hover:ring-[var(--color-primary)]/20 transition-all"
                     >
                       <div>
                         <span className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">{m.name}</span>
@@ -704,7 +965,7 @@ export default function SettingsPage() {
                   ))}
                 </div>
               ) : (
-                <div className="px-4 py-6 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-dashed border-[var(--color-border)] text-center text-[length:var(--text-md)] text-[var(--color-text-muted)]">
+                <div className="px-4 py-6 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] ring-1 ring-dashed ring-[var(--color-border-subtle)] text-center text-[length:var(--text-md)] text-[var(--color-text-muted)]">
                   {loadingModels ? (
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 size={16} className="animate-spin" />
@@ -715,79 +976,6 @@ export default function SettingsPage() {
               )}
             </Card>
 
-            {/* API Key */}
-            <Card>
-              <div className="flex items-center gap-2 mb-3">
-                <Key size={18} className="text-[var(--color-primary)]" />
-                <h3 className="text-[length:var(--text-md)] font-medium">{t('settings.apiKey')}</h3>
-              </div>
-              <p id={apiKeyHelpId} className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] mb-3">
-                {t('settings.apiKeyHint')}
-              </p>
-
-              <div>
-                <label
-                  htmlFor={apiKeyId}
-                  className="block mb-1 text-[length:var(--text-sm)] font-medium text-[var(--color-text)]"
-                >
-                  {t('settings.apiKeyLabel')}
-                </label>
-                <div className="relative">
-                  <input
-                    id={apiKeyId}
-                    type="password"
-                    value={cloudApiKey}
-                    onChange={(e) => {
-                      setCloudApiKey(e.target.value)
-                      setApiKeyDirty(true)
-                      setKeyValidation({ status: 'idle' })
-                    }}
-                    onBlur={() => {
-                      if (apiKeyDirty && cloudApiKey) {
-                        updateStore({ cloudApiKey })
-                        setApiKeyDirty(false)
-                      }
-                    }}
-                    placeholder="sk-or-..."
-                    aria-describedby={apiKeyHelpId}
-                    aria-invalid={keyValidation.status === 'error' ? true : undefined}
-                    className={`w-full h-10 px-3 pr-10 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border transition-all text-[length:var(--text-md)] focus:outline-none focus:ring-2 ${
-                      keyValidation.status === 'valid'
-                        ? 'border-[var(--color-success)] focus:ring-[var(--color-success)]/20'
-                        : keyValidation.status === 'error'
-                        ? 'border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20'
-                        : 'border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]/20'
-                    }`}
-                  />
-                  {keyValidation.status === 'valid' && (
-                    <CheckCircle size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-success)]" />
-                  )}
-                  {keyValidation.status === 'error' && (
-                    <AlertCircle size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-danger)]" />
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <Button
-                    size="sm"
-                    loading={keyValidation.status === 'loading'}
-                    onClick={validateApiKey}
-                  >
-                    {keyValidation.status === 'loading' ? t('settings.validating') : t('settings.validateKey')}
-                  </Button>
-                  {keyValidation.status === 'valid' && (
-                    <span className="text-[length:var(--text-sm)] text-[var(--color-success)] font-medium">
-                      {keyValidation.message}
-                    </span>
-                  )}
-                  {keyValidation.status === 'error' && (
-                    <span className="text-[length:var(--text-sm)] text-[var(--color-danger)] font-medium">
-                      {keyValidation.message}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </Card>
-
           </div>
         </section>}
       </div>
@@ -795,4 +983,60 @@ export default function SettingsPage() {
   )
 }
 
+function getUpdaterSummaryNotice(
+  updaterBusy: 'idle' | 'checking' | 'downloading' | 'installing',
+  updaterStatus: UpdaterStatus | null,
+  updaterFriendlyError: string | null,
+): { tone: 'info' | 'success' | 'warning'; title: string; body: string } | null {
+  if (updaterBusy === 'checking') {
+    return {
+      tone: 'info',
+      title: t('settings.updateNoticeCheckingTitle'),
+      body: t('settings.updateNoticeCheckingBody'),
+    }
+  }
 
+  if (updaterStatus?.lastError && updaterFriendlyError) {
+    return {
+      tone: 'warning',
+      title: t('settings.updateNoticeProblemTitle'),
+      body: updaterFriendlyError,
+    }
+  }
+
+  if (updaterStatus?.downloadedVersion) {
+    return {
+      tone: 'success',
+      title: t('settings.updateNoticeReadyTitle'),
+      body: `${updaterStatus.downloadedVersion} ${t('settings.updateNoticeReadyBody')}`,
+    }
+  }
+
+  if (updaterStatus?.updateAvailableVersion) {
+    return {
+      tone: 'info',
+      title: t('settings.updateNoticeAvailableTitle'),
+      body: `${updaterStatus.updateAvailableVersion} ${t('settings.updateNoticeAvailableBody')}`,
+    }
+  }
+
+  if (updaterStatus) {
+    return {
+      tone: 'success',
+      title: t('settings.updateNoticeCurrentTitle'),
+      body: t('settings.updateNoticeCurrentBody'),
+    }
+  }
+
+  return null
+}
+
+function getCredentialNoticeTitle(
+  notice: { tone: 'idle' | 'success' | 'error'; text: string; kind: 'import' | 'clear' | null },
+): string {
+  if (notice.kind === 'clear') {
+    return notice.tone === 'error' ? t('settings.passwordClearErrorTitle') : t('settings.passwordClearSuccessTitle')
+  }
+
+  return notice.tone === 'error' ? t('settings.passwordImportErrorTitle') : t('settings.passwordImportSuccessTitle')
+}

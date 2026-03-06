@@ -50,7 +50,7 @@ export default function ScreenAnnotation({ screenshot, annotations, focusLabel }
   if (!src) return null
 
   return (
-    <div className="relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)]">
+    <div className="relative overflow-hidden rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)]">
       <img
         ref={imageRef}
         src={src}

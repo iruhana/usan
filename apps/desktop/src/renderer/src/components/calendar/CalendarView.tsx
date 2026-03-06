@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CalendarEvent } from '@shared/types/infrastructure'
 import { CalendarDays, Plus, RefreshCw } from 'lucide-react'
-import { Card, Button, Input, SectionHeader } from '../ui'
+import { Card, Button, InlineNotice, Input, SectionHeader } from '../ui'
 import { t } from '../../i18n'
+import { hasE2EQueryFlag } from '../../lib/e2e-flags'
+import { toCalendarErrorMessage } from '../../lib/user-facing-errors'
 import EventCard from './EventCard'
+
+interface NoticeState {
+  tone: 'error' | 'success' | 'info'
+  title: string
+  body: string
+}
 
 function toIso(value: string): string {
   if (!value) return ''
@@ -19,6 +27,7 @@ function toDateTimeInput(value: Date): string {
 }
 
 export default function CalendarView() {
+  const forceNotice = hasE2EQueryFlag('usan_e2e_force_calendar_notice')
   const now = new Date()
   const endDefault = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
@@ -32,27 +41,40 @@ export default function CalendarView() {
   const [durationMinutes, setDurationMinutes] = useState(30)
   const [freeSlots, setFreeSlots] = useState<Array<{ start: string; end: string }>>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
-    setError(null)
+    setNotice(null)
     try {
       const next = await window.usan?.calendar.listEvents(toIso(startDate), toIso(endDate))
       setEvents(next ?? [])
     } catch (err) {
-      setError((err as Error).message)
+      setNotice({
+        tone: 'error',
+        title: t('calendar.noticeLoadTitle'),
+        body: toCalendarErrorMessage(err, 'load'),
+      })
     } finally {
       setLoading(false)
     }
   }, [startDate, endDate])
 
   useEffect(() => {
+    if (forceNotice) return
     loadEvents().catch(() => {})
-  }, [loadEvents])
+  }, [forceNotice, loadEvents])
+
+  const effectiveNotice = forceNotice
+    ? {
+        tone: 'info' as const,
+        title: t('calendar.noticeFreeTimeSuccessTitle'),
+        body: t('calendar.noFreeSlots'),
+      }
+    : notice
 
   return (
-    <Card variant="outline" className="space-y-3">
+    <Card variant="outline" className="space-y-3" data-view="calendar-view">
       <SectionHeader
         title={t('calendar.title')}
         icon={CalendarDays}
@@ -64,18 +86,18 @@ export default function CalendarView() {
         )}
       />
 
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
-          {error}
-        </p>
-      )}
+      {effectiveNotice ? (
+        <InlineNotice tone={effectiveNotice.tone} title={effectiveNotice.title}>
+          {effectiveNotice.body}
+        </InlineNotice>
+      ) : null}
 
       <div className="grid gap-2 md:grid-cols-2">
         <Input label={t('calendar.start')} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         <Input label={t('calendar.end')} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
       </div>
 
-      <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
+      <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3">
         <p className="mb-2 text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">{t('calendar.create')}</p>
         <div className="grid gap-2 md:grid-cols-2">
           <Input label={t('calendar.title')} value={title} onChange={(event) => setTitle(event.target.value)} placeholder={t('calendar.titlePlaceholder')} />
@@ -87,13 +109,27 @@ export default function CalendarView() {
               leftIcon={<Plus size={14} />}
               disabled={title.trim().length === 0}
               onClick={async () => {
-                await window.usan?.calendar.createEvent({
-                  title: title.trim(),
-                  start: toIso(eventStart),
-                  end: toIso(eventEnd),
-                })
-                setTitle('')
-                await loadEvents()
+                try {
+                  setNotice(null)
+                  await window.usan?.calendar.createEvent({
+                    title: title.trim(),
+                    start: toIso(eventStart),
+                    end: toIso(eventEnd),
+                  })
+                  setTitle('')
+                  setNotice({
+                    tone: 'success',
+                    title: t('calendar.noticeCreateSuccessTitle'),
+                    body: title.trim(),
+                  })
+                  await loadEvents()
+                } catch (err) {
+                  setNotice({
+                    tone: 'error',
+                    title: t('calendar.noticeCreateTitle'),
+                    body: toCalendarErrorMessage(err, 'create'),
+                  })
+                }
               }}
             >
               {t('calendar.create')}
@@ -113,15 +149,29 @@ export default function CalendarView() {
               key={event.id}
               event={event}
               onDelete={async (id) => {
-                await window.usan?.calendar.deleteEvent(id)
-                await loadEvents()
+                try {
+                  setNotice(null)
+                  await window.usan?.calendar.deleteEvent(id)
+                  setNotice({
+                    tone: 'success',
+                    title: t('calendar.noticeDeleteSuccessTitle'),
+                    body: t('calendar.delete'),
+                  })
+                  await loadEvents()
+                } catch (err) {
+                  setNotice({
+                    tone: 'error',
+                    title: t('calendar.noticeDeleteTitle'),
+                    body: toCalendarErrorMessage(err, 'delete'),
+                  })
+                }
               }}
             />
           ))}
         </div>
       )}
 
-      <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
+      <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3">
         <p className="mb-2 text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">{t('calendar.freeTime')}</p>
         <div className="grid gap-2 md:grid-cols-[1fr_140px_auto]">
           <Input label={t('calendar.date')} type="date" value={freeDate} onChange={(event) => setFreeDate(event.target.value)} />
@@ -130,8 +180,22 @@ export default function CalendarView() {
             <Button
               size="sm"
               onClick={async () => {
-                const slots = await window.usan?.calendar.findFreeTime(toIso(freeDate), durationMinutes)
-                setFreeSlots(slots ?? [])
+                try {
+                  setNotice(null)
+                  const slots = await window.usan?.calendar.findFreeTime(toIso(freeDate), durationMinutes)
+                  setFreeSlots(slots ?? [])
+                  setNotice({
+                    tone: 'info',
+                    title: t('calendar.noticeFreeTimeSuccessTitle'),
+                    body: slots && slots.length > 0 ? `${slots.length} ${t('calendar.freeTime')}` : t('calendar.noFreeSlots'),
+                  })
+                } catch (err) {
+                  setNotice({
+                    tone: 'error',
+                    title: t('calendar.noticeFreeTimeTitle'),
+                    body: toCalendarErrorMessage(err, 'freeTime'),
+                  })
+                }
               }}
             >
               {t('calendar.findFreeTime')}

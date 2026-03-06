@@ -55,7 +55,7 @@ export default function OCRResult({ result }: OCRResultProps) {
               <button
                 key={`${region.text}-${index}`}
                 type="button"
-                className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface-soft)] px-2 py-1 text-left text-[length:var(--text-xs)] text-[var(--color-text)] hover:border-[var(--color-primary)]"
+                className="rounded-[var(--radius-sm)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] px-2 py-1 text-left text-[length:var(--text-xs)] text-[var(--color-text)] transition-all hover:ring-[var(--color-primary)]"
                 onClick={() => copyText(region.text).catch(() => {})}
               >
                 {region.text}

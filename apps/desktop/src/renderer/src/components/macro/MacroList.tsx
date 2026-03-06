@@ -17,7 +17,7 @@ export default function MacroList({ items, onPlay, onDelete }: MacroListProps) {
   return (
     <div className="max-h-72 space-y-2 overflow-auto">
       {items.map((macro) => (
-        <div key={macro.id} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
+        <div key={macro.id} className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3 transition-all hover:ring-[var(--color-border)]">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="truncate text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">{macro.name}</p>
             <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)]">

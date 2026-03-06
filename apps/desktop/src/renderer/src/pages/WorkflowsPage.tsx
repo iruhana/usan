@@ -1,12 +1,14 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Play, Plus, Trash2, Clock3 } from 'lucide-react'
-import { Button, Card, Badge, Input, SectionHeader } from '../components/ui'
+import { Button, Card, Badge, InlineNotice, Input, SectionHeader } from '../components/ui'
 import WorkflowBuilder from '../components/workflow/WorkflowBuilder'
 import WorkflowRunLog from '../components/workflow/WorkflowRunLog'
 import { useWorkflowStore } from '../stores/workflow.store'
+import { useSettingsStore } from '../stores/settings.store'
 import { t } from '../i18n'
 
 export default function WorkflowsPage() {
+  const beginnerMode = useSettingsStore((s) => s.settings.beginnerMode)
   const {
     workflows,
     runs,
@@ -48,16 +50,18 @@ export default function WorkflowsPage() {
       <div className="mb-4 flex items-center justify-between gap-3 border-b border-[var(--color-border)] pb-4">
         <div>
           <h1 className="text-[length:var(--text-xl)] font-semibold text-[var(--color-text)]">{t('workflow.title')}</h1>
-          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('workflow.subtitle')}</p>
+          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+            {t(beginnerMode ? 'workflow.subtitleSimple' : 'workflow.subtitle')}
+          </p>
         </div>
-        <Button leftIcon={<Plus size={16} />} onClick={() => setShowBuilder(true)}>{t('workflow.create')}</Button>
+        <Button data-action="create-workflow" leftIcon={<Plus size={16} />} onClick={() => setShowBuilder(true)}>{t('workflow.create')}</Button>
       </div>
 
-      {error && (
-        <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+      {error ? (
+        <InlineNotice tone="error" title={t('workflow.helpTitle')} className="mb-3">
           {error}
-        </div>
-      )}
+        </InlineNotice>
+      ) : null}
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px_1fr]">
         <Card variant="outline" className="min-h-0 overflow-auto">
@@ -68,7 +72,7 @@ export default function WorkflowsPage() {
           ) : workflows.length === 0 ? (
             <div className="space-y-2 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
               <p>{t('workflow.empty')}</p>
-              <p>{t('workflow.emptyHint')}</p>
+              <p>{t(beginnerMode ? 'workflow.emptyHintSimple' : 'workflow.emptyHint')}</p>
             </div>
           ) : (
             <div className="space-y-2" role="listbox" aria-label={t('workflow.title')}>
@@ -80,9 +84,9 @@ export default function WorkflowsPage() {
                     key={workflow.id}
                     type="button"
                     onClick={() => setActiveWorkflow(workflow.id)}
-                    className={`w-full rounded-[var(--radius-md)] border px-3 py-2 text-left transition-all ${selected
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]'
-                      : 'border-[var(--color-border)] hover:bg-[var(--color-surface-soft)]'}`}
+                    className={`w-full rounded-[var(--radius-md)] ring-1 px-3 py-2 text-left transition-all ${selected
+                      ? 'ring-[var(--color-primary)] bg-[var(--color-primary-muted)] shadow-[var(--shadow-xs)]'
+                      : 'ring-[var(--color-border-subtle)] hover:bg-[var(--color-surface-soft)] hover:ring-[var(--color-border)]'}`}
                     role="option"
                     aria-selected={selected}
                   >
@@ -130,7 +134,7 @@ export default function WorkflowsPage() {
                     value={scheduleSeconds}
                     onChange={(event) => setScheduleSeconds(Math.max(0, Number(event.target.value) || 0))}
                     label={t('workflow.schedule')}
-                    helperText={t('workflow.intervalHint')}
+                    helperText={t(beginnerMode ? 'workflow.intervalHintSimple' : 'workflow.intervalHint')}
                   />
                   <div className="flex items-end">
                     <Button
@@ -158,7 +162,7 @@ export default function WorkflowsPage() {
                       <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('workflow.noSteps')}</p>
                     ) : (
                       activeWorkflow.steps.map((step, index) => (
-                        <div key={step.id} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-soft)] px-3 py-2">
+                        <div key={step.id} className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] px-3 py-2">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">{t('workflow.step')} {index + 1}</span>
                             <Badge variant="info">{step.type}</Badge>
@@ -175,6 +179,7 @@ export default function WorkflowsPage() {
 
               <WorkflowRunLog
                 run={activeRun}
+                steps={activeWorkflow.steps}
                 onPause={pauseRun}
                 onResume={resumeRun}
                 onCancel={cancelRun}

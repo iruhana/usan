@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { User, LogOut, Mail, Lock, UserPlus } from 'lucide-react'
 import { useAuthStore } from '../stores/auth.store'
 import { t } from '../i18n'
-import { Card, Button } from '../components/ui'
+import { Card, Button, InlineNotice } from '../components/ui'
 
 export default function AccountPage() {
   const { user, loading, error, login, signup, logout, checkSession } = useAuthStore()
@@ -10,47 +10,69 @@ export default function AccountPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const emailId = useId()
+  const passwordId = useId()
+  const displayNameId = useId()
 
   useEffect(() => {
     checkSession()
   }, [checkSession])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     if (!email.trim() || !password.trim()) return
+
     if (mode === 'login') {
       await login(email, password)
-    } else {
-      await signup(email, password, displayName || undefined)
+      return
     }
+
+    await signup(email, password, displayName || undefined)
   }
 
-  // Logged in view
   if (user) {
     return (
-      <div className="max-w-sm mx-auto p-8">
-        <div className="mb-8">
+      <div className="max-w-md mx-auto p-8 space-y-4" data-view="account-page">
+        <header>
           <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
             {t('account.title')}
           </h1>
-        </div>
+          <p className="mt-1 text-[length:var(--text-md)] text-[var(--color-text-muted)]">
+            {t('account.subtitle')}
+          </p>
+        </header>
 
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-[var(--color-primary-light)] flex items-center justify-center">
-              <User size={24} className="text-[var(--color-primary)]" />
-            </div>
-            <div>
-              <p className="text-[length:var(--text-md)] font-medium">
-                {user.displayName || user.email || t('account.unknownUser')}
-              </p>
-              {user.email && (
-                <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
-                  {user.email}
+        <Card variant="outline">
+          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+            {t('account.syncHint')}
+          </p>
+        </Card>
+
+        <Card data-account-state="signed-in">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-light)]">
+                <User size={24} className="text-[var(--color-primary)]" />
+              </div>
+              <div>
+                <p className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">
+                  {user.displayName || user.email || t('account.unknownUser')}
                 </p>
-              )}
+                {user.email && (
+                  <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                    {user.email}
+                  </p>
+                )}
+              </div>
             </div>
+            <span className="rounded-full bg-[var(--color-primary-muted)] px-2.5 py-1 text-[length:var(--text-xs)] font-medium text-[var(--color-primary)]">
+              {t('account.loggedIn')}
+            </span>
           </div>
+
+          <p className="mb-4 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+            {t('account.loggedInHint')}
+          </p>
 
           <Button
             variant="ghost"
@@ -66,105 +88,122 @@ export default function AccountPage() {
     )
   }
 
-  // Login/Signup form
   return (
-    <div className="max-w-sm mx-auto p-8">
-      <div className="mb-8">
+    <div className="max-w-md mx-auto p-8 space-y-4" data-view="account-page">
+      <header>
         <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
           {t('account.title')}
         </h1>
-      </div>
+        <p className="mt-1 text-[length:var(--text-md)] text-[var(--color-text-muted)]">
+          {t('account.subtitle')}
+        </p>
+      </header>
 
-      <Card>
-        {/* Mode toggle */}
-        <div className="flex gap-1 mb-4 p-1 bg-[var(--color-surface-soft)] rounded-[var(--radius-md)]">
+      <Card variant="outline">
+        <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+          {t('account.syncHint')}
+        </p>
+      </Card>
+
+      <Card data-account-state="signed-out">
+        <div className="mb-4 flex gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] p-1">
           <button
+            type="button"
             onClick={() => setMode('login')}
-            className={`flex-1 py-2 rounded-[var(--radius-sm)] text-[length:var(--text-md)] font-medium transition-all ${
+            className={`flex-1 rounded-[var(--radius-sm)] py-2 text-[length:var(--text-md)] font-medium transition-all ${
               mode === 'login'
-                ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-sm'
+                ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-[var(--shadow-sm)]'
                 : 'text-[var(--color-text-muted)]'
             }`}
+            data-account-mode="login"
           >
             {t('account.login')}
           </button>
           <button
+            type="button"
             onClick={() => setMode('signup')}
-            className={`flex-1 py-2 rounded-[var(--radius-sm)] text-[length:var(--text-md)] font-medium transition-all ${
+            className={`flex-1 rounded-[var(--radius-sm)] py-2 text-[length:var(--text-md)] font-medium transition-all ${
               mode === 'signup'
-                ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-sm'
+                ? 'bg-[var(--color-bg-card)] text-[var(--color-text)] shadow-[var(--shadow-sm)]'
                 : 'text-[var(--color-text-muted)]'
             }`}
+            data-account-mode="signup"
           >
             {t('account.signup')}
           </button>
         </div>
 
+        <p className="mb-4 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+          {t(mode === 'login' ? 'account.modeHintLogin' : 'account.modeHintSignup')}
+        </p>
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {mode === 'signup' && (
             <div>
-              <label className="block mb-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+              <label htmlFor={displayNameId} className="mb-1 block text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
                 {t('account.displayName')}
               </label>
               <div className="relative">
                 <UserPlus size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
                 <input
+                  id={displayNameId}
                   type="text"
                   value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  onChange={(event) => setDisplayName(event.target.value)}
                   placeholder={t('account.displayNamePlaceholder')}
-                  className="w-full h-10 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)] text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
+                  autoComplete="name"
+                  className="h-9 w-full rounded-[var(--radius-md)] ring-1 ring-transparent bg-[var(--color-surface-soft)] pl-9 pr-3 text-[length:var(--text-md)] transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)] focus:outline-none"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block mb-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+            <label htmlFor={emailId} className="mb-1 block text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
               {t('account.email')}
             </label>
             <div className="relative">
               <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
               <input
+                id={emailId}
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 placeholder={t('account.emailPlaceholder')}
-                className="w-full h-10 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)] text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
+                autoComplete="email"
+                className="h-9 w-full rounded-[var(--radius-md)] ring-1 ring-transparent bg-[var(--color-surface-soft)] pl-9 pr-3 text-[length:var(--text-md)] transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)] focus:outline-none"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block mb-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+            <label htmlFor={passwordId} className="mb-1 block text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
               {t('account.password')}
             </label>
             <div className="relative">
               <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
               <input
+                id={passwordId}
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder={t('account.passwordPlaceholder')}
-                className="w-full h-10 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] border border-[var(--color-border)] text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                className="h-9 w-full rounded-[var(--radius-md)] ring-1 ring-transparent bg-[var(--color-surface-soft)] pl-9 pr-3 text-[length:var(--text-md)] transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)] focus:outline-none"
                 required
                 minLength={6}
               />
             </div>
           </div>
 
-          {error && (
-            <p className="text-[length:var(--text-sm)] text-[var(--color-danger)] font-medium">
+          {error ? (
+            <InlineNotice tone="error" title={t('account.helpTitle')}>
               {error}
-            </p>
-          )}
+            </InlineNotice>
+          ) : null}
 
-          <Button
-            className="w-full mt-1"
-            type="submit"
-            loading={loading}
-          >
+          <Button className="mt-1 w-full" type="submit" loading={loading}>
             {loading
               ? t('account.loading')
               : mode === 'login'

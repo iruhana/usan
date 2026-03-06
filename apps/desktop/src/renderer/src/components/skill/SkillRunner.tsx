@@ -1,7 +1,10 @@
+import { useEffect } from 'react'
 import { CheckCircle, XCircle, Loader2, Clock, Play, Pause, Square, RotateCcw } from 'lucide-react'
 import { useSkillStore } from '../../stores/skill.store'
 import type { SkillStepStatus, SkillRunState } from '../../stores/skill.store'
 import { t } from '../../i18n'
+import { Badge, Button, InlineNotice, ProgressSummary } from '../ui'
+import { toSkillErrorMessage, toTechnicalErrorDetails } from '../../lib/user-facing-errors'
 
 const STEP_ICON: Record<SkillStepStatus, typeof Clock> = {
   pending: Clock,
@@ -27,14 +30,14 @@ const STATE_LABEL: Record<SkillRunState, string> = {
   cancelled: 'skill.cancelled',
 }
 
-const STATE_BG: Record<SkillRunState, string> = {
-  idle: 'bg-[var(--color-bg)]',
-  validating: 'bg-[var(--color-primary-light)]',
-  running: 'bg-[var(--color-primary-light)]',
-  paused: 'bg-[var(--color-surface-soft)]',
-  done: 'bg-[var(--color-surface-soft)]',
-  failed: 'bg-[var(--color-danger-bg)]',
-  cancelled: 'bg-[var(--color-bg)]',
+const STATE_BADGE: Record<SkillRunState, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  idle: 'default',
+  validating: 'info',
+  running: 'info',
+  paused: 'warning',
+  done: 'success',
+  failed: 'danger',
+  cancelled: 'warning',
 }
 
 export default function SkillRunner() {
@@ -42,6 +45,23 @@ export default function SkillRunner() {
   const setState = useSkillStore((s) => s.setState)
   const updateStep = useSkillStore((s) => s.updateStep)
   const reset = useSkillStore((s) => s.reset)
+  const forceVisible =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('usan_e2e_force_skill_runner') === '1'
+
+  useEffect(() => {
+    if (!forceVisible || currentRun) {
+      return
+    }
+
+    const store = useSkillStore.getState()
+    store.startRun('e2e-skill-runner', 'File cleanup check', [
+      { id: 'scan', title: 'Check the selected folder', status: 'done', detail: 'Folder scan finished.' },
+      { id: 'review', title: 'Review suggested changes', status: 'failed', detail: 'Usan needs you to check one item.' },
+      { id: 'finish', title: 'Finish cleanup', status: 'pending' },
+    ])
+    store.setState('failed', 'network timeout')
+  }, [currentRun, forceVisible])
 
   if (!currentRun) return null
 
@@ -49,66 +69,55 @@ export default function SkillRunner() {
   const canPause = state === 'running'
   const canResume = state === 'paused'
   const canCancel = state === 'running' || state === 'paused' || state === 'validating'
+  const completedSteps = steps.filter((step) => step.status === 'done').length
+  const activeStep =
+    steps.find((step) => step.status === 'running') ??
+    steps.find((step) => step.status === 'failed') ??
+    null
+  const progressPercent = steps.length > 0 ? Math.round((completedSteps / steps.length) * 100) : 0
 
   return (
-    <div className="border border-[var(--color-border)] rounded-[var(--radius-lg)] bg-[var(--color-bg-card)] p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="font-semibold text-[var(--color-text)] text-[length:var(--text-md)]">
-            {title}
-          </h3>
-          <span
-            className={`inline-block mt-1 px-3 py-1 rounded-full font-medium text-[length:var(--text-sm)] ${STATE_BG[state]}`}
-          >
-            {t(STATE_LABEL[state])}
-          </span>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-2">
-          {canPause && (
-            <button
-              onClick={() => setState('paused')}
-              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-bg)] hover:bg-[var(--color-bg-sidebar)] transition-all"
-              style={{ minWidth: '44px', minHeight: '44px' }}
-              aria-label={t('skill.pause')}
-            >
-              <Pause size={20} />
-            </button>
-          )}
-          {canResume && (
-            <button
-              onClick={() => setState('running')}
-              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-primary)] text-[var(--color-text-inverse)] hover:bg-[var(--color-primary-hover)] transition-all"
-              style={{ minWidth: '44px', minHeight: '44px' }}
-              aria-label={t('skill.resume')}
-            >
-              <Play size={20} />
-            </button>
-          )}
-          {canCancel && (
-            <button
-              onClick={() => setState('cancelled')}
-              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] text-[var(--color-danger)] hover:bg-[var(--color-danger-bg-hover)] transition-all"
-              style={{ minWidth: '44px', minHeight: '44px' }}
-              aria-label={t('skill.cancel')}
-            >
-              <Square size={20} />
-            </button>
-          )}
-          {(state === 'done' || state === 'failed' || state === 'cancelled') && (
-            <button
-              onClick={reset}
-              className="p-3 rounded-[var(--radius-md)] bg-[var(--color-bg)] hover:bg-[var(--color-bg-sidebar)] transition-all text-[var(--color-text-muted)]"
-              style={{ minWidth: '44px', minHeight: '44px' }}
-              aria-label={t('titlebar.close')}
-            >
-              <XCircle size={20} />
-            </button>
-          )}
-        </div>
-      </div>
+    <section
+      data-view="skill-runner"
+      aria-label={t('skill.title')}
+      className="fixed bottom-10 left-6 z-40 w-[360px] max-w-[calc(100vw-3rem)] rounded-[var(--radius-lg)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 shadow-[var(--shadow-lg)]"
+    >
+      <ProgressSummary
+        title={title}
+        status={<Badge variant={STATE_BADGE[state]}>{t(STATE_LABEL[state])}</Badge>}
+        metrics={[
+          { label: t('progress.progress'), value: `${completedSteps}/${steps.length}` },
+          { label: t('progress.status'), value: t(STATE_LABEL[state]) },
+        ]}
+        progressPercent={progressPercent}
+        progressLabel={t('progress.progress')}
+        footer={activeStep ? `${t('progress.current')}: ${activeStep.title}` : t('progress.finished')}
+        actions={
+          <>
+            {canPause && (
+              <Button size="sm" variant="secondary" leftIcon={<Pause size={14} />} onClick={() => setState('paused')}>
+                {t('skill.pause')}
+              </Button>
+            )}
+            {canResume && (
+              <Button size="sm" leftIcon={<Play size={14} />} onClick={() => setState('running')}>
+                {t('skill.resume')}
+              </Button>
+            )}
+            {canCancel && (
+              <Button size="sm" variant="danger" leftIcon={<Square size={14} />} onClick={() => setState('cancelled')}>
+                {t('skill.cancel')}
+              </Button>
+            )}
+            {(state === 'done' || state === 'failed' || state === 'cancelled') && (
+              <Button size="sm" variant="secondary" leftIcon={<XCircle size={14} />} onClick={reset}>
+                {t('titlebar.close')}
+              </Button>
+            )}
+          </>
+        }
+        className="mb-4"
+      />
 
       {/* Step timeline */}
       <div className="flex flex-col gap-1">
@@ -155,10 +164,18 @@ export default function SkillRunner() {
 
       {/* Error message */}
       {error && (
-        <div className="mt-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] text-[var(--color-danger)] text-[length:var(--text-md)]">
-          {error}
-        </div>
+        <InlineNotice tone="error" title={t('skill.failed')} className="mt-3">
+          <p>{toSkillErrorMessage(error)}</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[length:var(--text-xs)] font-medium text-[var(--color-text-muted)]">
+              {t('error.details')}
+            </summary>
+            <pre className="mt-2 whitespace-pre-wrap rounded-[var(--radius-sm)] bg-[var(--color-bg-card)] p-2 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+              {toTechnicalErrorDetails(error)}
+            </pre>
+          </details>
+        </InlineNotice>
       )}
-    </div>
+    </section>
   )
 }

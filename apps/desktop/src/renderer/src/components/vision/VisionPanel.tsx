@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { OcrResult, UiElement } from '@shared/types/infrastructure'
 import { ScanEye, Search } from 'lucide-react'
-import { Button, Card, Input, SectionHeader } from '../ui'
+import { Button, Card, InlineNotice, Input, SectionHeader } from '../ui'
 import { t } from '../../i18n'
+import { toVisionErrorMessage } from '../../lib/user-facing-errors'
 import ScreenAnnotation from './ScreenAnnotation'
 import OCRResult from './OCRResult'
 
@@ -36,7 +37,7 @@ export default function VisionPanel() {
       setOcr(nextOcr ?? null)
       setFoundElement(null)
     } catch (err) {
-      setError((err as Error).message)
+      setError(toVisionErrorMessage(err, 'analyze'))
     } finally {
       setLoadingAnalyze(false)
     }
@@ -49,7 +50,7 @@ export default function VisionPanel() {
       const result = await window.usan?.vision.ocr()
       setOcr(result ?? null)
     } catch (err) {
-      setError((err as Error).message)
+      setError(toVisionErrorMessage(err, 'ocr'))
     } finally {
       setLoadingOcr(false)
     }
@@ -72,7 +73,7 @@ export default function VisionPanel() {
         })
       }
     } catch (err) {
-      setError((err as Error).message)
+      setError(toVisionErrorMessage(err, 'find'))
     } finally {
       setLoadingFind(false)
     }
@@ -105,14 +106,14 @@ export default function VisionPanel() {
         </Button>
       </div>
 
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+      {error ? (
+        <InlineNotice tone="error" title={t('vision.helpTitle')}>
           {error}
-        </p>
-      )}
+        </InlineNotice>
+      ) : null}
 
       {foundElement && (
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text)]">
+        <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text)]">
           <strong>{t('vision.findElement')}:</strong> {foundElement.label}
         </div>
       )}

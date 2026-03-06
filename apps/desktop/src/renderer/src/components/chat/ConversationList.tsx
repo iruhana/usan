@@ -125,10 +125,10 @@ export default function ConversationList() {
     : undefined
 
   return (
-    <div className="w-64 shrink-0 border-r border-[var(--color-border)] flex flex-col bg-[var(--color-bg)]">
+    <div className="w-64 shrink-0 border-r border-[var(--color-border-subtle)] flex flex-col bg-[var(--color-bg)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)]">
-        <span className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)]">
+      <div className="flex items-center justify-between px-3 h-11 shrink-0">
+        <span className="text-[length:var(--text-sm)] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">
           {t('chat.conversations')}
         </span>
         <IconButton
@@ -142,22 +142,23 @@ export default function ConversationList() {
 
       {/* List */}
       <div
-        className="flex-1 overflow-y-auto focus:outline-none"
-        role="listbox"
-        aria-label={t('chat.conversations')}
-        tabIndex={0}
-        onKeyDown={handleListKeyDown}
-        aria-activedescendant={activeDescendant}
+        className="flex-1 overflow-y-auto px-1.5 focus:outline-none"
+        role={sorted.length > 0 ? 'listbox' : undefined}
+        aria-label={sorted.length > 0 ? t('chat.conversations') : undefined}
+        tabIndex={sorted.length > 0 ? 0 : -1}
+        onKeyDown={sorted.length > 0 ? handleListKeyDown : undefined}
+        aria-activedescendant={sorted.length > 0 ? activeDescendant : undefined}
       >
         {sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-[var(--color-text-muted)]">
-            <MessageSquare size={28} className="mb-2 opacity-30" />
-            <p className="text-[length:var(--text-sm)] text-center">
+            <div className="w-12 h-12 rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)] flex items-center justify-center mb-3">
+              <MessageSquare size={22} className="text-[var(--color-text-muted)] opacity-50" />
+            </div>
+            <p className="text-[length:var(--text-sm)] text-center mb-3">
               {t('chat.noConversations')}
             </p>
             <Button
               size="sm"
-              className="mt-3"
               onClick={() => newConversation()}
             >
               {t('chat.startNew')}
@@ -175,25 +176,33 @@ export default function ConversationList() {
                 : ''
 
             return (
-              <button
+              <div
                 key={conv.id}
                 id={`conv-${conv.id}`}
                 onClick={() => setActiveConversation(conv.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setActiveConversation(conv.id)
+                  }
+                }}
                 role="option"
+                tabIndex={-1}
                 aria-selected={isActive}
+                aria-label={conv.title || t('chat.newConversation')}
                 title={conv.title || t('chat.newConversation')}
-                className={`w-full text-left px-3 py-2 transition-all group ${
+                className={`w-full text-left px-3 py-2.5 rounded-[var(--radius-md)] mb-0.5 transition-all group cursor-pointer ${
                   isActive
-                    ? 'bg-[var(--color-primary-light)] border-l-2 border-l-[var(--color-primary)]'
+                    ? 'bg-[var(--color-bg-card)] shadow-[var(--shadow-sm)] ring-1 ring-[var(--color-border)]'
                     : isFocused
-                      ? 'bg-[var(--color-surface-soft)] border-l-2 border-l-[var(--color-text-muted)]'
-                      : 'hover:bg-[var(--color-surface-soft)] border-l-2 border-l-transparent'
+                      ? 'bg-[var(--color-surface-soft)]'
+                      : 'hover:bg-[var(--color-surface-soft)]'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p
-                      className={`text-[length:var(--text-md)] font-medium truncate ${isActive ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`}
+                      className={`text-[length:var(--text-md)] truncate ${isActive ? 'font-semibold text-[var(--color-text)]' : 'font-medium text-[var(--color-text)]'}`}
                     >
                       {conv.title || t('chat.newConversation')}
                     </p>
@@ -202,9 +211,14 @@ export default function ConversationList() {
                         {preview}
                       </p>
                     )}
-                    <div className="flex items-center gap-2 mt-0.5 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+                    <div className="flex items-center gap-1.5 mt-1 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
                       <span>{formatRelativeTime(lastTime)}</span>
-                      {msgCount > 0 && <span>· {msgCount} {t('chat.messages')}</span>}
+                      {msgCount > 0 && (
+                        <>
+                          <span className="w-0.5 h-0.5 rounded-full bg-[var(--color-text-muted)] opacity-50" />
+                          <span>{msgCount} {t('chat.messages')}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                   {pendingDeleteId === conv.id ? (
@@ -232,43 +246,43 @@ export default function ConversationList() {
                         e.stopPropagation()
                         setPendingDeleteId(conv.id)
                       }}
-                      className="p-1.5 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger-bg)] text-[var(--color-danger)] transition-all shrink-0"
+                      className="p-1.5 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger-light)] text-[var(--color-danger)] transition-all shrink-0"
                       aria-label={t('chat.delete')}
                     >
                       <Trash2 size={14} />
                     </button>
                   )}
                 </div>
-              </button>
+              </div>
             )
           })
         )}
       </div>
 
       {/* Trash toggle */}
-      <div className="border-t border-[var(--color-border)]">
+      <div className="border-t border-[var(--color-border-subtle)] mx-1.5">
         <button
           onClick={() => setShowTrash(!showTrash)}
-          className="w-full flex items-center gap-2 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] transition-all"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] text-[length:var(--text-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] transition-all mt-1"
         >
           <Archive size={14} />
           <span>{t('chat.trash')}</span>
           {trashItems.length > 0 && (
-            <span className="ml-auto text-[length:var(--text-xs)] bg-[var(--color-surface-soft)] px-1.5 rounded-full">
+            <span className="ml-auto text-[length:var(--text-xs)] bg-[var(--color-surface-soft)] px-1.5 py-0.5 rounded-full font-medium">
               {trashItems.length}
             </span>
           )}
         </button>
 
         {showTrash && (
-          <div className="max-h-48 overflow-y-auto">
+          <div className="max-h-48 overflow-y-auto pb-1">
             {trashItems.length === 0 ? (
               <p className="px-3 py-3 text-center text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
                 {t('chat.trashEmpty')}
               </p>
             ) : (
               trashItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 px-3 py-1.5 group hover:bg-[var(--color-surface-soft)]">
+                <div key={item.id} className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-sm)] group hover:bg-[var(--color-surface-soft)] transition-all mx-1">
                   <div className="flex-1 min-w-0">
                     <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] truncate">
                       {item.title || t('chat.newConversation')}
@@ -276,15 +290,17 @@ export default function ConversationList() {
                   </div>
                   <button
                     onClick={() => handleRestore(item.id)}
-                    className="p-1 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-success-bg)] text-[var(--color-success)] transition-all"
+                    className="p-1 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-success-light)] text-[var(--color-success)] transition-all"
                     title={t('chat.restore')}
+                    aria-label={t('chat.restore')}
                   >
                     <RotateCcw size={12} />
                   </button>
                   <button
                     onClick={() => handlePermanentDelete(item.id)}
-                    className="p-1 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger-bg)] text-[var(--color-danger)] transition-all"
+                    className="p-1 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger-light)] text-[var(--color-danger)] transition-all"
                     title={t('chat.permanentDelete')}
+                    aria-label={t('chat.permanentDelete')}
                   >
                     <Trash2 size={12} />
                   </button>

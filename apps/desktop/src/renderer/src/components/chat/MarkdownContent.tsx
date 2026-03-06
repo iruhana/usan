@@ -21,13 +21,13 @@ export default function MarkdownContent({ content }: MarkdownContentProps) {
           const isBlock = className?.includes('language-')
           if (isBlock) {
             return (
-              <code className="block bg-[var(--color-surface-soft)] border border-[var(--color-border)]/50 rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-sm)] font-mono overflow-x-auto whitespace-pre my-2">
+              <code className="block bg-[var(--color-surface-soft)] ring-1 ring-[var(--color-border-subtle)] rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-sm)] font-mono overflow-x-auto whitespace-pre my-2">
                 {children}
               </code>
             )
           }
           return (
-            <code className="bg-[var(--color-surface-soft)] border border-[var(--color-border)]/50 rounded px-1.5 py-0.5 text-[length:var(--text-sm)] font-mono">
+            <code className="bg-[var(--color-surface-soft)] ring-1 ring-[var(--color-border-subtle)] rounded px-1.5 py-0.5 text-[length:var(--text-sm)] font-mono">
               {children}
             </code>
           )
@@ -49,12 +49,12 @@ export default function MarkdownContent({ content }: MarkdownContentProps) {
           </div>
         ),
         th: ({ children }) => (
-          <th className="border border-[var(--color-border)] bg-[var(--color-surface-soft)] px-2 py-1 text-left font-semibold">
+          <th className="border border-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] px-2 py-1 text-left font-semibold">
             {children}
           </th>
         ),
         td: ({ children }) => (
-          <td className="border border-[var(--color-border)] px-2 py-1">{children}</td>
+          <td className="border border-[var(--color-border-subtle)] px-2 py-1">{children}</td>
         ),
         hr: () => <hr className="border-[var(--color-border)] my-3" />,
         strong: ({ children }) => <strong className="font-semibold">{children}</strong>,

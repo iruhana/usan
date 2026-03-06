@@ -3,11 +3,12 @@
  */
 
 import { lazy, memo, Suspense, useState, useCallback } from 'react'
-import { Sparkles, CheckCircle, AlertCircle, Loader2, RefreshCw, Copy, Check } from 'lucide-react'
+import { Umbrella, CheckCircle, AlertCircle, Loader2, RefreshCw, Copy, Check } from 'lucide-react'
 import type { ChatMessage } from '@shared/types/ipc'
 import { useChatStore } from '../../stores/chat.store'
 import { t } from '../../i18n'
 import { Button } from '../ui'
+import { shouldRenderMarkdown } from './markdown-heuristics'
 
 interface Props {
   message: ChatMessage
@@ -40,7 +41,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="opacity-0 group-hover:opacity-100 p-1 rounded-[var(--radius-sm)] hover:bg-[var(--color-surface-soft)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-all"
+      className="opacity-0 group-hover:opacity-100 p-1 rounded-[var(--radius-sm)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-all"
       aria-label={copied ? t('chat.copied') : t('chat.copy')}
       title={copied ? t('chat.copied') : t('chat.copy')}
     >
@@ -56,6 +57,7 @@ export default memo(function MessageBubble({ message }: Props) {
   const isUser = message.role === 'user'
   const isTool = message.role === 'tool'
   const isAssistant = message.role === 'assistant'
+  const renderMarkdown = isAssistant && shouldRenderMarkdown(message.content)
 
   // Tool result message
   if (isTool) {
@@ -66,26 +68,24 @@ export default memo(function MessageBubble({ message }: Props) {
       <div className="flex justify-start">
         <div className="flex flex-col gap-2">
           <div
-            className={`flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] border text-[length:var(--text-md)] ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-[var(--radius-lg)] text-[length:var(--text-md)] ${
               isError
-                ? 'bg-[var(--color-danger-bg)] border-[var(--color-danger)]/20'
-                : 'bg-[var(--color-surface-soft)] border-[var(--color-border)]'
+                ? 'bg-[var(--color-danger-light)] text-[var(--color-danger)]'
+                : 'bg-[var(--color-success-light)] text-[var(--color-success)]'
             }`}
           >
             {isError ? (
-              <AlertCircle size={16} className="text-[var(--color-danger)] shrink-0" />
+              <AlertCircle size={16} className="shrink-0" />
             ) : (
-              <CheckCircle size={16} className="text-[var(--color-success)] shrink-0" />
+              <CheckCircle size={16} className="shrink-0" />
             )}
-            <span className={`font-medium ${isError ? 'text-[var(--color-danger)]' : 'text-[var(--color-text)]'}`}>
-              {message.content}
-            </span>
+            <span className="font-medium">{message.content}</span>
           </div>
           {hasImage && (
             <img
               src={`data:image/png;base64,${screenshot?.image}`}
               alt={t('tool.screenshot')}
-              className="max-w-sm rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-[var(--shadow-sm)]"
+              className="max-w-sm rounded-[var(--radius-lg)] shadow-[var(--shadow-md)]"
             />
           )}
         </div>
@@ -97,10 +97,10 @@ export default memo(function MessageBubble({ message }: Props) {
   if (isAssistant && message.toolCalls?.length) {
     return (
       <div className="flex justify-start">
-        <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--color-primary-light)] border border-[var(--color-primary)]/15 text-[length:var(--text-md)]">
-          <Loader2 size={18} className="text-[var(--color-primary)] shrink-0 animate-spin" />
+        <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--color-primary-muted)] text-[length:var(--text-md)]">
+          <Loader2 size={16} className="text-[var(--color-primary)] shrink-0 animate-spin" />
           <div className="flex flex-col">
-            <span className="font-semibold text-[var(--color-primary)]">
+            <span className="font-medium text-[var(--color-primary)]">
               {(() => {
                 const name = message.toolCalls?.[0]?.name
                 if (!name) return ''
@@ -122,7 +122,7 @@ export default memo(function MessageBubble({ message }: Props) {
   if (isAssistant && message.isError) {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] rounded-[var(--radius-lg)] bg-[var(--color-danger-bg)] border border-[var(--color-danger)]/20 px-4 py-3 text-[length:var(--text-md)]">
+        <div className="max-w-[80%] rounded-[var(--radius-lg)] bg-[var(--color-danger-light)] px-4 py-3 text-[length:var(--text-md)]">
           <div className="flex items-center gap-2 mb-2">
             <AlertCircle size={16} className="text-[var(--color-danger)] shrink-0" />
             <span className="font-medium text-[var(--color-danger)]">
@@ -151,28 +151,28 @@ export default memo(function MessageBubble({ message }: Props) {
   return (
     <div className={`group flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[80%]`}>
+        {/* Assistant avatar row */}
+        {isAssistant && (
+          <div className="flex items-center gap-2 mb-1.5 px-1">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] flex items-center justify-center shadow-[var(--shadow-xs)]">
+              <Umbrella size={10} className="text-white" strokeWidth={2.2} />
+            </div>
+            <span className="text-[length:var(--text-xs)] font-semibold text-[var(--color-text-secondary)]">
+              {t('app.name')}
+            </span>
+            <CopyButton text={message.content} />
+          </div>
+        )}
+
         <div
           className={`px-4 py-3 text-[length:var(--text-md)] ${
             isUser
-              ? 'bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-hover)] text-[var(--color-text-inverse)] rounded-xl rounded-br-sm shadow-[var(--shadow-md)]'
-              : 'bg-[var(--color-surface-soft)] border border-[var(--color-border)]/50 rounded-xl rounded-bl-sm'
+              ? 'bg-[var(--color-primary)] text-white rounded-[var(--radius-xl)] rounded-br-[var(--radius-sm)] shadow-[var(--shadow-primary)]'
+              : 'bg-[var(--color-bg-card)] rounded-[var(--radius-xl)] rounded-bl-[var(--radius-sm)] shadow-[var(--shadow-sm)] ring-1 ring-[var(--color-border-subtle)]'
           }`}
           style={{ lineHeight: 'var(--line-height-base)' }}
         >
-          {isAssistant && (
-            <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-[var(--color-primary)]/15">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center">
-                  <Sparkles size={11} className="text-[var(--color-text-inverse)]" />
-                </div>
-                <span className="text-[length:var(--text-xs)] font-semibold text-[var(--color-primary)]">
-                  {t('app.name')}
-                </span>
-              </div>
-              <CopyButton text={message.content} />
-            </div>
-          )}
-          {isAssistant ? (
+          {renderMarkdown ? (
             <Suspense fallback={<div className="whitespace-pre-wrap">{message.content}</div>}>
               <MarkdownContent content={message.content} />
             </Suspense>
@@ -181,7 +181,7 @@ export default memo(function MessageBubble({ message }: Props) {
           )}
         </div>
         {timeLabel && (
-          <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mt-1 px-1">
+          <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mt-1 px-1 opacity-60">
             {timeLabel}
           </span>
         )}

@@ -27,7 +27,7 @@ export default function SuggestionCard({ suggestion, onDismiss, onAction }: Sugg
         : <Bell size={14} className="mt-0.5 shrink-0" style={{ color: iconColor }} />
 
   return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
+    <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3 transition-all hover:ring-[var(--color-border)]">
       <div className="mb-2 flex items-start gap-2">
         {icon}
         <div className="min-w-0 flex-1">

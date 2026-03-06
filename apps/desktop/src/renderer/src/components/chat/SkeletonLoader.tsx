@@ -3,11 +3,13 @@ import { t } from '../../i18n'
 
 interface Props {
   phase?: 'waiting' | 'tool' | 'generating'
+  toolLabel?: string | null
 }
 
-export function SkeletonLoader({ phase = 'waiting' }: Props) {
+export function SkeletonLoader({ phase = 'waiting', toolLabel = null }: Props) {
   const Icon = phase === 'tool' ? Cog : phase === 'generating' ? Sparkles : Loader2
   const label =
+    phase === 'tool' && toolLabel ? `${toolLabel} ${t('status.toolRunningSuffix')}` :
     phase === 'tool' ? t('home.toolRunning') :
     phase === 'generating' ? t('home.generating') :
     t('home.thinking')
@@ -15,7 +17,7 @@ export function SkeletonLoader({ phase = 'waiting' }: Props) {
   return (
     <div className="flex justify-start">
       <div
-        className="flex items-center gap-2 px-4 py-3 rounded-xl rounded-bl-sm bg-[var(--color-surface-soft)] border border-[var(--color-border)]/50 text-[length:var(--text-md)]"
+        className="flex items-center gap-2 px-4 py-3 rounded-[var(--radius-lg)] rounded-bl-[var(--radius-sm)] bg-[var(--color-surface-soft)] ring-1 ring-[var(--color-border-subtle)] text-[length:var(--text-md)]"
         role="status"
         aria-live="polite"
         aria-label={label}
