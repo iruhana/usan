@@ -1,6 +1,6 @@
 # 우산 (Usan) — AI Personal Secretary
 
-> 어르신과 컴맹을 위한 AI 개인 비서
+> 컴퓨터 초보를 위한 AI 개인 비서
 
 ## 구조
 
