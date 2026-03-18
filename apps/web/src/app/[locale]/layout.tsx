@@ -19,11 +19,38 @@ export async function generateMetadata({
     ko: '우산 - 에이전트 워크스페이스',
     en: 'Usan - Agentic Workspace',
   };
+  const descriptions: Record<string, string> = {
+    ko: '하나의 입력창에서 계획, 실행, 승인, 결과물 생성을 이어주는 에이전트 워크스페이스',
+    en: 'Agentic workspace that plans, executes, approves, and delivers from a single input',
+  };
   return {
     title: titles[locale] || titles.ko,
-    description: titles[locale] || titles.ko,
+    description: descriptions[locale] || descriptions.ko,
     metadataBase: new URL('https://usan.ai'),
     alternates: { languages: { ko: '/ko', en: '/en' } },
+    icons: {
+      icon: [
+        { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+        { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      ],
+      shortcut: '/favicon.ico',
+      apple: '/apple-touch-icon.png',
+    },
+    openGraph: {
+      title: titles[locale] || titles.ko,
+      description: descriptions[locale] || descriptions.ko,
+      url: 'https://usan.ai',
+      siteName: 'Usan',
+      images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Usan - Agentic Workspace' }],
+      locale: locale === 'ko' ? 'ko_KR' : 'en_US',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: titles[locale] || titles.ko,
+      description: descriptions[locale] || descriptions.ko,
+      images: ['/og-image.png'],
+    },
   };
 }
 

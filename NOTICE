@@ -1,0 +1,60 @@
+Usan (우산) — Agentic Workspace
+Copyright 2026 Celovin
+
+This product includes software and skill definitions adapted from the
+OpenClaw project, licensed under the Apache License, Version 2.0.
+
+  OpenClaw — https://github.com/nicholasgriffintn/openclaw
+  License: Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+
+The following skill definitions were derived from OpenClaw and adapted
+for the Usan platform. All OpenClaw-specific references (branding,
+paths, infrastructure) have been replaced. Each skill file retains
+metadata.source: "openclaw" and metadata.license: "Apache-2.0" for
+attribution.
+
+Ported Skills (28):
+
+  Security:
+    - security-sentinel (from openclaw/security-sentinel-skill v2.0.3)
+    - input-guard (from openclaw/input-guard v1.0.1)
+
+  Web Search:
+    - naver-news (from openclaw/naver-news v1.0.2)
+    - deep-research-pro (from openclaw/deep-research-pro v1.0.2)
+    - tavily-search-pro (from openclaw/tavily-search-pro v1.0.0)
+
+  Agent Intelligence:
+    - proactive-agent (from openclaw/proactive-agent v3.1.0)
+    - swarm (from openclaw/swarm v1.3.7)
+    - agent-orchestrator (from openclaw/agent-orchestrator v0.1.0)
+    - causal-inference (from openclaw/causal-inference v0.2.0)
+
+  Thinking:
+    - first-principles (from openclaw/first-principles-decomposer v1.0.0)
+    - decision-trees (from openclaw/decision-trees v1.0.1)
+    - pre-mortem (from openclaw/pre-mortem-analyst v1.0.0)
+    - business-model-canvas (from openclaw/business-model-canvas v0.1.0)
+
+  Lifestyle:
+    - plan-my-day (from openclaw/plan-my-day v1.0.0)
+    - daily-briefing (from openclaw/daily-briefing v1.0.5)
+
+  Notes / Utility:
+    - translate (from openclaw/translate v1.0.0)
+    - summarize (from openclaw/summarize v1.0.0)
+
+  Documents:
+    - pdf (from openclaw/pdf v0.1.0)
+    - word-docx (from openclaw/word-docx v1.0.0)
+    - excel-xlsx (from openclaw/excel-xlsx v1.0.1)
+    - powerpoint-pptx (from openclaw/powerpoint-pptx v1.0.0)
+    - diagram-generator (from openclaw/diagram-generator v1.1.1)
+    - table-image-generator (from openclaw/table-image-generator v1.4.0)
+    - image-ocr (from openclaw/image-ocr v1.0.0)
+
+  Automation:
+    - agent-browser (from openclaw/agent-browser v0.2.0)
+    - stealth-browser (from openclaw/stealth-browser v1.0.0)
+    - windows-control (from openclaw/windows-control v1.0.0)
+    - windows-ui-automation (from openclaw/windows-ui-automation v1.0.0)
