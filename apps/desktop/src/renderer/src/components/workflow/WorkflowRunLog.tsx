@@ -86,7 +86,7 @@ export default function WorkflowRunLog({ run, steps, onPause, onResume, onCancel
   const currentStepLabel = currentStep ? describeWorkflowStep(currentStep) : null
 
   return (
-    <Card variant="outline" className="space-y-4">
+    <Card variant="default" className="space-y-4">
       <ProgressSummary
         title={t('workflow.run.title')}
         status={<Badge variant={statusVariant(run.status)}>{getStatusLabel(run.status)}</Badge>}
@@ -132,7 +132,7 @@ export default function WorkflowRunLog({ run, steps, onPause, onResume, onCancel
         {run.stepResults.map((result, index) => (
           <div
             key={`${result.stepId}-${index}`}
-            className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] px-3 py-2"
+            className="rounded-[24px] bg-[var(--color-surface-soft)] px-4 py-3"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">

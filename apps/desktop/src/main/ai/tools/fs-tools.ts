@@ -8,11 +8,12 @@ import { join } from 'path'
 import { validatePath } from '../../security'
 
 const MAX_FILE_SIZE = 1 * 1024 * 1024
+const MAX_DIRECTORY_ENTRIES = 2000
 
 const BINARY_EXTS = new Set([
   'exe', 'dll', 'bin', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico',
   'mp3', 'mp4', 'wav', 'zip', 'rar', '7z', 'gz', 'tar', 'pdf',
-  'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'so', 'dylib',
+  'doc', 'docx', 'hwp', 'hwpx', 'xls', 'xlsx', 'ppt', 'pptx', 'so', 'dylib',
   'o', 'obj', 'class', 'woff', 'woff2', 'ttf', 'eot',
 ])
 
@@ -105,7 +106,7 @@ export const handlers: Record<string, ToolHandler> = {
     if (blocked) return { error: blocked }
     const entries = await readdir(dirPath, { withFileTypes: true })
     const results = await Promise.all(
-      entries.slice(0, 100).map(async (entry) => {
+      entries.slice(0, MAX_DIRECTORY_ENTRIES).map(async (entry) => {
         try {
           const fullPath = join(dirPath, entry.name)
           const info = await stat(fullPath)

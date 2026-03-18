@@ -24,18 +24,25 @@ import { generateImage } from '../image/ai-generator'
 import { listEmails, readEmail, sendEmail, isEmailConfigured } from '../email/email-manager'
 import { listEvents, createEvent, deleteEvent, findFreeTime } from '../calendar/calendar-manager'
 import { startGoogleOAuthFlow, isGoogleAuthenticated, clearGoogleTokens } from '../auth/oauth-google'
+import { startNaverOAuthFlow, getNaverAuthStatus, clearNaverTokens } from '../auth/oauth-naver'
+import { startKakaoOAuthFlow, getKakaoAuthStatus, clearKakaoTokens } from '../auth/oauth-kakao'
 import { planOrganization, executeOrganization } from '../file-org/file-categorizer'
 import { findDuplicateGroups } from '../file-org/duplicate-detector'
 import { wakeWordDetector } from '../voice/wake-word-detector'
 import { marketplaceClient } from '../marketplace/marketplace-client'
+import { clearCredentialVault, getCredentialVaultSummary, importCredentialCsv } from '../password/password-vault'
 import { runOcr } from '../vision/ocr-engine'
 import { analyzeUiFromScreen, findUiElement } from '../vision/ui-detector'
 import { listDisplays, screenshotDisplay } from '../monitors/monitor-manager'
 import {
+  type CapabilityGrantRequest,
+  type CapabilityGrantResponse,
   applyPermissionGrantRequest,
   applyPermissionRevokeRequest,
   isPermissionGranted,
   isTimedGrantActive,
+  normalizePermissionGrant,
+  normalizePermissionPath,
   type PermissionGrantRequest,
   type PermissionRevokeRequest,
 } from '@shared/types/permissions'
@@ -56,10 +63,12 @@ import { signInWithEmail, signUp, signInWithOTP, verifyOTP, signOut, getSession 
 import { pushData, pullData, getSyncStatus, validateSyncUser } from '../sync/sync-engine'
 import type { UserMemory } from '../store'
 import { logObsInfo, logObsWarn } from '../observability'
+import { getToolSecurityProfile, securityRuntime, type ToolExecutionContext } from '../security/index'
 
 // Persistent settings (loaded from disk on startup)
 let settings: AppSettings = loadSettings()
 let permissionGrant = loadPermissions()
+const FORCE_ONBOARDING_E2E = process.env['USAN_E2E_FORCE_ONBOARDING'] === '1'
 
 // Apply saved settings to AI on startup
 updateAiSettings(settings)
@@ -131,6 +140,15 @@ function requirePermission(feature: string): void {
   throw new Error(`沅뚰븳 ?숈쓽媛 ?꾩슂??湲곕뒫?낅땲?? ${feature}`)
 }
 
+function getRendererToolContext(): ToolExecutionContext {
+  return {
+    actorType: 'renderer',
+    actorId: 'renderer',
+    source: 'ipc',
+    permissionGrant,
+  }
+}
+
 function buildImageOutputPath(inputPath: string, outputPath: string | undefined, suffix: string, fallbackExt: string): string {
   if (outputPath && outputPath.trim()) {
     return outputPath.trim()
@@ -143,7 +161,7 @@ function buildImageOutputPath(inputPath: string, outputPath: string | undefined,
   return join(app.getPath('temp'), `${safeBase}-${suffix}-${Date.now()}${ext}`)
 }
 
-const ALLOWED_GRANT_SCOPES = new Set(['all', 'tools', 'features', 'skills'])
+const ALLOWED_GRANT_SCOPES = new Set(['all', 'tools', 'features', 'skills', 'directories'])
 const MAX_GRANT_ITEMS = 200
 
 function sanitizeGrantRequest(request?: PermissionGrantRequest): PermissionGrantRequest {
@@ -166,6 +184,44 @@ function sanitizeGrantRequest(request?: PermissionGrantRequest): PermissionGrant
   }
 
   return { scope, items, ttlMinutes, confirmAll }
+}
+
+function sanitizeCapabilityGrantRequest(request?: CapabilityGrantRequest): CapabilityGrantRequest {
+  if (!request || typeof request !== 'object') {
+    throw new Error('Valid capability request is required')
+  }
+
+  const sessionId = typeof request.sessionId === 'string' ? request.sessionId.trim() : ''
+  const actorType = request.actorType
+  const actorId = typeof request.actorId === 'string' && request.actorId.trim() ? request.actorId.trim() : undefined
+  const toolName = typeof request.toolName === 'string' ? request.toolName.trim() : ''
+
+  if (!sessionId || sessionId.length > 200) {
+    throw new Error('Valid sessionId is required')
+  }
+  if (actorType !== 'agent' && actorType !== 'workflow') {
+    throw new Error('Capability actorType must be agent or workflow')
+  }
+  if (!toolName || toolName.length > 120) {
+    throw new Error('Valid toolName is required')
+  }
+
+  const scopePaths = Array.isArray(request.scopePaths)
+    ? request.scopePaths
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => normalizePermissionPath(item))
+      .filter((item) => item.length > 0 && item.length <= 260)
+      .slice(0, 20)
+    : undefined
+
+  return {
+    sessionId,
+    actorType,
+    actorId,
+    toolName,
+    scopePaths: scopePaths?.length ? scopePaths : undefined,
+    ttlMinutes: typeof request.ttlMinutes === 'number' ? request.ttlMinutes : undefined,
+  }
 }
 
 async function confirmGrantRequest(
@@ -204,10 +260,40 @@ async function confirmGrantRequest(
   }
 }
 
-export function registerIpcHandlers(): void {
-  permissionGrant = applyPermissionGrantRequest(permissionGrant, { scope: 'all', confirmAll: true })
-  savePermissions(permissionGrant).catch(() => {})
+async function confirmCapabilityRequest(
+  request: CapabilityGrantRequest,
+  senderWindow: BrowserWindow | null,
+): Promise<void> {
+  const dialogOptions: Electron.MessageBoxOptions = {
+    type: 'warning',
+    buttons: ['허용', '취소'],
+    defaultId: 1,
+    cancelId: 1,
+    title: '고위험 작업 승인',
+    message: 'Usan이 고위험 도구 실행 승인을 요청합니다.',
+    detail: [
+      `세션: ${request.sessionId}`,
+      `주체: ${request.actorType}`,
+      `도구: ${request.toolName}`,
+      `범위: ${request.scopePaths?.join(', ') ?? 'session-wide'}`,
+      `TTL(minutes): ${request.ttlMinutes ?? 'default'}`,
+      '',
+      '이 승인은 한 세션에서만 짧은 시간 동안 유효합니다.',
+      '신뢰할 수 있는 작업인지 확인한 뒤 허용하세요.',
+    ].join('\n'),
+    noLink: true,
+  }
 
+  const response = senderWindow
+    ? await dialog.showMessageBox(senderWindow, dialogOptions)
+    : await dialog.showMessageBox(dialogOptions)
+
+  if (response.response !== 0) {
+    throw new Error('사용자가 capability 승인을 취소했습니다')
+  }
+}
+
+export function registerIpcHandlers(): void {
   // ??? AI Handlers ????????????????????????????
   registerAiIpcHandlers()
 
@@ -230,7 +316,7 @@ export function registerIpcHandlers(): void {
   // ??? Computer Use: Screenshot ?????????????????
   safeHandle(IPC.COMPUTER_SCREENSHOT, async (): Promise<ScreenCaptureResult> => {
     requirePermission('computer.screenshot')
-    const result = await toolCatalog.execute('screenshot', {})
+    const result = await toolCatalog.execute('screenshot', {}, getRendererToolContext())
     if (result.error) throw new Error(result.error)
     return result.result as ScreenCaptureResult
   })
@@ -238,31 +324,31 @@ export function registerIpcHandlers(): void {
   // ??? File System (validation delegated to ToolCatalog) ??
   safeHandle(IPC.FS_READ, async (_, { path }: { path: string }): Promise<string> => {
     requirePermission('fs.read')
-    const result = await toolCatalog.execute('read_file', { path })
+    const result = await toolCatalog.execute('read_file', { path }, getRendererToolContext())
     if (result.error) throw new Error(result.error)
     return (result.result as { content: string }).content
   })
 
   safeHandle(IPC.FS_WRITE, async (_, { path, content }: { path: string; content: string }) => {
     requirePermission('fs.write')
-    const result = await toolCatalog.execute('write_file', { path, content })
+    const result = await toolCatalog.execute('write_file', { path, content }, getRendererToolContext())
     if (result.error) throw new Error(result.error)
   })
 
   safeHandle(IPC.FS_DELETE, async (_, { path }: { path: string }) => {
     requirePermission('fs.delete')
-    const result = await toolCatalog.execute('delete_file', { path })
+    const result = await toolCatalog.execute('delete_file', { path }, getRendererToolContext())
     if (result.error) throw new Error(result.error)
   })
 
   safeHandle(IPC.FS_LIST, async (_, { dir }: { dir: string }): Promise<FileEntry[]> => {
     requirePermission('fs.list')
-    const result = await toolCatalog.execute('list_directory', { path: dir })
+    const result = await toolCatalog.execute('list_directory', { path: dir }, getRendererToolContext())
     if (result.error) throw new Error(result.error)
     const data = result.result as { entries: Array<{ name: string; isDirectory: boolean; size: number; modified: string }> }
     return data.entries.map((e) => ({
       name: e.name,
-      path: `${dir}/${e.name}`,
+      path: join(dir, e.name),
       isDirectory: e.isDirectory,
       size: e.size,
       modifiedAt: new Date(e.modified).getTime(),
@@ -274,7 +360,7 @@ export function registerIpcHandlers(): void {
     IPC.SHELL_EXEC,
     async (_, { command, cwd }: { command: string; cwd?: string }) => {
       requirePermission('shell.exec')
-      const result = await toolCatalog.execute('run_command', { command, cwd })
+      const result = await toolCatalog.execute('run_command', { command, cwd }, getRendererToolContext())
       if (result.error) {
         return { stdout: '', stderr: result.error, exitCode: 1 }
       }
@@ -293,14 +379,22 @@ export function registerIpcHandlers(): void {
     if (partial.fontScale !== undefined) safe.fontScale = Number(partial.fontScale)
     if (partial.highContrast !== undefined) safe.highContrast = Boolean(partial.highContrast)
     if (partial.voiceEnabled !== undefined) safe.voiceEnabled = Boolean(partial.voiceEnabled)
+    if (partial.voiceOverlayEnabled !== undefined) safe.voiceOverlayEnabled = Boolean(partial.voiceOverlayEnabled)
     if (partial.voiceSpeed !== undefined) safe.voiceSpeed = Number(partial.voiceSpeed)
     if (partial.locale !== undefined && ['ko', 'en', 'ja'].includes(partial.locale)) safe.locale = partial.locale
+    if (partial.localeConfigured !== undefined) safe.localeConfigured = Boolean(partial.localeConfigured)
     if (partial.theme !== undefined && ['light', 'dark', 'system'].includes(partial.theme)) safe.theme = partial.theme
     if (partial.openAtLogin !== undefined) safe.openAtLogin = Boolean(partial.openAtLogin)
     if (partial.updateChannel !== undefined && ['stable', 'beta'].includes(partial.updateChannel)) safe.updateChannel = partial.updateChannel
     if (partial.autoDownloadUpdates !== undefined) safe.autoDownloadUpdates = Boolean(partial.autoDownloadUpdates)
     if (partial.permissionProfile !== undefined && ['full', 'balanced', 'strict'].includes(partial.permissionProfile)) {
       safe.permissionProfile = partial.permissionProfile
+    }
+    if (partial.sidebarCollapsed !== undefined) safe.sidebarCollapsed = Boolean(partial.sidebarCollapsed)
+    if (partial.enterToSend !== undefined) safe.enterToSend = Boolean(partial.enterToSend)
+    if (partial.beginnerMode !== undefined) safe.beginnerMode = Boolean(partial.beginnerMode)
+    if (partial.browserCredentialAutoImportEnabled !== undefined) {
+      safe.browserCredentialAutoImportEnabled = Boolean(partial.browserCredentialAutoImportEnabled)
     }
     if (partial.cloudApiKey !== undefined && partial.cloudApiKey !== '********') safe.cloudApiKey = String(partial.cloudApiKey)
     settings = { ...settings, ...safe }
@@ -335,7 +429,11 @@ export function registerIpcHandlers(): void {
   })
 
   // ??? Permissions ??????????????????????????????
-  safeHandle(IPC.PERMISSIONS_GET, () => permissionGrant)
+  safeHandle(IPC.PERMISSIONS_GET, () => (
+    FORCE_ONBOARDING_E2E
+      ? normalizePermissionGrant()
+      : permissionGrant
+  ))
   safeHandle(IPC.PERMISSIONS_GRANT, async (event, request?: PermissionGrantRequest) => {
     const sanitizedRequest = sanitizeGrantRequest(request)
     const senderWindow = BrowserWindow.fromWebContents(event.sender)
@@ -343,6 +441,7 @@ export function registerIpcHandlers(): void {
 
     permissionGrant = applyPermissionGrantRequest(permissionGrant, sanitizedRequest)
     await savePermissions(permissionGrant)
+    toolCatalog.invalidatePermissionCache()
     logObsInfo('permission_granted', {
       scope: sanitizedRequest.scope ?? 'all',
       items: sanitizedRequest.items ?? null,
@@ -352,17 +451,56 @@ export function registerIpcHandlers(): void {
     return permissionGrant
   })
   safeHandle(IPC.PERMISSIONS_REVOKE, async (_, request?: PermissionRevokeRequest) => {
-    // Full-permission mode: keep all permissions granted even if revoke is requested.
-    const revoked = applyPermissionRevokeRequest(permissionGrant, request)
-    permissionGrant = applyPermissionGrantRequest(revoked, { scope: 'all', confirmAll: true })
+    permissionGrant = applyPermissionRevokeRequest(permissionGrant, request)
     await savePermissions(permissionGrant)
+    toolCatalog.invalidatePermissionCache()
     logObsInfo('permission_revoked', {
       scope: request?.scope ?? 'all',
       items: request?.items ?? null,
       grantedAll: permissionGrant.grantedAll,
-      enforcedAll: true,
+      enforcedAll: false,
     })
     return permissionGrant
+  })
+  safeHandle(IPC.PERMISSIONS_ISSUE_CAPABILITY, async (event, request?: CapabilityGrantRequest): Promise<CapabilityGrantResponse> => {
+    const sanitizedRequest = sanitizeCapabilityGrantRequest(request)
+    const profile = getToolSecurityProfile(sanitizedRequest.toolName)
+    if (profile.ring !== 3) {
+      throw new Error('Capabilities are only required for ring 3 tools')
+    }
+
+    const senderWindow = BrowserWindow.fromWebContents(event.sender)
+    await confirmCapabilityRequest(sanitizedRequest, senderWindow)
+
+    const issued = securityRuntime.approveSessionCapability(
+      sanitizedRequest.sessionId,
+      sanitizedRequest.actorType,
+      sanitizedRequest.actorId,
+      {
+        toolName: sanitizedRequest.toolName,
+        ring: 3,
+        scopePaths: sanitizedRequest.scopePaths,
+        expiresInMs: sanitizedRequest.ttlMinutes ? sanitizedRequest.ttlMinutes * 60_000 : undefined,
+        issuedFor: 'manual',
+      },
+    )
+
+    logObsInfo('capability_granted', {
+      sessionId: sanitizedRequest.sessionId,
+      actorType: sanitizedRequest.actorType,
+      toolName: sanitizedRequest.toolName,
+      scopePaths: sanitizedRequest.scopePaths ?? null,
+      expiresAt: issued.expiresAt,
+      tokenId: issued.tokenId,
+    })
+
+    return {
+      tokenId: issued.tokenId,
+      expiresAt: issued.expiresAt,
+      staged: true,
+      toolName: sanitizedRequest.toolName,
+      ring: 3,
+    }
   })
 
 
@@ -452,6 +590,57 @@ export function registerIpcHandlers(): void {
       return { valid: false, error: `서버 응답 오류 (${res.status})` }
     } catch {
       return { valid: false, error: '서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요.' }
+    }
+  })
+
+  safeHandle(IPC.CREDENTIALS_GET_SUMMARY, () => {
+    return getCredentialVaultSummary()
+  })
+
+  safeHandle(IPC.CREDENTIALS_IMPORT_BROWSER_CSV, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = win
+      ? await dialog.showOpenDialog(win, {
+          properties: ['openFile'],
+          filters: [{ name: 'CSV Files', extensions: ['csv'] }],
+        })
+      : await dialog.showOpenDialog({
+          properties: ['openFile'],
+          filters: [{ name: 'CSV Files', extensions: ['csv'] }],
+        })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      throw new Error('Import canceled')
+    }
+
+    return importCredentialCsv(result.filePaths[0]!)
+  })
+
+  safeHandle(IPC.CREDENTIALS_CLEAR, async () => {
+    await clearCredentialVault()
+    return { success: true }
+  })
+
+  safeHandle(IPC.FS_PICK, async (event, request: { mode: 'file' | 'directory'; multi?: boolean; title?: string }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const properties = [
+      request.mode === 'directory' ? 'openDirectory' : 'openFile',
+      ...(request.multi ? ['multiSelections'] : []),
+    ] as Array<'openFile' | 'openDirectory' | 'multiSelections'>
+
+    const result = win
+      ? await dialog.showOpenDialog(win, {
+          title: request.title,
+          properties,
+        })
+      : await dialog.showOpenDialog({
+          title: request.title,
+          properties,
+        })
+
+    return {
+      canceled: result.canceled,
+      paths: result.filePaths,
     }
   })
 
@@ -785,6 +974,24 @@ export function registerIpcHandlers(): void {
   safeHandle(IPC.GOOGLE_OAUTH_LOGOUT, async () => {
     await clearGoogleTokens()
     return { success: true }
+  })
+  safeHandle(IPC.NAVER_OAUTH_START, async () => {
+    return startNaverOAuthFlow()
+  })
+  safeHandle(IPC.NAVER_OAUTH_STATUS, async () => {
+    return getNaverAuthStatus()
+  })
+  safeHandle(IPC.NAVER_OAUTH_LOGOUT, async () => {
+    return clearNaverTokens()
+  })
+  safeHandle(IPC.KAKAO_OAUTH_START, async () => {
+    return startKakaoOAuthFlow()
+  })
+  safeHandle(IPC.KAKAO_OAUTH_STATUS, async () => {
+    return getKakaoAuthStatus()
+  })
+  safeHandle(IPC.KAKAO_OAUTH_LOGOUT, async () => {
+    return clearKakaoTokens()
   })
 
   safeHandle(IPC.EMAIL_LIST, async (_, limit?: number) => {

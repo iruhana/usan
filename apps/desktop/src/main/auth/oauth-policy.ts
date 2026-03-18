@@ -5,7 +5,7 @@
 import { createHash, randomBytes } from 'crypto'
 import { shell } from 'electron'
 
-export type OAuthProvider = 'google' | 'microsoft'
+export type OAuthProvider = 'google' | 'microsoft' | 'naver' | 'kakao'
 
 export interface DesktopOAuthPolicy {
   provider: OAuthProvider

@@ -18,6 +18,7 @@ export class WakeWordDetector extends EventEmitter {
   private status: VoiceStatus = 'idle'
   private cleanupFn: (() => void) | null = null
   private pendingResult: Promise<{ text: string } | { error: string }> | null = null
+  private maxDurationTimer: NodeJS.Timeout | null = null
 
   isActive(): boolean {
     return this.active
@@ -39,7 +40,7 @@ export class WakeWordDetector extends EventEmitter {
     if (this.active) return { error: 'Voice recognition is already active' }
 
     this.active = true
-    this.setStatus('listening')
+    this.emitStatus({ status: 'listening' })
 
     if (!audioCapture.isAvailable()) {
       // Fallback: record via PowerShell + ffmpeg (Windows)
@@ -55,13 +56,17 @@ export class WakeWordDetector extends EventEmitter {
 
       const onError = (err: Error) => {
         cleanup()
-        this.setStatus('error')
+        this.emitStatus({ status: 'error', error: err.message })
         resolve({ error: err.message })
       }
 
       const cleanup = () => {
         audioCapture.removeListener('silence', onSilence)
         audioCapture.removeListener('error', onError)
+        if (this.maxDurationTimer) {
+          clearTimeout(this.maxDurationTimer)
+          this.maxDurationTimer = null
+        }
         this.cleanupFn = null
       }
 
@@ -76,7 +81,7 @@ export class WakeWordDetector extends EventEmitter {
       audioCapture.start()
 
       // Max recording duration: 30 seconds
-      setTimeout(() => {
+      this.maxDurationTimer = setTimeout(() => {
         if (this.active) {
           cleanup()
           const buffer = audioCapture.stop()
@@ -110,22 +115,24 @@ export class WakeWordDetector extends EventEmitter {
 
   private async processAudio(buffer: Buffer): Promise<{ text: string } | { error: string }> {
     this.active = false
+    this.pendingResult = null
 
     if (buffer.length < 3200) {
-      this.setStatus('idle')
+      this.emitStatus({ status: 'idle' })
       return { error: 'No voice input detected' }
     }
 
-    this.setStatus('processing')
+    this.emitStatus({ status: 'processing' })
 
     try {
       const result = await transcribe(buffer)
-      this.setStatus('idle')
+      this.emitStatus({ status: 'idle', text: result.text })
       this.emit('transcript', result.text)
       return { text: result.text }
     } catch (err) {
-      this.setStatus('error')
-      return { error: (err as Error).message }
+      const error = (err as Error).message
+      this.emitStatus({ status: 'error', error })
+      return { error }
     }
   }
 
@@ -165,29 +172,37 @@ try {
 
       const text = stdout.trim()
       this.active = false
-      this.setStatus('idle')
+      this.pendingResult = null
 
       if (text) {
+        this.emitStatus({ status: 'idle', text })
         this.emit('transcript', text)
         return { text }
       }
+      this.emitStatus({ status: 'idle' })
       return { error: 'No voice input detected' }
     } catch (err) {
       this.active = false
-      this.setStatus('error')
+      this.pendingResult = null
       await unlink(tempPath).catch(() => {})
-      return { error: `Voice capture failed: ${(err as Error).message}` }
+      const error = `Voice capture failed: ${(err as Error).message}`
+      this.emitStatus({ status: 'error', error })
+      return { error }
     }
   }
 
-  private setStatus(status: VoiceStatus): void {
-    this.status = status
-    eventBus.emit('voice.status', { status }, 'wake-word-detector')
+  private emitStatus(event: { status: VoiceStatus; text?: string; error?: string }): void {
+    this.status = event.status
+    eventBus.emit('voice.status', event, 'wake-word-detector')
   }
 
   destroy(): void {
     if (this.active) {
       audioCapture.stop()
+    }
+    if (this.maxDurationTimer) {
+      clearTimeout(this.maxDurationTimer)
+      this.maxDurationTimer = null
     }
     this.active = false
     this.removeAllListeners()

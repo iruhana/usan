@@ -33,12 +33,18 @@ export class OpenRouterProvider implements AIProvider {
     options: ProviderOptions,
     onChunk: (chunk: StreamChunk) => void
   ): Promise<void> {
+    const fallbackModels = options.fallbackModels?.filter((modelId) => modelId && modelId !== options.model) ?? []
     const body: Record<string, unknown> = {
-      model: options.model,
       messages: options.messages.map(toOpenAIMessage),
       stream: true,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 4096,
+    }
+
+    if (fallbackModels.length > 0) {
+      body.models = [options.model, ...fallbackModels]
+    } else {
+      body.model = options.model
     }
 
     if (options.tools?.length) {

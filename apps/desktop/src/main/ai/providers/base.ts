@@ -31,6 +31,7 @@ export interface StreamChunk {
 
 export interface ProviderOptions {
   model: string
+  fallbackModels?: string[]
   messages: ProviderMessage[]
   tools?: ProviderTool[]
   temperature?: number

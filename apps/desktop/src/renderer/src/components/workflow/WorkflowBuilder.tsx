@@ -1,5 +1,5 @@
 ﻿import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Plus, Trash2, X } from 'lucide-react'
+import { Plus, Trash2, X, Sparkles } from 'lucide-react'
 import { Button, Card, InlineNotice, Input } from '../ui'
 import type { WorkflowDefinition, WorkflowStep } from '@shared/types/infrastructure'
 import { t } from '../../i18n'
@@ -126,8 +126,15 @@ export default function WorkflowBuilder({ open, onClose, onSubmit, initial }: Wo
           aria-modal="true"
           aria-labelledby={titleId}
         >
-          <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] p-4">
-            <h2 id={titleId} className="text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{t('workflow.create')}</h2>
+          <div className="border-b border-[var(--color-border-subtle)] bg-[linear-gradient(135deg,rgba(49,130,246,0.08),rgba(255,255,255,0.98))] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary-light)] px-3 py-1.5 text-[length:var(--text-xs)] font-semibold text-[var(--color-primary)]">
+                  <Sparkles size={14} />
+                  {t('workflow.create')}
+                </div>
+                <h2 id={titleId} className="mt-3 text-[length:var(--text-lg)] font-semibold tracking-tight text-[var(--color-text)]">{t('workflow.create')}</h2>
+              </div>
             <button
               data-action="workflow-builder-close"
               type="button"
@@ -137,44 +144,47 @@ export default function WorkflowBuilder({ open, onClose, onSubmit, initial }: Wo
             >
               <X size={18} />
             </button>
+            </div>
           </div>
 
-          <div className="space-y-4 p-4">
-            <Input
-              ref={nameInputRef}
-              label={t('workflow.name')}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t('workflow.namePlaceholder')}
-            />
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor={descriptionId} className="text-[length:var(--text-sm)] font-medium text-[var(--color-text-muted)]">{t('workflow.description')}</label>
-              <textarea
-                id={descriptionId}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder={t('workflow.descriptionPlaceholder')}
-                className="min-h-24 w-full rounded-[var(--radius-md)] ring-1 ring-transparent bg-[var(--color-surface-soft)] px-3 py-2 text-[length:var(--text-md)] text-[var(--color-text)] outline-none transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)]"
-              />
-            </div>
-
-            <div className="grid gap-2 md:grid-cols-[1fr_200px]">
+          <div className="space-y-4 p-5">
+            <Card variant="default" className="space-y-4">
               <Input
-                label={t('workflow.trigger')}
-                value={intervalSec > 0 ? t('workflow.triggerSchedule') : t('workflow.triggerManual')}
-                readOnly
+                ref={nameInputRef}
+                label={t('workflow.name')}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t('workflow.namePlaceholder')}
               />
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                value={intervalSec}
-                onChange={(event) => setIntervalSec(Math.max(0, Number(event.target.value) || 0))}
-                label={t('workflow.schedule')}
-                helperText={t('workflow.intervalHint')}
-              />
-            </div>
+
+              <div className="flex flex-col gap-1">
+                <label htmlFor={descriptionId} className="text-[length:var(--text-sm)] font-medium text-[var(--color-text-muted)]">{t('workflow.description')}</label>
+                <textarea
+                  id={descriptionId}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder={t('workflow.descriptionPlaceholder')}
+                  className="min-h-28 w-full rounded-[24px] ring-1 ring-transparent bg-[var(--color-surface-soft)] px-4 py-3 text-[length:var(--text-md)] text-[var(--color-text)] outline-none transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)]"
+                />
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-[1fr_200px]">
+                <Input
+                  label={t('workflow.trigger')}
+                  value={intervalSec > 0 ? t('workflow.triggerSchedule') : t('workflow.triggerManual')}
+                  readOnly
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={intervalSec}
+                  onChange={(event) => setIntervalSec(Math.max(0, Number(event.target.value) || 0))}
+                  label={t('workflow.schedule')}
+                  helperText={t('workflow.intervalHint')}
+                />
+              </div>
+            </Card>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -190,7 +200,7 @@ export default function WorkflowBuilder({ open, onClose, onSubmit, initial }: Wo
               </div>
 
               {steps.map((step, index) => (
-                <Card key={step.id} variant="outline" className="space-y-3">
+                <Card key={step.id} variant="outline" className="space-y-3 rounded-[28px]">
                   <div className="flex items-center justify-between">
                     <span className="text-[length:var(--text-sm)] font-medium text-[var(--color-text-muted)]">{t('workflow.step')} {index + 1}</span>
                     <button

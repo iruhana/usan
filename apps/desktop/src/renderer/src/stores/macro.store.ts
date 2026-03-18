@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { MacroEntry } from '@shared/types/infrastructure'
+import { toMacroErrorMessage } from '../lib/user-facing-errors'
 
 interface MacroState {
   items: MacroEntry[]
@@ -36,7 +37,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
       const items = await window.usan?.macro.list()
       set({ items: items ?? [], loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toMacroErrorMessage(err, 'load') })
     }
   },
 
@@ -45,7 +46,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
       await window.usan?.macro.recordStart()
       set({ recording: true, error: null })
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toMacroErrorMessage(err, 'recordStart') })
     }
   },
 
@@ -55,7 +56,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
       set({ recording: false, error: null })
       await get().load()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toMacroErrorMessage(err, 'recordStop') })
     }
   },
 
@@ -63,7 +64,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
     try {
       await window.usan?.macro.play(id)
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toMacroErrorMessage(err, 'play') })
     }
   },
 
@@ -72,7 +73,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
       await window.usan?.macro.delete(id)
       await get().load()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toMacroErrorMessage(err, 'delete') })
     }
   },
 }))

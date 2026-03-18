@@ -1,37 +1,37 @@
-import { useEffect, useCallback, useState } from 'react'
-import { FileText, Plus, Trash2, Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { FileText, Plus, Trash2, Loader2, Sparkles } from 'lucide-react'
 import { useNotesStore } from '../stores/notes.store'
 import { useUndoStore } from '../stores/undo.store'
 import { t } from '../i18n'
-import { IconButton, Button } from '../components/ui'
+import { Button, IconButton } from '../components/ui'
 
 function formatDate(ts: number): string {
-  const d = new Date(ts)
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const date = new Date(ts)
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 export default function NotesPage() {
-  const notes = useNotesStore((s) => s.notes)
-  const selectedId = useNotesStore((s) => s.selectedId)
-  const loading = useNotesStore((s) => s.loading)
-  const load = useNotesStore((s) => s.load)
-  const create = useNotesStore((s) => s.create)
-  const remove = useNotesStore((s) => s.remove)
-  const select = useNotesStore((s) => s.select)
-  const updateTitle = useNotesStore((s) => s.updateTitle)
-  const updateContent = useNotesStore((s) => s.updateContent)
+  const notes = useNotesStore((state) => state.notes)
+  const selectedId = useNotesStore((state) => state.selectedId)
+  const loading = useNotesStore((state) => state.loading)
+  const load = useNotesStore((state) => state.load)
+  const create = useNotesStore((state) => state.create)
+  const remove = useNotesStore((state) => state.remove)
+  const select = useNotesStore((state) => state.select)
+  const updateTitle = useNotesStore((state) => state.updateTitle)
+  const updateContent = useNotesStore((state) => state.updateContent)
 
-  const showUndo = useUndoStore((s) => s.show)
-  const selectedNote = notes.find((n) => n.id === selectedId) ?? null
+  const showUndo = useUndoStore((state) => state.show)
+  const selectedNote = notes.find((note) => note.id === selectedId) ?? null
   const [focusIndex, setFocusIndex] = useState(-1)
 
   const handleDelete = useCallback((noteId: string) => {
-    const note = notes.find((n) => n.id === noteId)
+    const note = notes.find((item) => item.id === noteId)
     remove(noteId)
     if (note) {
       showUndo(t('undo.noteDeleted'), () => {
-        useNotesStore.setState((s) => ({
-          notes: [...s.notes, note],
+        useNotesStore.setState((state) => ({
+          notes: [...state.notes, note],
         }))
       })
     }
@@ -41,27 +41,37 @@ export default function NotesPage() {
     load()
   }, [load])
 
-  const handleListKeyDown = (e: React.KeyboardEvent) => {
+  const handleListKeyDown = (event: React.KeyboardEvent) => {
     if (notes.length === 0) return
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setFocusIndex((prev) => {
-        const next = Math.min(prev + 1, notes.length - 1)
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setFocusIndex((previous) => {
+        const next = Math.min(previous + 1, notes.length - 1)
         document.getElementById(`note-${notes[next].id}`)?.scrollIntoView({ block: 'nearest' })
         return next
       })
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setFocusIndex((prev) => {
-        const next = Math.max(prev - 1, 0)
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setFocusIndex((previous) => {
+        const next = Math.max(previous - 1, 0)
         document.getElementById(`note-${notes[next].id}`)?.scrollIntoView({ block: 'nearest' })
         return next
       })
-    } else if (e.key === 'Enter' && focusIndex >= 0 && focusIndex < notes.length) {
-      e.preventDefault()
+      return
+    }
+
+    if (event.key === 'Enter' && focusIndex >= 0 && focusIndex < notes.length) {
+      event.preventDefault()
       select(notes[focusIndex].id)
-    } else if (e.key === 'Delete' && focusIndex >= 0 && focusIndex < notes.length) {
-      e.preventDefault()
+      return
+    }
+
+    if (event.key === 'Delete' && focusIndex >= 0 && focusIndex < notes.length) {
+      event.preventDefault()
       handleDelete(notes[focusIndex].id)
     }
   }
@@ -72,139 +82,173 @@ export default function NotesPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-[var(--color-text-muted)]">
-        <Loader2 size={20} className="animate-spin mr-2" />
+      <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
+        <Loader2 size={20} className="mr-2 animate-spin" />
         <span className="text-[length:var(--text-md)]">{t('notes.loading')}</span>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full">
-      {/* Left: note list */}
-      <div className="w-56 shrink-0 border-r border-[var(--color-border)] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)]">
-          <span className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)]">
+    <div
+      className="grid h-full min-w-0 grid-cols-[320px_minmax(0,1fr)] overflow-hidden"
+      data-view="notes-page"
+    >
+      <aside className="flex min-h-0 flex-col overflow-hidden px-6 py-5">
+        <div className="pb-5">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary-light)] px-3 py-1.5 text-[length:var(--text-xs)] font-semibold text-[var(--color-primary)]">
+            <Sparkles size={14} />
             {t('notes.title')}
-          </span>
-          <IconButton
-            icon={Plus}
-            size="sm"
-            variant="subtle"
-            label={t('notes.newNote')}
-            onClick={create}
-          />
+          </div>
+          <div className="mt-4 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[20px] font-semibold tracking-tight text-[var(--color-text)]">
+                {t('notes.title')}
+              </h1>
+              <p className="mt-2 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+                {t('notes.subtitle')}
+              </p>
+            </div>
+            <IconButton
+              icon={Plus}
+              size="sm"
+              variant="subtle"
+              label={t('notes.newNote')}
+              onClick={create}
+            />
+          </div>
         </div>
 
-        {/* List */}
         <div
-          className="flex-1 overflow-y-auto focus:outline-none"
-          role="listbox"
-          aria-label={t('notes.title')}
-          tabIndex={0}
-          onKeyDown={handleListKeyDown}
-          aria-activedescendant={activeDescendant}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2 focus:outline-none"
+          {...(notes.length > 0
+            ? {
+                role: 'listbox' as const,
+                'aria-label': t('notes.listLabel'),
+                tabIndex: 0,
+                onKeyDown: handleListKeyDown,
+                'aria-activedescendant': activeDescendant,
+              }
+            : {})}
         >
           {notes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-4 text-[var(--color-text-muted)]">
-              <FileText size={28} className="mb-2 opacity-30" />
-              <p className="text-[length:var(--text-sm)] text-center">
-                {t('notes.noNotes')}
+            <div className="flex h-full flex-col items-center justify-center px-5 py-12 text-[var(--color-text-muted)]">
+              <FileText size={30} className="mb-3 opacity-25" />
+              <p className="text-center text-[length:var(--text-sm)] font-medium">{t('notes.noNotes')}</p>
+              <p className="mt-1 text-center text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+                {t('notes.emptyHint')}
               </p>
-              <Button size="sm" className="mt-3" onClick={create}>
+              <Button size="sm" className="mt-4" onClick={create}>
                 {t('notes.createFirst')}
               </Button>
             </div>
           ) : (
-            notes.map((note, idx) => {
-              const isSelected = selectedId === note.id
-              const isFocused = idx === focusIndex
-              return (
-                <button
-                  key={note.id}
-                  id={`note-${note.id}`}
-                  onClick={() => select(note.id)}
-                  role="option"
-                  aria-selected={isSelected}
-                  title={note.title || t('notes.untitled')}
-                  className={`w-full text-left px-3 py-2 transition-all group ${
-                    isSelected
-                      ? 'bg-[var(--color-primary-light)] border-l-2 border-l-[var(--color-primary)]'
-                      : isFocused
-                        ? 'bg-[var(--color-surface-soft)] border-l-2 border-l-[var(--color-text-muted)]'
-                        : 'hover:bg-[var(--color-surface-soft)] border-l-2 border-l-transparent'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`text-[length:var(--text-md)] font-medium truncate ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`}
+            <div className="space-y-1">
+              {notes.map((note, index) => {
+                const isSelected = selectedId === note.id
+                const isFocused = index === focusIndex
+                return (
+                  <div
+                    key={note.id}
+                    id={`note-${note.id}`}
+                    role="option"
+                    aria-selected={isSelected}
+                    data-note-item={note.id}
+                    className={`group rounded-[16px] px-4 py-3 transition-colors ${
+                      isSelected
+                        ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                        : isFocused
+                          ? 'bg-[var(--color-surface-soft)]'
+                          : 'hover:bg-[var(--color-surface-soft)]'
+                    }`}
+                    onClick={() => select(note.id)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1 cursor-pointer">
+                        <p
+                          className={`truncate text-[14px] font-semibold tracking-tight ${
+                            isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
+                          }`}
+                        >
+                          {note.title || t('notes.untitled')}
+                        </p>
+                        <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">
+                          {formatDate(note.updatedAt)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleDelete(note.id)
+                        }}
+                        className="rounded-[10px] p-1.5 text-[var(--color-danger)] opacity-0 transition-all hover:bg-[var(--color-danger-bg)] group-hover:opacity-100"
+                        title={t('notes.delete')}
+                        aria-label={t('notes.delete')}
                       >
-                        {note.title || t('notes.untitled')}
-                      </p>
-                      <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mt-0.5">
-                        {formatDate(note.updatedAt)}
-                      </p>
+                        <Trash2 size={13} />
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDelete(note.id)
-                      }}
-                      className="p-1 rounded-[var(--radius-sm)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger-bg)] text-[var(--color-danger)] transition-all shrink-0"
-                      title={t('notes.delete')}
-                      aria-label={t('notes.delete')}
-                    >
-                      <Trash2 size={13} />
-                    </button>
                   </div>
-                </button>
-              )
-            })
+                )
+              })}
+            </div>
           )}
         </div>
-      </div>
+      </aside>
 
-      {/* Right: editor */}
-      <div className="flex-1 flex flex-col">
+      <section className="flex min-w-0 flex-col overflow-hidden px-7 py-5">
         {selectedNote ? (
           <>
-            {/* Title */}
-            <div className="px-8 pt-8 pb-2">
+            <div className="max-w-3xl">
+              <label
+                htmlFor="note-title"
+                className="mb-2 block text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]"
+              >
+                {t('notes.titleFieldLabel')}
+              </label>
               <input
+                id="note-title"
                 type="text"
                 value={selectedNote.title}
-                onChange={(e) => updateTitle(selectedNote.id, e.target.value)}
+                onChange={(event) => updateTitle(selectedNote.id, event.target.value)}
                 placeholder={t('notes.titlePlaceholder')}
-                className="w-full bg-transparent border-none outline-none font-semibold text-[length:var(--text-xl)] text-[var(--color-text)]"
+                className="w-full border-none bg-transparent text-[24px] font-semibold tracking-tight text-[var(--color-text)] outline-none"
                 style={{ minHeight: 'var(--min-target)' }}
               />
-              <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mt-1">
+              <p className="mt-2 text-[12px] text-[var(--color-text-muted)]">
                 {t('notes.lastModified')}: {formatDate(selectedNote.updatedAt)}
               </p>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 px-8 pb-8">
-              <textarea
-                value={selectedNote.content}
-                onChange={(e) => updateContent(selectedNote.id, e.target.value)}
-                placeholder={t('notes.contentPlaceholder')}
-                className="w-full h-full resize-none bg-transparent border-none outline-none text-[length:var(--text-md)] text-[var(--color-text)]"
-                style={{ lineHeight: 'var(--line-height-base)' }}
-              />
+            <div className="flex-1 overflow-auto pt-4">
+              <div className="max-w-3xl">
+                <label
+                  htmlFor="note-content"
+                  className="mb-2 block text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]"
+                >
+                  {t('notes.contentFieldLabel')}
+                </label>
+                <textarea
+                  id="note-content"
+                  value={selectedNote.content}
+                  onChange={(event) => updateContent(selectedNote.id, event.target.value)}
+                  placeholder={t('notes.contentPlaceholder')}
+                  className="h-full min-h-[420px] w-full resize-none border-none bg-transparent px-0 py-3 text-[15px] leading-7 text-[var(--color-text)] outline-none"
+                />
+              </div>
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-[var(--color-text-muted)]">
-            <FileText size={40} className="mb-3 opacity-20" />
-            <p className="text-[length:var(--text-md)]">
-              {t('notes.selectOrCreate')}
+          <div className="flex h-full flex-col items-center justify-center text-[var(--color-text-muted)]">
+            <FileText size={44} className="mb-3 opacity-20" />
+            <p className="text-[length:var(--text-md)] font-medium">{t('notes.selectOrCreate')}</p>
+            <p className="mt-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+              {t('notes.emptyHint')}
             </p>
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

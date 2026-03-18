@@ -17,9 +17,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const hasError = !!errorText
 
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2">
         {label && (
-          <label htmlFor={inputId} className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] font-medium">
+          <label
+            htmlFor={inputId}
+            className="text-[13px] font-semibold leading-5 text-[var(--color-text-secondary)]"
+          >
             {label}
           </label>
         )}
@@ -35,20 +38,20 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             aria-invalid={hasError || undefined}
             aria-describedby={errorId || helperId || undefined}
             className={`
-              w-full h-10 rounded-[var(--radius-md)]
-              bg-[var(--color-surface-soft)] border
-              text-[length:var(--text-md)] text-[var(--color-text)]
-              placeholder:text-[var(--color-text-muted)]
-              transition-all
-              focus:outline-none focus:ring-2
-              ${leftIcon ? 'pl-9' : 'pl-3'} ${rightIcon ? 'pr-9' : 'pr-3'}
-              ${hasError
-                ? 'border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20'
-                : 'border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]/20'
-              }
-              disabled:opacity-50 disabled:pointer-events-none
+              h-12 w-full rounded-[var(--radius-lg)]
+              bg-[var(--color-bg-card)]
+              ring-1 ring-[var(--color-border)]
+              shadow-[var(--shadow-xs)]
+              text-[14px] leading-[1.4] text-[var(--color-text)]
+              placeholder:text-[var(--color-text-muted)] placeholder:leading-[1.4]
+              transition-all duration-200
+              focus:outline-none focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)]
+              ${leftIcon ? 'pl-11' : 'pl-4'} ${rightIcon ? 'pr-10' : 'pr-4'}
+              ${hasError ? 'ring-[var(--color-danger)] focus:ring-[var(--color-danger)]' : ''}
+              disabled:opacity-40 disabled:pointer-events-none
               ${className}
             `.trim()}
+            style={{ transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
             {...rest}
           />
           {rightIcon && (

@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import type {
   RagDocument,
   RagSearchResult,
@@ -6,6 +6,7 @@ import type {
   RagIndexFileResult,
   RagIndexFolderResult,
 } from '@shared/types/infrastructure'
+import { toKnowledgeErrorMessage } from '../lib/user-facing-errors'
 
 interface RagIndexSummary {
   scope: 'file' | 'folder'
@@ -60,7 +61,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         loading: false,
       })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toKnowledgeErrorMessage(err, 'load') })
     }
   },
 
@@ -81,7 +82,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         })
       }
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toKnowledgeErrorMessage(err, 'index') })
     } finally {
       set({ loading: false, indexingProgress: null })
     }
@@ -104,7 +105,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         })
       }
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toKnowledgeErrorMessage(err, 'index') })
     } finally {
       set({ loading: false, indexingProgress: null })
     }
@@ -119,7 +120,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         searchResults: state.searchResults.filter((r) => r.documentId !== id),
       }))
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toKnowledgeErrorMessage(err, 'remove') })
     }
   },
 
@@ -135,7 +136,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       const result = await window.usan?.rag.search(normalized, 8)
       set({ searchResults: result?.results ?? [], loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toKnowledgeErrorMessage(err, 'search') })
     }
   },
 

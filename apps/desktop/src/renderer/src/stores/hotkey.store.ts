@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { HotkeyBinding } from '@shared/types/infrastructure'
+import { toHotkeyErrorMessage } from '../lib/user-facing-errors'
 
 interface HotkeyState {
   items: HotkeyBinding[]
@@ -34,7 +35,7 @@ export const useHotkeyStore = create<HotkeyState>((set, get) => ({
       const items = await window.usan?.hotkey.list()
       set({ items: items ?? [], loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toHotkeyErrorMessage(err, 'load') })
     }
   },
 
@@ -44,7 +45,7 @@ export const useHotkeyStore = create<HotkeyState>((set, get) => ({
       if (success) await get().load()
       return Boolean(success)
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toHotkeyErrorMessage(err, 'save') })
       return false
     }
   },
@@ -54,7 +55,7 @@ export const useHotkeyStore = create<HotkeyState>((set, get) => ({
       await window.usan?.hotkey.remove(id)
       await get().load()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toHotkeyErrorMessage(err, 'remove') })
     }
   },
 }))

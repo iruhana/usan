@@ -1,13 +1,15 @@
 ﻿import { useEffect, useMemo } from 'react'
 import { Search } from 'lucide-react'
-import { Button, Card, Input, SectionHeader } from '../components/ui'
+import { Button, Card, InlineNotice, Input, SectionHeader, PageIntro } from '../components/ui'
 import { useMarketplaceStore } from '../stores/marketplace.store'
+import { useSettingsStore } from '../stores/settings.store'
 import PluginCard from '../components/marketplace/PluginCard'
 import PluginDetail from '../components/marketplace/PluginDetail'
 import McpServerList from '../components/mcp/McpServerList'
 import { t } from '../i18n'
 
 export default function MarketplacePage() {
+  const beginnerMode = useSettingsStore((s) => s.settings.beginnerMode)
   const {
     query,
     entries,
@@ -32,6 +34,7 @@ export default function MarketplacePage() {
   }, [search, loadInstalled])
 
   const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) ?? null
+  const showDeveloperPanels = !beginnerMode
 
   const installedMap = useMemo(() => {
     const map = new Map<string, typeof installed[number]>()
@@ -42,86 +45,126 @@ export default function MarketplacePage() {
   }, [installed])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-4">
-        <div>
-          <h1 className="text-[length:var(--text-xl)] font-semibold text-[var(--color-text)]">{t('marketplace.title')}</h1>
-          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('marketplace.subtitle')}</p>
-        </div>
-
-        <div className="flex min-w-[300px] items-center gap-2">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('marketplace.searchPlaceholder')}
-            leftIcon={<Search size={16} />}
+    <div className="flex h-full flex-col overflow-hidden p-5">
+      <Card variant="elevated" className="mb-6 overflow-hidden p-0">
+        <div className="bg-[linear-gradient(135deg,rgba(49,130,246,0.12),rgba(255,255,255,0.98))] p-5">
+          <PageIntro
+            title={t('marketplace.title')}
+            description={t(beginnerMode ? 'marketplace.subtitleSimple' : 'marketplace.subtitle')}
+            action={
+              <div className="grid min-w-[280px] gap-3 sm:grid-cols-3">
+                <div className="rounded-[var(--radius-md)] bg-white/82 px-4 py-4 shadow-[var(--shadow-xs)] ring-1 ring-white/60">
+                  <p className="text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('marketplace.availableSimple')}</p>
+                  <p className="mt-2 text-[length:var(--text-xl)] font-semibold tracking-tight text-[var(--color-text)]">{entries.length}</p>
+                </div>
+                <div className="rounded-[var(--radius-md)] bg-white/82 px-4 py-4 shadow-[var(--shadow-xs)] ring-1 ring-white/60">
+                  <p className="text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('marketplace.installedListSimple')}</p>
+                  <p className="mt-2 text-[length:var(--text-xl)] font-semibold tracking-tight text-[var(--color-text)]">{installed.length}</p>
+                </div>
+                <div className="rounded-[var(--radius-md)] bg-white/82 px-4 py-4 shadow-[var(--shadow-xs)] ring-1 ring-white/60">
+                  <p className="text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('marketplace.search')}</p>
+                  <p className="mt-2 text-[length:var(--text-xl)] font-semibold tracking-tight text-[var(--color-text)]">{query.trim() ? 1 : 0}</p>
+                </div>
+              </div>
+            }
           />
-          <Button onClick={() => search(query)}>{t('marketplace.search')}</Button>
         </div>
-      </div>
+      </Card>
 
-      {error && (
-        <div className="mb-3 rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+      <Card variant="default" className="mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-[280px] flex-1">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('marketplace.searchPlaceholder')}
+              aria-label={t('marketplace.searchPlaceholder')}
+              leftIcon={<Search size={16} />}
+            />
+          </div>
+          <Button data-action="marketplace-search" onClick={() => search(query)}>{t('marketplace.search')}</Button>
+        </div>
+      </Card>
+
+      {error ? (
+        <InlineNotice tone="error" title={t('marketplace.helpTitle')} className="mb-3">
           {error}
-        </div>
-      )}
+        </InlineNotice>
+      ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="min-h-0 overflow-auto">
-          <SectionHeader title={t('marketplace.available')} indicator="var(--color-primary)" className="mb-3" />
-          <div className="space-y-3">
-            {entries.length === 0 ? (
-              <Card variant="outline" className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('marketplace.empty')}</Card>
-            ) : (
-              entries.map((entry) => (
-                <PluginCard
-                  key={entry.id}
-                  entry={entry}
-                  installed={installedMap.get(entry.id) ?? null}
-                  loading={loading}
-                  onInstall={install}
-                  onUpdate={update}
-                  onSelect={setSelectedEntry}
-                />
-              ))
-            )}
+      <div className={`grid min-h-0 flex-1 gap-4 ${showDeveloperPanels ? 'xl:grid-cols-[1fr_360px]' : ''}`}>
+        <div className="min-h-0 overflow-auto space-y-4">
+          <Card variant="default" className="space-y-4">
+            <SectionHeader
+              title={t(beginnerMode ? 'marketplace.availableSimple' : 'marketplace.available')}
+              indicator="var(--color-primary)"
+              className="mb-0"
+            />
+            <div className="space-y-3">
+              {entries.length === 0 ? (
+                <Card variant="outline" className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('marketplace.empty')}</Card>
+              ) : (
+                entries.map((entry) => (
+                  <PluginCard
+                    key={entry.id}
+                    entry={entry}
+                    installed={installedMap.get(entry.id) ?? null}
+                    loading={loading}
+                    onInstall={install}
+                    onUpdate={update}
+                    onSelect={showDeveloperPanels ? setSelectedEntry : undefined}
+                    simpleMode={beginnerMode}
+                  />
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card variant="outline" className="space-y-4">
+            <SectionHeader
+              title={t(beginnerMode ? 'marketplace.installedListSimple' : 'marketplace.installedList')}
+              indicator="var(--color-success)"
+              className="mb-0"
+            />
+            <div className="space-y-2">
+              {installed.length === 0 ? (
+                <Card variant="outline" className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('marketplace.noInstalled')}</Card>
+              ) : (
+                installed.map((plugin) => (
+                  <Card key={plugin.manifest.id} variant="default" className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)]">
+                    <div className="min-w-0">
+                      <p className="truncate text-[length:var(--text-md)] font-semibold text-[var(--color-text)]">{plugin.manifest.name}</p>
+                      <p className="mt-1 truncate text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+                        {plugin.manifest.description || `${t('marketplace.version')}: ${plugin.manifest.version}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {plugin.enabled ? (
+                        <Button variant="secondary" size="sm" onClick={() => disable(plugin.manifest.id)}>{t('marketplace.disable')}</Button>
+                      ) : (
+                        <Button size="sm" onClick={() => enable(plugin.manifest.id)}>{t('marketplace.enable')}</Button>
+                      )}
+                      <Button variant="danger" size="sm" onClick={() => uninstall(plugin.manifest.id)}>{t('marketplace.uninstall')}</Button>
+                    </div>
+                  </Card>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {showDeveloperPanels && (
+          <div className="min-h-0 space-y-4 overflow-auto">
+            <PluginDetail
+              entry={selectedEntry}
+              installed={selectedEntry ? installedMap.get(selectedEntry.id) ?? null : null}
+              onEnable={enable}
+              onDisable={disable}
+              onUninstall={uninstall}
+            />
+            <McpServerList />
           </div>
-
-          <SectionHeader title={t('marketplace.installedList')} indicator="var(--color-success)" className="mb-3 mt-5" />
-          <div className="space-y-2">
-            {installed.length === 0 ? (
-              <Card variant="outline" className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('marketplace.noInstalled')}</Card>
-            ) : (
-              installed.map((plugin) => (
-                <Card key={plugin.manifest.id} variant="outline" className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[length:var(--text-md)] font-medium text-[var(--color-text)]">{plugin.manifest.name}</p>
-                    <p className="truncate text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{plugin.manifest.id} • v{plugin.manifest.version}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {plugin.enabled ? (
-                      <Button variant="secondary" size="sm" onClick={() => disable(plugin.manifest.id)}>{t('marketplace.disable')}</Button>
-                    ) : (
-                      <Button size="sm" onClick={() => enable(plugin.manifest.id)}>{t('marketplace.enable')}</Button>
-                    )}
-                    <Button variant="danger" size="sm" onClick={() => uninstall(plugin.manifest.id)}>{t('marketplace.uninstall')}</Button>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="min-h-0 space-y-4 overflow-auto">
-          <PluginDetail
-            entry={selectedEntry}
-            installed={selectedEntry ? installedMap.get(selectedEntry.id) ?? null : null}
-            onEnable={enable}
-            onDisable={disable}
-            onUninstall={uninstall}
-          />
-          <McpServerList />
-        </div>
+        )}
       </div>
     </div>
   )

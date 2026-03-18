@@ -12,16 +12,16 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   ghost:
-    'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-text)]',
+    'text-[var(--color-text-muted)] hover:bg-[var(--color-panel-muted)] hover:text-[var(--color-text)]',
   subtle:
-    'text-[var(--color-text-muted)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)]',
+    'bg-[var(--color-panel-bg-strong)] text-[var(--color-primary)] ring-1 ring-[var(--color-panel-border)] shadow-[var(--shadow-xs)] hover:bg-[var(--color-primary-light)]',
   danger:
-    'text-[var(--color-text-muted)] hover:bg-[var(--color-danger-bg)] hover:text-[var(--color-danger)]',
+    'text-[var(--color-text-muted)] hover:bg-[var(--color-danger-light)] hover:text-[var(--color-danger)]',
 }
 
 const sizeConfig: Record<Size, { box: string; icon: number }> = {
-  sm: { box: 'w-8 h-8', icon: 14 },
-  md: { box: 'w-10 h-10', icon: 16 },
+  sm: { box: 'w-9 h-9', icon: 14 },
+  md: { box: 'w-11 h-11', icon: 16 },
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
@@ -35,13 +35,14 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         title={label}
         className={`
           inline-flex items-center justify-center shrink-0
-          rounded-[var(--radius-md)] transition-all
-          active:scale-[0.93]
-          disabled:opacity-50 disabled:pointer-events-none
+          rounded-[var(--radius-md)] transition-all duration-200
+          active:scale-[0.9] active:transition-none
+          disabled:opacity-40 disabled:pointer-events-none
           ${cfg.box}
           ${variantStyles[variant]}
           ${className}
         `.trim()}
+        style={{ transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
         {...rest}
       >
         <Icon size={cfg.icon} />

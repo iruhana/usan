@@ -15,23 +15,23 @@ export default function UndoToast() {
   if (!visible) return null
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-in">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-[var(--color-text)] text-[var(--color-bg)] shadow-[var(--shadow-lg)]">
-        <span className="text-[length:var(--text-md)]">{message}</span>
+    <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-[var(--radius-xl)] bg-[var(--color-text)] text-[var(--color-bg)] shadow-[var(--shadow-xl)]">
+        <span className="text-[length:var(--text-sm)] font-medium">{message}</span>
         <button
           onClick={undo}
-          className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] bg-white/20 hover:bg-white/30 text-[length:var(--text-md)] font-medium transition-all"
-          style={{ minHeight: '44px' }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] bg-white/15 hover:bg-white/25 text-[length:var(--text-sm)] font-semibold transition-all duration-150 active:scale-[0.95]"
+          style={{ transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
         >
-          <Undo2 size={14} />
+          <Undo2 size={13} />
           {t('undo.action')}
         </button>
         <button
           onClick={dismiss}
-          className="w-9 h-9 flex items-center justify-center rounded-[var(--radius-sm)] hover:bg-white/20 transition-all"
+          className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-sm)] hover:bg-white/15 transition-all duration-150"
           aria-label={t('titlebar.close')}
         >
-          <X size={14} />
+          <X size={13} />
         </button>
       </div>
     </div>

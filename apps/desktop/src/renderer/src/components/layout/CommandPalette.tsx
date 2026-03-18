@@ -1,22 +1,17 @@
 import { useEffect } from 'react'
 import { Command } from 'cmdk'
 import {
-  Activity,
   Bell,
-  BookOpen,
   FileSearch,
-  FileText,
   FolderOpen,
   Globe,
   Home,
+  ListTodo,
   MessageSquarePlus,
   Monitor,
   Search,
   Settings,
-  Store,
-  User,
   Volume2,
-  Workflow,
   Wrench,
 } from 'lucide-react'
 import FocusTrap from '../accessibility/FocusTrap'
@@ -52,15 +47,10 @@ export default function CommandPalette({ open, onOpenChange, onNavigate }: Comma
 
   const allNavigationItems: Array<{ page: AppPage; icon: typeof Home; shortcut: string }> = [
     { page: 'home', icon: Home, shortcut: '1' },
-    { page: 'tools', icon: Wrench, shortcut: '2' },
-    { page: 'notes', icon: FileText, shortcut: '3' },
-    { page: 'files', icon: FolderOpen, shortcut: '4' },
+    { page: 'tasks', icon: ListTodo, shortcut: '2' },
+    { page: 'files', icon: FolderOpen, shortcut: '3' },
+    { page: 'tools', icon: Wrench, shortcut: '4' },
     { page: 'settings', icon: Settings, shortcut: '5' },
-    { page: 'account', icon: User, shortcut: '6' },
-    { page: 'workflows', icon: Workflow, shortcut: '7' },
-    { page: 'knowledge', icon: BookOpen, shortcut: '8' },
-    { page: 'dashboard', icon: Activity, shortcut: '9' },
-    { page: 'marketplace', icon: Store, shortcut: '0' },
   ]
   const navigationItems = allNavigationItems.filter((item) => isPageVisible(item.page, beginnerMode))
 

@@ -6,6 +6,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
+import { SECURITY_AUDIT_SQL } from '../security/audit-log'
 
 const DB_NAME = 'usan.db'
 
@@ -79,5 +80,9 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_conversations_deleted ON conversations(deleted_at);
     `,
+  },
+  {
+    name: '002_security_audit_log',
+    sql: SECURITY_AUDIT_SQL,
   },
 ]

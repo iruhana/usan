@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useChatStore } from '../../stores/chat.store'
-import { useSettingsStore } from '../../stores/settings.store'
 import { t } from '../../i18n'
-import ContextIndicator from '../context/ContextIndicator'
 import VoiceIndicator from '../voice/VoiceIndicator'
+
+const APP_VERSION = 'v0.1.0'
 
 export default function StatusBar() {
   const [online, setOnline] = useState(navigator.onLine)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const streamingPhase = useChatStore((s) => s.streamingPhase)
-  const conversations = useChatStore((s) => s.conversations)
-  const activeConversationId = useChatStore((s) => s.activeConversationId)
-  const { settings } = useSettingsStore()
+  const activeToolName = useChatStore((s) => s.activeToolName)
+  const searchHint = t('status.searchHint')
+  const shortcutHint =
+    searchHint.includes('검색') ? '검색' : searchHint.includes('検索') ? '検索' : searchHint
 
   useEffect(() => {
     const goOnline = () => setOnline(true)
@@ -24,48 +25,34 @@ export default function StatusBar() {
     }
   }, [])
 
-  const activeConv = conversations.find((c) => c.id === activeConversationId)
-  const msgCount = activeConv?.messages.filter((m) => m.role !== 'tool').length ?? 0
-
   const phaseLabel = isStreaming
     ? streamingPhase === 'tool'
-      ? t('status.toolRunning')
+      ? activeToolName
+        ? `${activeToolName} ${t('status.toolRunningSuffix')}`
+        : t('status.toolRunning')
       : streamingPhase === 'generating'
         ? t('status.generating')
         : t('status.working')
     : null
 
   return (
-    <div
-      className="flex items-center justify-between h-8 px-4 bg-transparent border-t border-[var(--color-border)] text-[length:var(--text-xs)] text-[var(--color-text-muted)] chrome-no-select shrink-0"
-    >
-      {/* Left group: connection + messages + voice/context */}
-      <div className="flex items-center gap-3">
-        <span className="flex items-center gap-1.5">
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]'}`}
-            role="status"
-            aria-label={online ? t('status.online') : t('status.offline')}
-          />
-          <span>{online ? t('status.online') : t('status.offline')}</span>
+    <div className="flex h-8 shrink-0 items-center justify-between border-t border-[var(--color-border-subtle)] bg-white/84 px-4 text-[length:var(--text-xs)] text-[var(--color-text-muted)] backdrop-blur-sm chrome-no-select dark:bg-[var(--color-bg-sidebar)]">
+      <div className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5 rounded-full bg-[var(--color-success-light)] px-2 py-0.5 font-medium text-[var(--color-success)]">
+          <span className={`h-[5px] w-[5px] rounded-full ${online ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]'}`} />
+          {online ? t('status.online') : t('status.offline')}
         </span>
-        {msgCount > 0 && (
-          <span>{msgCount} {t('status.messages')}</span>
-        )}
-        <ContextIndicator />
         <VoiceIndicator />
-      </div>
-
-      {/* Right group: streaming status + locale + shortcut */}
-      <div className="flex items-center gap-3">
         {phaseLabel && (
-          <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] animate-pulse" />
+          <span className="rounded-full bg-[var(--color-primary-light)] px-2 py-0.5 font-medium text-[var(--color-primary)]">
             {phaseLabel}
           </span>
         )}
-        <span>{settings.locale.toUpperCase()}</span>
-        <span className="opacity-60">Ctrl+K</span>
+      </div>
+      <div className="flex items-center gap-3 font-medium">
+        <span>Ctrl+K {shortcutHint}</span>
+        <div className="h-3 w-px bg-[var(--color-border-subtle)]" />
+        <span>{APP_VERSION}</span>
       </div>
     </div>
   )

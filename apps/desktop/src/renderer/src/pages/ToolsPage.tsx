@@ -1,8 +1,9 @@
-import {
+﻿import {
   Monitor,
   Search,
   Volume2,
   Bell,
+  Settings2,
   MousePointer2,
   Globe,
   FolderOpen,
@@ -10,12 +11,13 @@ import {
   ShieldCheck,
   Trash2,
   Rocket,
+  Sparkles,
 } from 'lucide-react'
 import { t } from '../i18n'
 import { useSafetyStore } from '../stores/safety.store'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
-import { SectionHeader } from '../components/ui'
+import { useState } from 'react'
 
 interface ToolCardProps {
   icon: typeof Monitor
@@ -117,8 +119,18 @@ const DANGEROUS_TOOLS: ToolCardProps[] = [
   },
 ]
 
-function ToolCard({ icon: Icon, titleKey, descKey, descKeySimple, promptKey, dataAction, dangerous, beginnerMode = false }: ToolCardProps) {
+function ToolCard({
+  icon: Icon,
+  titleKey,
+  descKey,
+  descKeySimple,
+  promptKey,
+  dataAction,
+  dangerous,
+  beginnerMode = false,
+}: ToolCardProps) {
   const requestConfirmation = useSafetyStore((s) => s.requestConfirmation)
+  const newConversation = useChatStore((s) => s.newConversation)
   const sendMessage = useChatStore((s) => s.sendMessage)
 
   const handleRun = async () => {
@@ -131,89 +143,128 @@ function ToolCard({ icon: Icon, titleKey, descKey, descKeySimple, promptKey, dat
       })
       if (!confirmed) return
     }
-    sendMessage(t(promptKey))
+    newConversation()
+    await sendMessage(t(promptKey))
   }
 
   return (
-    <button
-      type="button"
-      data-action={dataAction}
-      onClick={handleRun}
-      className={`group flex items-center gap-4 p-4 rounded-[var(--radius-lg)] ring-1 transition-all hover:-translate-y-px text-left w-full ${
-        dangerous
-          ? 'ring-[var(--color-danger)]/20 hover:ring-[var(--color-danger)]/40 hover:bg-[var(--color-danger-bg)]/30'
-          : 'ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] hover:ring-[var(--color-primary)]/30 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]'
-      }`}
-    >
-      <div className={`w-10 h-10 rounded-[var(--radius-md)] flex items-center justify-center shrink-0 transition-all group-hover:scale-110 ${
-        dangerous
-          ? 'bg-[var(--color-danger-bg)]'
-          : 'bg-[var(--color-primary-light)] group-hover:bg-[var(--color-primary)] group-hover:shadow-[var(--shadow-md)]'
-      }`}>
-        <Icon size={18} className={`transition-colors ${
-          dangerous
-            ? 'text-[var(--color-danger)]'
-            : 'text-[var(--color-primary)] group-hover:text-[var(--color-text-inverse)]'
-        }`} />
+    <div className="flex items-center rounded-[18px] px-4 py-4 transition-colors hover:bg-[var(--color-surface-soft)]/82">
+      <div className="mr-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-soft)] text-[var(--color-text-secondary)]">
+        <Icon size={20} strokeWidth={1.8} />
       </div>
-      <div className="flex-1 min-w-0">
-        <h3 className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">
-          {t(titleKey)}
-        </h3>
-        <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)] truncate">
+      <div className="min-w-0 flex-1 pr-4">
+        <h3 className="truncate text-[14px] font-semibold text-[var(--color-text)]">{t(titleKey)}</h3>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--color-text-muted)]">
           {t(beginnerMode ? descKeySimple : descKey)}
         </p>
       </div>
-      <span className={`shrink-0 px-3 py-2 rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-medium transition-all ${
-        dangerous
-          ? 'text-[var(--color-danger)] group-hover:bg-[var(--color-danger-bg)]'
-          : 'text-[var(--color-primary)] group-hover:bg-[var(--color-primary-light)]'
-      }`}>
+      <button
+        type="button"
+        data-action={dataAction}
+        onClick={handleRun}
+        className="shrink-0 rounded-lg px-4 py-2 text-sm font-bold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-light)]"
+      >
         {t('tools.run')}
-      </span>
-    </button>
+      </button>
+    </div>
   )
 }
 
 export default function ToolsPage() {
   const beginnerMode = useSettingsStore((s) => s.settings.beginnerMode)
+  const [search, setSearch] = useState('')
+
+  const filterTools = (tools: ToolCardProps[]) => {
+    if (!search.trim()) return tools
+    const q = search.toLowerCase()
+    return tools.filter(
+      (tool) =>
+        t(tool.titleKey).toLowerCase().includes(q) ||
+        t(beginnerMode ? tool.descKeySimple : tool.descKey).toLowerCase().includes(q),
+    )
+  }
+
+  const filteredSafe = filterTools(SAFE_TOOLS)
+  const filteredDangerous = filterTools(DANGEROUS_TOOLS)
+  const allTools = [...filteredSafe, ...filteredDangerous]
 
   return (
-    <div className="flex flex-col h-full p-6 overflow-y-auto">
-      {/* Header */}
-      <div className="mb-8 pb-6 border-b border-[var(--color-border)]">
-        <h1 className="font-semibold tracking-tight text-[length:var(--text-xl)] text-[var(--color-text)]">
-          {t('tools.title')}
-        </h1>
-        <p className="text-[length:var(--text-md)] text-[var(--color-text-muted)] mt-1">
-          {t(beginnerMode ? 'tools.subtitleSimple' : 'tools.subtitle')}
-        </p>
-      </div>
+    <div className="h-full overflow-y-auto bg-[var(--color-bg)]">
+      <header className="flex items-center justify-between px-8 pb-2 pt-6">
+        <div className="flex items-center gap-2">
+          <h1 className="text-[22px] font-bold text-[var(--color-text)]">{t('tools.title')}</h1>
+          <Sparkles size={16} className="text-[var(--color-primary)]" />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="flex w-64 items-center gap-3 rounded-full bg-[var(--color-surface-soft)] px-4 py-2.5">
+            <Search size={16} className="text-[var(--color-text-muted)]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('tools.searchPlaceholder')}
+              className="w-full bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
+            />
+          </label>
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-soft)]"
+            aria-label={t('tools.reminder')}
+          >
+            <Bell size={18} />
+          </button>
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-soft)]"
+            aria-label={t('settings.title')}
+          >
+            <Settings2 size={18} />
+          </button>
+        </div>
+      </header>
 
-      {/* Safe tools */}
-      <div className="mb-8 max-w-2xl">
-        <SectionHeader title={t(beginnerMode ? 'tools.safeToolsSimple' : 'tools.safeTools')} indicator="var(--color-success)" />
-        <div className="flex flex-col gap-2">
-          {SAFE_TOOLS.map((tool) => (
-            <ToolCard key={tool.titleKey} {...tool} beginnerMode={beginnerMode} />
-          ))}
-        </div>
-      </div>
+      <div className="mx-auto w-full max-w-[960px] space-y-6 px-6 pb-6 pt-4">
+        {allTools.length === 0 ? (
+          <div className="rounded-[24px] border border-[var(--color-panel-border)] bg-[var(--color-panel-bg-strong)] px-5 py-6 text-[length:var(--text-sm)] text-[var(--color-text-muted)] shadow-[var(--shadow-xs)]">
+            {t('tools.noMatches')}
+          </div>
+        ) : (
+          <>
+            <section className="space-y-3">
+              <div className="space-y-1 px-1">
+                <p className="text-[13px] font-semibold text-[var(--color-text)]">
+                  {t(beginnerMode ? 'tools.safeToolsSimple' : 'tools.safeTools')}
+                </p>
+                <p className="text-[12px] text-[var(--color-text-muted)]">
+                  {t('tools.commonTools')}
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {filteredSafe.map((tool) => (
+                  <ToolCard key={tool.titleKey} {...tool} beginnerMode={beginnerMode} />
+                ))}
+              </div>
+            </section>
 
-      {/* Dangerous tools */}
-      <div className="max-w-2xl">
-        <SectionHeader title={t(beginnerMode ? 'tools.dangerZoneSimple' : 'tools.dangerZone')} indicator="var(--color-danger)" />
-        <div className="px-4 py-2 mb-4 rounded-[var(--radius-md)] bg-[var(--color-danger-bg)]/30 ring-1 ring-[var(--color-danger)]/15">
-          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
-            {t(beginnerMode ? 'tools.needsConfirmationSimple' : 'tools.needsConfirmation')}
-          </p>
-        </div>
-        <div className="flex flex-col gap-2">
-          {DANGEROUS_TOOLS.map((tool) => (
-            <ToolCard key={tool.titleKey} {...tool} beginnerMode={beginnerMode} />
-          ))}
-        </div>
+            <section className="space-y-3">
+              <div className="space-y-1 px-1">
+                <p className="text-[13px] font-semibold text-[var(--color-text)]">
+                  {t(beginnerMode ? 'tools.dangerZoneSimple' : 'tools.dangerZone')}
+                </p>
+                <p className="text-[12px] text-[var(--color-text-muted)]">
+                  {t(beginnerMode ? 'tools.needsConfirmationSimple' : 'tools.needsConfirmation')}
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {filteredDangerous.map((tool) => (
+                  <ToolCard key={tool.titleKey} {...tool} beginnerMode={beginnerMode} />
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </div>
   )
 }
+

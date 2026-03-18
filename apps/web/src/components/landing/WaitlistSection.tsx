@@ -33,27 +33,33 @@ export function WaitlistSection() {
   }
 
   return (
-    <section id="waitlist" className="py-24 sm:py-32 bg-gradient-to-b from-white via-blue-50/50 to-indigo-50/50">
-      <div className="mx-auto max-w-xl px-6 text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white mb-6 shadow-lg shadow-blue-600/20">
+    <section id="waitlist" className="relative overflow-hidden bg-[#090909] py-24 sm:py-32">
+      {/* Ambient glow */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.1)_0%,transparent_70%)]" />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-xl px-6 text-center">
+        {/* Icon */}
+        <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_0_30px_rgba(37,99,235,0.3)]">
           <Mail className="h-7 w-7" />
         </div>
 
-        <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl tracking-tight">
+        <h2 className="bg-gradient-to-b from-white to-white/70 bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl">
           {t('title')}
         </h2>
-        <p className="mt-4 text-lg text-gray-500 leading-relaxed">
+        <p className="mt-4 text-lg leading-relaxed text-white/40">
           {t('description')}
         </p>
 
         {status === 'success' ? (
-          <div className="mt-8 flex items-center justify-center gap-3 rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-100">
-            <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
-            <span className="text-emerald-700 font-medium">{t('success')}</span>
+          <div className="mt-8 flex items-center justify-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5 backdrop-blur-sm">
+            <CheckCircle className="h-5 w-5 shrink-0 text-emerald-400" />
+            <span className="font-medium text-emerald-300">{t('success')}</span>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-8">
-            <div className="flex gap-3 sm:flex-row flex-col">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <input
                 type="email"
                 required
@@ -61,31 +67,33 @@ export function WaitlistSection() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={status === 'loading'}
-                className="flex-1 h-13 px-5 rounded-xl bg-white text-base text-gray-900 placeholder:text-gray-400 ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all disabled:opacity-50 shadow-sm"
+                className="h-[52px] flex-1 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-base text-white placeholder:text-white/30 backdrop-blur-sm transition-all focus:border-blue-500/40 focus:outline-none focus:ring-1 focus:ring-blue-500/20 disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="h-13 px-7 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-600/20 hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="group relative flex h-[52px] items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-7 font-semibold text-white shadow-[0_0_30px_rgba(37,99,235,0.2)] transition-all hover:shadow-[0_0_40px_rgba(37,99,235,0.3)] hover:-translate-y-0.5 disabled:opacity-50"
               >
+                {/* Shimmer sweep */}
+                <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                 {status === 'loading' ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <>
-                    <Send className="h-4 w-4" />
-                    {t('submit')}
+                    <Send className="relative h-4 w-4" />
+                    <span className="relative">{t('submit')}</span>
                   </>
                 )}
               </button>
             </div>
-            <p className="mt-3 text-sm text-gray-400">
+            <p className="mt-3 text-sm text-white/20">
               {t('privacy')}
             </p>
           </form>
         )}
 
         {status === 'error' && (
-          <p className="mt-4 text-sm text-red-500 font-medium">{t('error')}</p>
+          <p className="mt-4 text-sm font-medium text-red-400">{t('error')}</p>
         )}
       </div>
     </section>

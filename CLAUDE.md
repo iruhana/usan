@@ -1,27 +1,62 @@
-# 우산 (Usan) Monorepo
+﻿# Usan Monorepo
 
-## 구조
-- `apps/desktop/` — Electron 34 + React 19 + Zustand + Tailwind (데스크톱 AI 비서)
-- `apps/web/` — Next.js 16 + Supabase + shadcn/ui (usan.ai 랜딩 페이지)
+## Scope
 
-## 네이밍
-- 프로젝트명: 우산 (Usan)
-- IPC 브릿지: `window.usan` (UsanAPI)
+- Applies to `C:\Users\admin\Projects\usan`.
+- Read `C:\Users\admin\Dendron\notes\CLAUDE.md` first, then this file.
+- Use `C:\Users\admin\Projects\usan\AGENTS.md` only as a short routing note.
+
+## Monorepo Structure
+
+- `apps/desktop`: Electron desktop assistant app
+- `apps/web`: Next.js web app for `usan.ai`
+- If you are working in `apps/web`, also read `C:\Users\admin\Projects\usan\apps\web\CLAUDE.md`.
+
+## Project Essentials
+
+- Product: AI personal secretary focused on elderly and low-computer-literacy users.
+- Naming:
+- Project name: `우산` / `Usan`
+- IPC bridge: `window.usan`
 - appId: `com.usan.app`
-- 도메인: usan.ai
+- Domain: `usan.ai`
+- Product rules:
+- Keep primary user-facing UI copy in Korean unless the task explicitly targets localized web content.
+- Accessibility is mandatory: preserve large hit targets, font scaling, and high-contrast behavior.
+- AI provider policy: OpenRouter-only unless the user explicitly requests an architectural change.
+- Desktop automation assumptions are Windows and PowerShell based.
 
-## 규칙
-- 모든 UI 텍스트는 한국어 (타겟: 어르신/컴맹)
-- 접근성 필수: 큰 터치 타겟(44px+), 폰트 스케일링, 고대비 모드
-- OpenRouter 전용 AI 프로바이더
-- Windows PowerShell 기반 컴퓨터 제어
+## Root Commands
 
-## 보이스피싱 차단 (Phase 3 계획)
-- 안드로이드 앱에서 통화 녹취 → 서버 전송
-- 실시간 대화 메모 + 보이스피싱 확률 판정
-- 위험 감지 시 즉시 전화 끊기 + 경고
-- 데스크톱 앱과 안드로이드 앱 상호작용 필요
+- Install all: `npm run install:all`
+- Desktop dev: `npm run dev:desktop`
+- Web dev: `npm run dev:web`
+- Desktop lint: `npm run lint`
+- Desktop build: `npm run build:desktop`
+- Web build: `npm run build:web`
+- Desktop tests: `npm run test`
+- Desktop typecheck: `npm run typecheck`
 
-## UI 디자인 규칙
-- **UI/디자인 작업 시** 반드시 `C:\Users\admin\Dendron\notes\Electron_React_Design.txt`를 먼저 읽고 규칙을 따를 것
-- 데스크톱 UX 기준 밀도 최적화, 단축키, selection/focus 분리, QA 체크리스트 수행
+## Desktop App Rules
+
+- Tech: Electron, React, Zustand, Tailwind.
+- For desktop UI work, read `C:\Users\admin\Dendron\notes\Electron_React_Design.txt` first.
+- Prefer `apps/desktop/package.json` scripts for validation:
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test:unit`
+- `npm run test:e2e`
+- `npm run test:a11y`
+- `npm run test:e2e:electron`
+- `npm run test:e2e:electron:a11y`
+- `npm run verify:strict`
+
+## Web App Rules
+
+- Tech: Next.js 16, Supabase, shadcn/ui, next-intl.
+- App-specific operating rules live in `C:\Users\admin\Projects\usan\apps\web\CLAUDE.md`.
+
+## Product Direction Notes
+
+- Voice-phishing protection remains roadmap context, not assumed implemented behavior.
+- The planned flow includes Android call capture, server-side analysis, real-time risk scoring, and cross-device warning behavior.

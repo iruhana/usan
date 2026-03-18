@@ -14,19 +14,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   primary:
-    'bg-[var(--color-primary)] text-[var(--color-text-inverse)] hover:bg-[var(--color-primary-hover)] shadow-[0_2px_4px_rgba(99,102,241,0.15)] hover:shadow-[0_4px_12px_rgba(99,102,241,0.25)]',
+    'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] hover:shadow-[var(--shadow-lg)] shadow-[var(--shadow-primary)] hover:-translate-y-[1px]',
   secondary:
-    'bg-[var(--color-surface-soft)] text-[var(--color-text)] border border-[var(--color-border)] hover:bg-[var(--color-bg-card)] hover:border-[var(--color-text-muted)]',
+    'bg-[var(--color-panel-bg-strong)] text-[var(--color-text)] ring-1 ring-[var(--color-panel-border)] shadow-[var(--shadow-xs)] hover:bg-[var(--color-panel-muted)] hover:shadow-[var(--shadow-sm)]',
   ghost:
-    'bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-text)]',
+    'bg-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-panel-muted)] hover:text-[var(--color-text)]',
   danger:
-    'bg-[var(--color-danger)] text-[var(--color-text-inverse)] hover:brightness-110',
+    'bg-[var(--color-danger)] text-white hover:brightness-105 shadow-[var(--shadow-sm)] hover:-translate-y-[1px]',
 }
 
 const sizeStyles: Record<Size, string> = {
-  sm: 'h-8 px-3 text-[length:var(--text-sm)] gap-1.5',
-  md: 'h-10 px-4 text-[length:var(--text-md)] gap-2',
-  lg: 'h-12 px-6 text-[length:var(--text-lg)] gap-2',
+  sm: 'h-9 px-3.5 text-[length:var(--text-sm)] gap-1.5 rounded-[16px]',
+  md: 'h-11 px-5 text-[length:var(--text-md)] gap-2 rounded-[18px]',
+  lg: 'h-13 px-6 text-[length:var(--text-md)] gap-2 rounded-[22px]',
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -38,17 +38,18 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={isDisabled}
         className={`
-          inline-flex items-center justify-center font-medium
-          rounded-[var(--radius-md)] transition-all
-          active:scale-[0.97]
-          disabled:opacity-50 disabled:pointer-events-none
+          inline-flex items-center justify-center font-semibold
+          transition-all duration-200
+          active:scale-[0.97] active:transition-none
+          disabled:opacity-40 disabled:pointer-events-none
           ${variantStyles[variant]}
           ${sizeStyles[size]}
           ${className}
         `.trim()}
+        style={{ transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
         {...rest}
       >
-        {loading ? <Loader2 size={16} className="animate-spin shrink-0" /> : leftIcon && <span className="shrink-0">{leftIcon}</span>}
+        {loading ? <Loader2 size={15} className="animate-spin shrink-0" /> : leftIcon && <span className="shrink-0">{leftIcon}</span>}
         {children}
         {rightIcon && !loading && <span className="shrink-0">{rightIcon}</span>}
       </button>

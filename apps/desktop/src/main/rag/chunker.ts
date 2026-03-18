@@ -67,6 +67,11 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
   const { readFile } = await import('fs/promises')
   const ext = filePath.split('.').pop()?.toLowerCase() || ''
 
+  if (ext === 'hwpx') {
+    const { hwpxToText } = await import('../documents/hwpx-engine')
+    return hwpxToText(filePath)
+  }
+
   if (ext === 'pdf') {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports

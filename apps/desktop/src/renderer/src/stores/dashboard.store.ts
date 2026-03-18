@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand'
-import type { SystemMetrics, ProcessInfo, Suggestion, ContextSnapshot, VoiceStatusEvent } from '@shared/types/infrastructure'
+import type { SystemMetrics, ProcessInfo, Suggestion, ContextSnapshot } from '@shared/types/infrastructure'
+import { toDashboardErrorMessage } from '../lib/user-facing-errors'
 
 const HISTORY_LIMIT = 60
 
@@ -9,7 +10,6 @@ interface DashboardState {
   processes: ProcessInfo[]
   suggestions: Suggestion[]
   contextSnapshot: ContextSnapshot | null
-  voiceStatus: VoiceStatusEvent
   loading: boolean
   error: string | null
   monitorRunning: boolean
@@ -26,15 +26,12 @@ interface DashboardState {
 let metricsUnsub: (() => void) | null = null
 let suggestionUnsub: (() => void) | null = null
 let contextUnsub: (() => void) | null = null
-let voiceUnsub: (() => void) | null = null
-
 export const useDashboardStore = create<DashboardState>((set, get) => ({
   metrics: null,
   metricsHistory: [],
   processes: [],
   suggestions: [],
   contextSnapshot: null,
-  voiceStatus: { status: 'idle' },
   loading: false,
   error: null,
   monitorRunning: false,
@@ -63,11 +60,6 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       })
     }
 
-    if (!voiceUnsub && window.usan?.voice) {
-      voiceUnsub = window.usan.voice.onStatus((status) => {
-        set({ voiceStatus: status })
-      })
-    }
   },
 
   startMonitoring: async () => {
@@ -90,7 +82,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
       await get().loadProcesses()
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toDashboardErrorMessage(err, 'monitor') })
     }
   },
 
@@ -99,7 +91,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       await window.usan?.systemMonitor.stop()
       set({ monitorRunning: false })
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toDashboardErrorMessage(err, 'monitor') })
     }
   },
 
@@ -108,7 +100,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       const processes = await window.usan?.systemMonitor.getProcesses()
       set({ processes: processes ?? [] })
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toDashboardErrorMessage(err, 'processes') })
     }
   },
 
@@ -117,7 +109,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       const suggestions = await window.usan?.proactive.list()
       set({ suggestions: suggestions ?? [] })
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toDashboardErrorMessage(err, 'suggestions') })
     }
   },
 
@@ -126,7 +118,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       await window.usan?.proactive.dismiss(id)
       set((state) => ({ suggestions: state.suggestions.filter((s) => s.id !== id) }))
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toDashboardErrorMessage(err, 'suggestions') })
     }
   },
 
@@ -135,7 +127,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       await window.usan?.proactive.configure(config)
       await get().refreshSuggestions()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toDashboardErrorMessage(err, 'settings') })
     }
   },
 }))

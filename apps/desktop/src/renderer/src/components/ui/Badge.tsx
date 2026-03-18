@@ -9,11 +9,11 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<Variant, string> = {
-  default: 'bg-[var(--color-surface-soft)] text-[var(--color-text-muted)]',
-  success: 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
-  warning: 'bg-[var(--color-warning)]/10 text-[var(--color-warning)]',
-  danger: 'bg-[var(--color-danger)]/10 text-[var(--color-danger)]',
-  info: 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]',
+  default: 'bg-[var(--color-panel-muted)] text-[var(--color-text-secondary)] ring-1 ring-[var(--color-panel-border)]',
+  success: 'bg-[var(--color-success-light)] text-[var(--color-success)] ring-1 ring-[rgba(15,159,110,0.12)]',
+  warning: 'bg-[var(--color-warning-light)] text-[var(--color-warning)] ring-1 ring-[rgba(217,129,31,0.14)]',
+  danger: 'bg-[var(--color-danger-light)] text-[var(--color-danger)] ring-1 ring-[rgba(229,72,77,0.14)]',
+  info: 'bg-[var(--color-primary-light)] text-[var(--color-primary)] ring-1 ring-[rgba(49,130,246,0.12)]',
 }
 
 export function Badge({ variant = 'default', children, className = '' }: BadgeProps) {
@@ -21,8 +21,8 @@ export function Badge({ variant = 'default', children, className = '' }: BadgePr
     <span
       className={`
         inline-flex items-center gap-1
-        px-2 py-0.5 rounded-[var(--radius-sm)]
-        text-[length:var(--text-xs)] font-medium
+        px-2.5 py-1 rounded-[var(--radius-full)]
+        text-[length:var(--text-xs)] font-semibold
         ${variantStyles[variant]}
         ${className}
       `.trim()}

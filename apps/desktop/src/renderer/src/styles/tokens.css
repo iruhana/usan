@@ -1,0 +1,266 @@
+/*
+ * Usan Design Token System
+ * Naming: --usan-{category}-{role}-{variant}
+ * Based on: ui-design-plan-2026-03-18.md §3
+ * Sources: Doubao, AutoClaw, Yuanbao, Notion, Linear analysis
+ */
+
+/* ─── Color Tokens (Light Mode Default) ──────────── */
+:root {
+  /* Brand */
+  --usan-color-brand-primary: #2563eb;
+  --usan-color-brand-primary-hover: #1d4ed8;
+  --usan-color-brand-primary-pressed: #1e40af;
+  --usan-color-brand-primary-muted: rgba(37, 99, 235, 0.08);
+  --usan-color-brand-primary-light: rgba(37, 99, 235, 0.12);
+
+  /* AI-specific gradients (inspired by Doubao) */
+  --usan-color-ai-gradient: linear-gradient(135deg, #2563eb, #7c3aed);
+  --usan-color-ai-glow: linear-gradient(283deg, #60a5fa, #818cf8);
+
+  /* Text */
+  --usan-color-text-primary: #111827;
+  --usan-color-text-secondary: #6b7280;
+  --usan-color-text-tertiary: #9ca3af;
+  --usan-color-text-disabled: #d1d5db;
+  --usan-color-text-inverse: #ffffff;
+
+  /* Background */
+  --usan-color-bg-page: #f9fafb;
+  --usan-color-bg-panel: #ffffff;
+  --usan-color-bg-surface: #f3f4f6;
+  --usan-color-bg-elevated: #ffffff;
+  --usan-color-bg-float: #ffffff;
+  --usan-color-bg-sidebar: #ffffff;
+
+  /* Border */
+  --usan-color-border-primary: rgba(0, 0, 0, 0.12);
+  --usan-color-border-secondary: rgba(0, 0, 0, 0.06);
+
+  /* Status */
+  --usan-color-success: #22c55e;
+  --usan-color-success-light: rgba(34, 197, 94, 0.1);
+  --usan-color-warning: #f59e0b;
+  --usan-color-warning-light: rgba(245, 158, 11, 0.1);
+  --usan-color-danger: #ef4444;
+  --usan-color-danger-light: rgba(239, 68, 68, 0.1);
+  --usan-color-info: #2563eb;
+
+  /* Message bubbles (inspired by AutoClaw) */
+  --usan-color-msg-user: rgba(37, 99, 235, 0.08);
+  --usan-color-msg-agent: rgba(0, 0, 0, 0.03);
+
+  /* Backdrop */
+  --usan-color-backdrop: rgba(0, 0, 0, 0.34);
+
+  /* Glass / Frost */
+  --usan-glass-bg: rgba(255, 255, 255, 0.82);
+  --usan-glass-border: rgba(0, 0, 0, 0.06);
+  --usan-glass-blur: 20px;
+}
+
+/* ─── Spacing (4px base) ─────────────────────────── */
+:root {
+  --usan-space-xs: 4px;
+  --usan-space-sm: 8px;
+  --usan-space-md: 12px;
+  --usan-space-lg: 16px;
+  --usan-space-xl: 24px;
+  --usan-space-2xl: 32px;
+  --usan-space-3xl: 48px;
+}
+
+/* ─── Border Radius ──────────────────────────────── */
+:root {
+  --usan-radius-xs: 4px;
+  --usan-radius-sm: 6px;
+  --usan-radius-md: 8px;
+  --usan-radius-lg: 12px;
+  --usan-radius-xl: 16px;
+  --usan-radius-pill: 9999px;
+}
+
+/* ─── Shadows (5 levels, inspired by Doubao) ─────── */
+:root {
+  --usan-shadow-xs: 0px 1px 2px rgba(0, 0, 0, 0.05);
+  --usan-shadow-sm: 0px 2px 4px rgba(0, 0, 0, 0.05), 0px 4px 10px rgba(0, 0, 0, 0.03);
+  --usan-shadow-md: 0px 4px 8px rgba(0, 0, 0, 0.06), 0px 8px 16px rgba(0, 0, 0, 0.04);
+  --usan-shadow-lg: 0px 8px 16px rgba(0, 0, 0, 0.08), 0px 16px 32px rgba(0, 0, 0, 0.06);
+  --usan-shadow-float: 0px 12px 24px rgba(0, 0, 0, 0.12);
+  /* Button shadow (Linear pattern) */
+  --usan-shadow-btn: rgba(0, 0, 0, 0.02) 0px 3px 6px -2px, rgba(0, 0, 0, 0.043) 0px 1px 1px;
+}
+
+/* ─── Typography ─────────────────────────────────── */
+:root {
+  --usan-font-sans: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont,
+    'Segoe UI Variable Display', 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+  --usan-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code',
+    ui-monospace, monospace;
+
+  /* Font Scale (base 16px) */
+  --usan-text-xs: 0.75rem;     /* 12px — captions, meta */
+  --usan-text-sm: 0.875rem;    /* 14px — secondary text */
+  --usan-text-base: 1rem;      /* 16px — body */
+  --usan-text-lg: 1.125rem;    /* 18px — emphasis */
+  --usan-text-xl: 1.25rem;     /* 20px — section heading */
+  --usan-text-2xl: 1.5rem;     /* 24px — page heading */
+  --usan-text-3xl: 1.75rem;    /* 28px — hero */
+
+  /* Font Weight (Linear: 450 for body optical medium) */
+  --usan-font-weight-body: 450;
+  --usan-font-weight-medium: 500;
+  --usan-font-weight-semibold: 600;
+  --usan-font-weight-bold: 700;
+
+  /* Line Height */
+  --usan-leading-tight: 1.35;
+  --usan-leading-normal: 1.6;
+  --usan-leading-relaxed: 1.8;
+}
+
+/* ─── Duration Tokens (Linear-derived) ───────────── */
+:root {
+  --usan-duration-instant: 0s;
+  --usan-duration-micro: 0.1s;
+  --usan-duration-fast: 0.15s;
+  --usan-duration-medium: 0.25s;
+  --usan-duration-slow: 0.35s;
+}
+
+/* ─── Hover Opacity Steps (Notion pattern) ───────── */
+:root {
+  --usan-hover-subtle: 0.04;
+  --usan-hover-medium: 0.08;
+  --usan-hover-strong: 0.12;
+}
+
+/* ─── Layout ─────────────────────────────────────── */
+:root {
+  --usan-sidebar-width: 64px;
+  --usan-sidebar-collapsed: 48px;
+  --usan-titlebar-height: 32px;
+  --usan-statusbar-height: 24px;
+  --usan-composer-min-height: 80px;
+  --usan-composer-max-height: 300px;
+  --usan-min-target: 40px;
+}
+
+/* ─── Breakpoints (as CSS custom properties for JS) ─ */
+:root {
+  --usan-bp-xs: 480px;
+  --usan-bp-sm: 680px;
+  --usan-bp-md: 900px;
+  --usan-bp-lg: 1200px;
+  --usan-bp-xl: 1440px;
+}
+
+/* ─── Code Block Colors (Doubao + AutoClaw) ──────── */
+:root {
+  --usan-code-python: #3572a5;
+  --usan-code-javascript: #f7df1e;
+  --usan-code-typescript: #3178c6;
+  --usan-code-rust: #dea584;
+  --usan-code-go: #00add8;
+  --usan-code-shell: #89e051;
+}
+
+/* ─── Bridge Aliases ─────────────────────────────── */
+/* Map old --color-* tokens to new --usan-* so existing components don't break */
+:root {
+  --color-primary: var(--usan-color-brand-primary);
+  --color-primary-hover: var(--usan-color-brand-primary-hover);
+  --color-primary-light: var(--usan-color-brand-primary-light);
+  --color-primary-muted: var(--usan-color-brand-primary-muted);
+  --color-success: var(--usan-color-success);
+  --color-success-light: var(--usan-color-success-light);
+  --color-warning: var(--usan-color-warning);
+  --color-warning-light: var(--usan-color-warning-light);
+  --color-danger: var(--usan-color-danger);
+  --color-danger-light: var(--usan-color-danger-light);
+  --color-bg: var(--usan-color-bg-page);
+  --color-bg-sidebar: var(--usan-color-bg-sidebar);
+  --color-bg-card: var(--usan-color-bg-panel);
+  --color-bg-elevated: var(--usan-color-bg-elevated);
+  --color-text: var(--usan-color-text-primary);
+  --color-text-secondary: var(--usan-color-text-secondary);
+  --color-text-muted: var(--usan-color-text-tertiary);
+  --color-text-inverse: var(--usan-color-text-inverse);
+  --color-border: var(--usan-color-border-primary);
+  --color-border-subtle: var(--usan-color-border-secondary);
+  --color-surface-soft: var(--usan-color-bg-surface);
+  --color-surface-hover: rgba(37, 99, 235, 0.04);
+  --color-backdrop: var(--usan-color-backdrop);
+  --glass-bg: var(--usan-glass-bg);
+  --glass-border: var(--usan-glass-border);
+  --glass-blur: var(--usan-glass-blur);
+
+  /* Shadow bridges */
+  --shadow-xs: var(--usan-shadow-xs);
+  --shadow-sm: var(--usan-shadow-sm);
+  --shadow-md: var(--usan-shadow-md);
+  --shadow-lg: var(--usan-shadow-lg);
+  --shadow-xl: var(--usan-shadow-float);
+  --shadow-primary: 0 12px 28px rgba(37, 99, 235, 0.22);
+
+  /* Radius bridges */
+  --radius-xs: var(--usan-radius-sm);
+  --radius-sm: var(--usan-radius-md);
+  --radius-md: var(--usan-radius-lg);
+  --radius-lg: var(--usan-radius-xl);
+  --radius-xl: 28px;
+  --radius-full: var(--usan-radius-pill);
+
+  /* Transition bridges */
+  --transition-fast: var(--usan-duration-micro) ease;
+  --transition-normal: var(--usan-duration-fast) ease;
+  --transition-smooth: var(--usan-duration-medium) cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Min target bridge */
+  --min-target: var(--usan-min-target);
+
+  /* Shell/Panel bridges (used by SettingsPage, Card, Badge, Button, etc.) */
+  --color-shell-bg: var(--usan-glass-bg);
+  --color-shell-bg-strong: var(--usan-color-bg-panel);
+  --color-shell-border: var(--usan-color-border-secondary);
+  --color-panel-bg: var(--usan-glass-bg);
+  --color-panel-bg-strong: var(--usan-color-bg-panel);
+  --color-panel-muted: var(--usan-color-bg-surface);
+  --color-panel-border: var(--usan-color-border-secondary);
+
+  /* Accent bridges */
+  --color-accent-cyan: #7cc8ff;
+  --color-accent-sky: #dff0ff;
+
+  /* Status background bridges (used by SafetyConfirmationModal, etc.) */
+  --color-danger-bg: var(--usan-color-danger-light);
+  --color-danger-bg-hover: rgba(239, 68, 68, 0.16);
+  --color-success-bg: var(--usan-color-success-light);
+
+  /* Additional shadow bridges */
+  --shadow-shell: var(--usan-shadow-float);
+  --shadow-panel: var(--usan-shadow-lg);
+  --shadow-card: var(--usan-shadow-md);
+
+  /* Typography bridges (used by 62+ existing components) */
+  --font-scale: 1;
+  --text-2xl: calc(28px * var(--font-scale));
+  --text-xl: calc(20px * var(--font-scale));
+  --text-lg: calc(16px * var(--font-scale));
+  --text-md: calc(14px * var(--font-scale));
+  --text-sm: calc(13px * var(--font-scale));
+  --text-xs: calc(12px * var(--font-scale));
+  --font-size-base: calc(14px * var(--font-scale));
+  --font-size-sm: var(--text-md);
+  --font-size-lg: var(--text-xl);
+  --font-size-xl: var(--text-xl);
+  --font-size-2xl: var(--text-2xl);
+  --line-height-base: 1.55;
+  --line-height-tight: 1.4;
+
+  /* High contrast bridges */
+  --color-hc-bg: #ffffff;
+  --color-hc-text: #000000;
+  --color-hc-primary: #1e40af;
+  --color-hc-border: #000000;
+}

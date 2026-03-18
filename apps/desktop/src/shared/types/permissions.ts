@@ -53,7 +53,7 @@ export const ALL_PERMISSIONS = [
 
 export type Permission = (typeof ALL_PERMISSIONS)[number]
 
-export type PermissionScope = 'all' | 'tools' | 'features' | 'skills'
+export type PermissionScope = 'all' | 'tools' | 'features' | 'skills' | 'directories'
 
 export interface TimedPermissionGrant {
   grantedAt: number
@@ -67,6 +67,7 @@ export interface PermissionGrant {
   toolGrants: Record<string, TimedPermissionGrant>
   featureGrants: Record<string, TimedPermissionGrant>
   skillGrants: Record<string, TimedPermissionGrant>
+  directoryGrants: Record<string, TimedPermissionGrant>
   defaultTtlMinutes: number
 }
 
@@ -82,9 +83,37 @@ export interface PermissionRevokeRequest {
   items?: string[]
 }
 
+export interface CapabilityGrantRequest {
+  sessionId: string
+  actorType: 'agent' | 'workflow'
+  actorId?: string
+  toolName: string
+  scopePaths?: string[]
+  ttlMinutes?: number
+}
+
+export interface CapabilityGrantResponse {
+  tokenId: string
+  expiresAt: number
+  staged: true
+  toolName: string
+  ring: 3
+}
+
 export const DEFAULT_PERMISSION_VERSION = '0.2.0'
 export const DEFAULT_PERMISSION_TTL_MINUTES = 15
 export const MAX_PERMISSION_TTL_MINUTES = 24 * 60
+
+export function normalizePermissionPath(path?: string): string {
+  if (typeof path !== 'string') return ''
+  const trimmed = path.trim().replace(/[\\]+/g, '/')
+  if (!trimmed) return ''
+  const collapsed = trimmed.replace(/\/+/g, '/').replace(/\/$/, '')
+  if (/^[A-Z]:/.test(collapsed)) {
+    return `${collapsed[0].toLowerCase()}${collapsed.slice(1)}`
+  }
+  return collapsed
+}
 
 function toSafeTtlMinutes(raw?: number): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return DEFAULT_PERMISSION_TTL_MINUTES
@@ -143,6 +172,7 @@ export function normalizePermissionGrant(raw?: Partial<PermissionGrant> | null):
     toolGrants: normalizeGrantMap(raw?.toolGrants),
     featureGrants: normalizeGrantMap(raw?.featureGrants),
     skillGrants: normalizeGrantMap(raw?.skillGrants),
+    directoryGrants: normalizeGrantMap(raw?.directoryGrants),
     defaultTtlMinutes: toSafeTtlMinutes(raw?.defaultTtlMinutes),
   }
 }
@@ -162,15 +192,30 @@ function hasMapGrant(
   return isTimedGrantActive(map[name], now)
 }
 
+function hasDirectoryGrant(
+  map: Record<string, TimedPermissionGrant>,
+  directoryPath: string | undefined,
+  now = Date.now(),
+): boolean {
+  if (!directoryPath) return false
+  const normalizedPath = normalizePermissionPath(directoryPath)
+  if (!normalizedPath) return false
+  return Object.entries(map).some(([scopePath, grant]) => {
+    if (!isTimedGrantActive(grant, now)) return false
+    return normalizedPath === scopePath || normalizedPath.startsWith(`${scopePath}/`)
+  })
+}
+
 export function isPermissionGranted(
   grant: PermissionGrant,
-  input: { toolName?: string; featureName?: string; skillId?: string },
+  input: { toolName?: string; featureName?: string; skillId?: string; directoryPath?: string },
 ): boolean {
   if (grant.grantedAll) return true
   const now = Date.now()
   if (hasMapGrant(grant.toolGrants, input.toolName, now)) return true
   if (hasMapGrant(grant.featureGrants, input.featureName, now)) return true
   if (hasMapGrant(grant.skillGrants, input.skillId, now)) return true
+  if (hasDirectoryGrant(grant.directoryGrants, input.directoryPath, now)) return true
   return false
 }
 
@@ -191,10 +236,10 @@ function grantItems(
   return next
 }
 
-function normalizeGrantItems(items?: string[]): string[] | undefined {
+function normalizeGrantItems(items?: string[], scope?: Exclude<PermissionScope, 'all'>): string[] | undefined {
   if (!items?.length) return undefined
   const normalized = items
-    .map((item) => item.trim())
+    .map((item) => scope === 'directories' ? normalizePermissionPath(item) : item.trim())
     .filter((item) => item.length > 0 && item.length <= 200)
   if (!normalized.length) return undefined
   return [...new Set(normalized)]
@@ -218,7 +263,7 @@ export function applyPermissionGrantRequest(
     }
   }
 
-  const items = normalizeGrantItems(request.items)
+  const items = normalizeGrantItems(request.items, scope)
   if (!items?.length) {
     return normalized
   }
@@ -239,6 +284,10 @@ export function applyPermissionGrantRequest(
       scope === 'skills'
         ? grantItems(normalized.skillGrants, items, ttlMinutes)
         : normalized.skillGrants,
+    directoryGrants:
+      scope === 'directories'
+        ? grantItems(normalized.directoryGrants, items, ttlMinutes)
+        : normalized.directoryGrants,
   }
 }
 
@@ -265,6 +314,7 @@ export function applyPermissionRevokeRequest(
       toolGrants: {},
       featureGrants: {},
       skillGrants: {},
+      directoryGrants: {},
     }
   }
 
@@ -279,6 +329,8 @@ export function applyPermissionRevokeRequest(
     next.featureGrants = revokeItems(normalized.featureGrants, request.items)
   } else if (request.scope === 'skills') {
     next.skillGrants = revokeItems(normalized.skillGrants, request.items)
+  } else if (request.scope === 'directories') {
+    next.directoryGrants = revokeItems(normalized.directoryGrants, normalizeGrantItems(request.items, 'directories'))
   }
 
   return next

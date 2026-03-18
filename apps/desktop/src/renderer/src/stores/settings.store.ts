@@ -14,17 +14,22 @@ interface SettingsState {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  schemaVersion: 2,
+  schemaVersion: 7,
   fontScale: 1.0,
   highContrast: false,
-  voiceEnabled: true,
+  voiceEnabled: false,
+  voiceOverlayEnabled: false,
   voiceSpeed: 1.0,
   locale: 'ko',
+  localeConfigured: false,
   theme: 'light',
   openAtLogin: true,
   updateChannel: 'stable',
   autoDownloadUpdates: false,
   permissionProfile: 'full',
+  beginnerMode: true,
+  browserCredentialAutoImportEnabled: true,
+  browserCredentialAutoImportDone: false,
   sidebarCollapsed: false,
   enterToSend: true,
 }
@@ -47,13 +52,17 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
 
   update: async (partial) => {
+    const normalizedPartial: Partial<AppSettings> = partial.locale !== undefined
+      ? { ...partial, localeConfigured: true }
+      : partial
+
     set((s) => {
-      const next = { ...s.settings, ...partial }
-      if (partial.fontScale !== undefined) applyFontScale(partial.fontScale)
-      if (partial.locale !== undefined) setLocale(partial.locale)
+      const next = { ...s.settings, ...normalizedPartial }
+      if (normalizedPartial.fontScale !== undefined) applyFontScale(normalizedPartial.fontScale)
+      if (normalizedPartial.locale !== undefined) setLocale(normalizedPartial.locale)
       return { settings: next }
     })
-    await window.usan?.settings.set(partial)
+    await window.usan?.settings.set(normalizedPartial)
   },
 }))
 

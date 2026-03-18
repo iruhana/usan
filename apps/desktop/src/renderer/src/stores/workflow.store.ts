@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand'
 import type { WorkflowDefinition, WorkflowRun, WorkflowProgress } from '@shared/types/infrastructure'
+import { toWorkflowErrorMessage } from '../lib/user-facing-errors'
 
 interface WorkflowState {
   workflows: WorkflowDefinition[]
@@ -84,7 +85,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     } catch (err) {
       set({
         loading: false,
-        error: (err as Error).message,
+        error: toWorkflowErrorMessage(err, 'load'),
       })
     }
   },
@@ -94,7 +95,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       const runs = await window.usan?.workflow.listRuns(workflowId)
       set({ runs: runs ?? [] })
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'load') })
     }
   },
 
@@ -109,7 +110,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
       return id ?? null
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'create') })
       return null
     }
   },
@@ -120,7 +121,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       await window.usan?.workflow.delete(id)
       await get().load()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'delete') })
     }
   },
 
@@ -135,7 +136,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         activeRunId: run.id,
       }))
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'run') })
     }
   },
 
@@ -146,7 +147,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         runs: state.runs.map((run) => run.id === runId ? { ...run, status: 'paused' } : run),
       }))
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'pause') })
     }
   },
 
@@ -157,7 +158,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         runs: state.runs.map((run) => run.id === runId ? { ...run, status: 'running' } : run),
       }))
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'resume') })
     }
   },
 
@@ -168,7 +169,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         runs: state.runs.map((run) => run.id === runId ? { ...run, status: 'cancelled' } : run),
       }))
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'cancel') })
     }
   },
 
@@ -177,7 +178,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       const scheduleId = await window.usan?.workflow.schedule(id, intervalMs)
       return scheduleId ?? null
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'schedule') })
       return null
     }
   },
@@ -186,7 +187,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     try {
       await window.usan?.workflow.unschedule(scheduleId)
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toWorkflowErrorMessage(err, 'schedule') })
     }
   },
 }))

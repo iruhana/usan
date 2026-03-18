@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { toAuthErrorMessage } from '../lib/user-facing-errors'
 
 export interface UserProfile {
   id: string
@@ -44,10 +45,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: result.user as UserProfile, loading: false, error: null })
         return true
       }
-      set({ loading: false, error: result?.error || '로그인 실패' })
+      set({ loading: false, error: toAuthErrorMessage(result?.error, 'login') })
       return false
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toAuthErrorMessage(err, 'login') })
       return false
     }
   },
@@ -60,10 +61,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: result.user as UserProfile, loading: false, error: null })
         return true
       }
-      set({ loading: false, error: result?.error || '회원가입 실패' })
+      set({ loading: false, error: toAuthErrorMessage(result?.error, 'signup') })
       return false
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toAuthErrorMessage(err, 'signup') })
       return false
     }
   },
@@ -73,7 +74,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await window.usan?.auth.logout()
     } catch {
-      // ignore
+      // ignore logout failures so the local UI can recover
     }
     set({ user: null, loading: false, error: null })
   },

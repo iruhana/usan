@@ -1,9 +1,10 @@
 /**
- * Files store — manages file browser state + directory loading
+ * Files store manages file browser state and directory loading.
  */
 
 import { create } from 'zustand'
 import type { FileEntry } from '@shared/types/ipc'
+import { toFilesErrorMessage } from '../lib/user-facing-errors'
 
 interface FilesState {
   currentPath: string
@@ -22,7 +23,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   error: null,
 
   loadDirectory: async (dir) => {
-    if (get().loading) return // Prevent concurrent loads
+    if (get().loading) return
     set({ loading: true, error: null })
     try {
       const list = await window.usan?.fs.list(dir)
@@ -35,9 +36,9 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       } else {
         set({ loading: false })
       }
-    } catch (e) {
+    } catch (error) {
       set({
-        error: e instanceof Error ? e.message : 'Cannot open folder',
+        error: toFilesErrorMessage(error),
         entries: [],
         loading: false,
       })

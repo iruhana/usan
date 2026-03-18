@@ -1,20 +1,29 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { EmailEntry, EmailFull } from '@shared/types/infrastructure'
 import { Mail, RefreshCw } from 'lucide-react'
-import { Card, Button, SectionHeader } from '../ui'
+import { Card, Button, InlineNotice, SectionHeader } from '../ui'
 import EmailCompose from './EmailCompose'
 import { t } from '../../i18n'
+import { hasE2EQueryFlag } from '../../lib/e2e-flags'
+import { toEmailErrorMessage } from '../../lib/user-facing-errors'
+
+interface NoticeState {
+  tone: 'warning' | 'error' | 'success'
+  title: string
+  body: string
+}
 
 export default function EmailInbox() {
+  const forceNotice = hasE2EQueryFlag('usan_e2e_force_email_notice')
   const [configured, setConfigured] = useState(false)
   const [emails, setEmails] = useState<EmailEntry[]>([])
   const [selected, setSelected] = useState<EmailFull | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
+    setNotice(null)
     try {
       const [isConfigured, list] = await Promise.all([
         window.usan?.email.isConfigured(),
@@ -23,18 +32,26 @@ export default function EmailInbox() {
       setConfigured(Boolean(isConfigured))
       setEmails(list ?? [])
     } catch (err) {
-      setError((err as Error).message)
+      setNotice({
+        tone: 'error',
+        title: t('email.noticeLoadTitle'),
+        body: toEmailErrorMessage(err, 'load'),
+      })
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
+    if (forceNotice) return
     load().catch(() => {})
-  }, [load])
+  }, [forceNotice, load])
+
+  const effectiveConfigured = forceNotice ? false : configured
+  const effectiveNotice = forceNotice ? null : notice
 
   return (
-    <Card variant="outline" className="space-y-3">
+    <Card variant="outline" className="space-y-3" data-view="email-inbox">
       <SectionHeader
         title={t('email.title')}
         icon={Mail}
@@ -46,17 +63,17 @@ export default function EmailInbox() {
         )}
       />
 
-      {!configured && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-warning)]/20 bg-[var(--color-warning)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text)]">
+      {!effectiveConfigured && (
+        <InlineNotice tone="warning" title={t('email.noticeSetupTitle')}>
           {t('email.notConfigured')}
-        </p>
+        </InlineNotice>
       )}
 
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
-          {error}
-        </p>
-      )}
+      {effectiveNotice ? (
+        <InlineNotice tone={effectiveNotice.tone} title={effectiveNotice.title}>
+          {effectiveNotice.body}
+        </InlineNotice>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-[1fr_1.1fr]">
         <div className="space-y-2">
@@ -71,13 +88,22 @@ export default function EmailInbox() {
                   key={email.id}
                   type="button"
                   onClick={async () => {
-                    const full = await window.usan?.email.read(email.id)
-                    setSelected(full ?? null)
+                    try {
+                      setNotice(null)
+                      const full = await window.usan?.email.read(email.id)
+                      setSelected(full ?? null)
+                    } catch (err) {
+                      setNotice({
+                        tone: 'error',
+                        title: t('email.noticeReadTitle'),
+                        body: toEmailErrorMessage(err, 'read'),
+                      })
+                    }
                   }}
-                  className={`w-full rounded-[var(--radius-md)] border px-3 py-2 text-left ${
+                  className={`w-full rounded-[var(--radius-md)] ring-1 px-3 py-2.5 text-left transition-all ${
                     selected?.id === email.id
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]'
-                      : 'border-[var(--color-border)] hover:bg-[var(--color-surface-soft)]'
+                      ? 'ring-[var(--color-primary)] bg-[var(--color-primary-muted)] shadow-[var(--shadow-xs)]'
+                      : 'ring-[var(--color-border-subtle)] hover:bg-[var(--color-surface-soft)] hover:ring-[var(--color-border)]'
                   }`}
                 >
                   <p className="truncate text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">{email.subject || t('email.noSubject')}</p>
@@ -91,7 +117,7 @@ export default function EmailInbox() {
 
         <div className="space-y-3">
           {selected ? (
-            <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
+            <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3">
               <p className="text-[length:var(--text-sm)] font-medium text-[var(--color-text)]">{selected.subject || t('email.noSubject')}</p>
               <p className="mb-2 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">{selected.from}</p>
               <p className="max-h-32 overflow-auto whitespace-pre-wrap text-[length:var(--text-sm)] text-[var(--color-text)]">

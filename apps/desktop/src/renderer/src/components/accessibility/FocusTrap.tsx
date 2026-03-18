@@ -49,9 +49,5 @@ export default function FocusTrap({ active, children }: FocusTrapProps) {
     return () => container.removeEventListener('keydown', handleKeyDown)
   }, [active])
 
-  return (
-    <div ref={ref} role={active ? 'dialog' : undefined} aria-modal={active || undefined}>
-      {children}
-    </div>
-  )
+  return <div ref={ref}>{children}</div>
 }

@@ -9,6 +9,9 @@ import { dirname } from 'path'
 import { buildContextPrompt } from '../context/context-injector'
 import { vectorStore } from '../rag/vector-store'
 import { generateEmbedding } from '../rag/embeddings'
+import { getHonorificInstruction, resolveHonorificLevel, DEFAULT_HONORIFIC } from './korean-honorifics'
+import type { HonorificLevel } from './korean-honorifics'
+import { securityRuntime } from '../security/index'
 
 const MAX_TOOL_ROUNDS = 10
 const MAX_TOOLS_PER_ROUND = 5
@@ -134,6 +137,10 @@ interface AgentSession {
   generation: number
 }
 
+interface ChatRouteOptions {
+  fallbackModelIds?: string[]
+}
+
 export class AgentLoop {
   private sessions = new Map<string, AgentSession>()
   private skills: Skill[] = []
@@ -141,9 +148,14 @@ export class AgentLoop {
   private skillsPromise: Promise<void> | null = null
   private skillsLoaded = false
   private currentLocale: Locale = 'ko'
+  private honorificLevel: HonorificLevel = DEFAULT_HONORIFIC
 
   setLocale(locale: Locale): void {
     this.currentLocale = locale
+  }
+
+  setHonorificLevel(level: HonorificLevel): void {
+    this.honorificLevel = level
   }
 
   getLocale(): Locale {
@@ -200,6 +212,13 @@ export class AgentLoop {
     const contextBlock = buildContextPrompt()
 
     let prompt = base
+
+    // Inject honorific instruction for Korean locale
+    if (this.currentLocale === 'ko') {
+      const level = resolveHonorificLevel(this.honorificLevel)
+      prompt += `\n\n${getHonorificInstruction(level)}`
+    }
+
     if (contextBlock) prompt += `\n${contextBlock}`
     if (skillCatalog) {
       const skillInstruction = getSkillInstruction(this.currentLocale)
@@ -216,8 +235,10 @@ export class AgentLoop {
       const results = vectorStore.search(embedding, 3)
       const relevant = results.filter((r) => r.score >= 40)
       if (relevant.length === 0) return ''
-      const chunks = relevant.map((r) => `[${r.documentName}] (관련도 ${r.score}%)\n${r.chunk}`).join('\n\n')
-      return `\n[지식 베이스 참고]\n${chunks}`
+      const rawChunks = relevant.map((r) => `[${r.documentName}] (관련도 ${r.score}%)\n${r.chunk}`)
+      const { accepted } = securityRuntime.filterRagChunks(rawChunks)
+      if (accepted.length === 0) return ''
+      return `\n[지식 베이스 참고]\n${accepted.join('\n\n')}`
     } catch {
       return ''
     }
@@ -228,7 +249,8 @@ export class AgentLoop {
     modelId: string,
     conversationId: string,
     userMessage: string,
-    onChunk: (chunk: ChatChunk) => void
+    onChunk: (chunk: ChatChunk) => void,
+    routeOptions: ChatRouteOptions = {},
   ): Promise<void> {
     await this.ensureSkills()
 
@@ -242,6 +264,7 @@ export class AgentLoop {
     let session = this.sessions.get(conversationId)
     if (!session) {
       this.evictOldSessions()
+      securityRuntime.ensureSession(conversationId, 'agent', conversationId)
       session = {
         conversationId,
         messages: [{ role: 'system', content: fullSystemPrompt }],
@@ -262,6 +285,19 @@ export class AgentLoop {
     }
 
     const myGeneration = session.generation
+    const inputScan = securityRuntime.scanUserInput(userMessage)
+    if (inputScan.blocked) {
+      onChunk({
+        type: 'error',
+        content: this.currentLocale === 'en'
+          ? 'This request was blocked by the security policy.'
+          : this.currentLocale === 'ja'
+            ? 'このリクエストはセキュリティポリシーによりブロックされました。'
+            : '이 요청은 보안 정책에 의해 차단되었습니다.',
+      })
+      onChunk({ type: 'done', content: '' })
+      return
+    }
 
     try {
       session.messages.push({ role: 'user', content: userMessage })
@@ -285,7 +321,8 @@ export class AgentLoop {
           modelId,
           session,
           tools,
-          onChunk
+          onChunk,
+          routeOptions,
         )
 
         if (!toolCalls.length) {
@@ -322,7 +359,13 @@ export class AgentLoop {
           })
 
           // Replace {baseDir} template in read_file results for skill files
-          let result = await toolCatalog.execute(tc.name, args)
+          let result = await toolCatalog.execute(tc.name, args, {
+            actorType: 'agent',
+            actorId: conversationId,
+            sessionId: conversationId,
+            conversationId,
+            source: 'agent-loop',
+          })
           if (tc.name === 'read_file' && typeof args.path === 'string' && args.path.endsWith('SKILL.md')) {
             result = this.templateSkillResult(result, args.path as string)
           }
@@ -377,7 +420,8 @@ export class AgentLoop {
     modelId: string,
     session: AgentSession,
     tools: ProviderTool[],
-    onChunk: (chunk: ChatChunk) => void
+    onChunk: (chunk: ChatChunk) => void,
+    routeOptions: ChatRouteOptions,
   ): Promise<{ text: string; toolCalls: Array<{ id: string; name: string; arguments: string }> }> {
     let text = ''
     const toolCalls: Array<{ id: string; name: string; arguments: string }> = []
@@ -386,6 +430,7 @@ export class AgentLoop {
       await provider.chatStream(
         {
           model: modelId,
+          fallbackModels: routeOptions.fallbackModelIds,
           messages: session.messages,
           tools,
           signal: session.abortController.signal,
@@ -433,6 +478,7 @@ export class AgentLoop {
 
   clearSession(conversationId: string): void {
     this.sessions.delete(conversationId)
+    securityRuntime.destroySession(conversationId)
   }
 
   private evictOldSessions(): void {
@@ -444,6 +490,7 @@ export class AgentLoop {
     for (let i = 0; i < toRemove && i < sorted.length; i++) {
       sorted[i][1].abortController.abort()
       this.sessions.delete(sorted[i][0])
+      securityRuntime.destroySession(sorted[i][0])
     }
   }
 }

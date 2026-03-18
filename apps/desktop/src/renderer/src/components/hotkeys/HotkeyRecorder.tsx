@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Keyboard } from 'lucide-react'
 import { Button } from '../ui'
+import { t } from '../../i18n'
 
 interface HotkeyRecorderProps {
   value: string
@@ -41,7 +42,7 @@ export default function HotkeyRecorder({ value, onChange }: HotkeyRecorderProps)
         setRecording(false)
       }}
     >
-      {recording ? 'Press keys...' : value || 'Record hotkey'}
+      {recording ? t('hotkey.recording') : value || t('hotkey.recordStart')}
     </Button>
   )
 }

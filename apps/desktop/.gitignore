@@ -1,6 +1,7 @@
 node_modules/
 out/
 dist/
+native/qt-bridge/build/
 *.env
 *.env.*
 .DS_Store

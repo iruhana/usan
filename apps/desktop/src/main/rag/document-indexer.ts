@@ -66,6 +66,11 @@ export async function indexFile(filePath: string, save = true): Promise<IndexFil
     documentId: docId,
     text: chunkTexts[i],
     embedding,
+    metadata: {
+      chunkIndex: chunks[i].index,
+      startOffset: chunks[i].startOffset,
+      endOffset: chunks[i].endOffset,
+    },
   }))
 
   vectorStore.addEntries(entries)

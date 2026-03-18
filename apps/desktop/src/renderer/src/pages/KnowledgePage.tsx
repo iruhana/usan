@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FolderOpen, FilePlus2, Search, Loader2 } from 'lucide-react'
-import { Button, Card, InlineNotice, Input, SectionHeader } from '../components/ui'
+import { Button, Card, InlineNotice, Input, SectionHeader, PageIntro } from '../components/ui'
 import { useKnowledgeStore } from '../stores/knowledge.store'
 import { useSettingsStore } from '../stores/settings.store'
 import DocumentList from '../components/knowledge/DocumentList'
@@ -74,40 +74,40 @@ export default function KnowledgePage() {
   }, [clearQuery, query, searchResults.length])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-4">
-        <div>
-          <h1 className="text-[length:var(--text-xl)] font-semibold text-[var(--color-text)]">{t('knowledge.title')}</h1>
-          <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
-            {t(beginnerMode ? 'knowledge.subtitleSimple' : 'knowledge.subtitle')}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm" leftIcon={<FilePlus2 size={14} />} onClick={() => fileInputRef.current?.click()}>
-            {t('knowledge.addFile')}
-          </Button>
-          <Button variant="secondary" size="sm" leftIcon={<FolderOpen size={14} />} onClick={() => folderInputRef.current?.click()}>
-            {t('knowledge.addFolder')}
-          </Button>
-        </div>
-      </div>
+    <div className="flex h-full flex-col overflow-hidden p-5">
+      <Card variant="elevated" className="mb-6 overflow-hidden p-0">
+        <div className="bg-[linear-gradient(135deg,rgba(49,130,246,0.12),rgba(255,255,255,0.98))] p-5">
+          <PageIntro
+            title={t('knowledge.title')}
+            description={t(beginnerMode ? 'knowledge.subtitleSimple' : 'knowledge.subtitle')}
+            action={
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="secondary" size="sm" leftIcon={<FilePlus2 size={14} />} onClick={() => fileInputRef.current?.click()}>
+                  {t('knowledge.addFile')}
+                </Button>
+                <Button variant="secondary" size="sm" leftIcon={<FolderOpen size={14} />} onClick={() => folderInputRef.current?.click()}>
+                  {t('knowledge.addFolder')}
+                </Button>
+              </div>
+            }
+          />
 
-      {!beginnerMode && (
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <Card variant="outline" className="py-3">
-            <p className="text-[length:var(--text-xs)] uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.totalDocuments')}</p>
-            <p className="mt-1 text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{documents.length}</p>
-          </Card>
-          <Card variant="outline" className="py-3">
-            <p className="text-[length:var(--text-xs)] uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.totalChunks')}</p>
-            <p className="mt-1 text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{totalChunks}</p>
-          </Card>
-          <Card variant="outline" className="py-3">
-            <p className="text-[length:var(--text-xs)] uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.searchResults')}</p>
-            <p className="mt-1 text-[length:var(--text-lg)] font-semibold text-[var(--color-text)]">{searchResults.length}</p>
-          </Card>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[var(--radius-md)] bg-white/82 px-4 py-4 shadow-[var(--shadow-xs)] ring-1 ring-white/60">
+              <p className="text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.totalDocuments')}</p>
+              <p className="mt-2 text-[length:var(--text-xl)] font-semibold tracking-tight text-[var(--color-text)]">{documents.length}</p>
+            </div>
+            <div className="rounded-[var(--radius-md)] bg-white/82 px-4 py-4 shadow-[var(--shadow-xs)] ring-1 ring-white/60">
+              <p className="text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.totalChunks')}</p>
+              <p className="mt-2 text-[length:var(--text-xl)] font-semibold tracking-tight text-[var(--color-text)]">{totalChunks}</p>
+            </div>
+            <div className="rounded-[var(--radius-md)] bg-white/82 px-4 py-4 shadow-[var(--shadow-xs)] ring-1 ring-white/60">
+              <p className="text-[length:var(--text-xs)] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('knowledge.searchResults')}</p>
+              <p className="mt-2 text-[length:var(--text-xl)] font-semibold tracking-tight text-[var(--color-text)]">{searchResults.length}</p>
+            </div>
+          </div>
         </div>
-      )}
+      </Card>
 
       <input
         ref={fileInputRef}
@@ -182,47 +182,49 @@ export default function KnowledgePage() {
         </Card>
       )}
 
-      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
-        <div className="relative">
-          <Input
-            ref={queryInputRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                runSearch()
-              }
+      <Card variant="default" className="mb-4 space-y-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <div className="relative">
+            <Input
+              ref={queryInputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  runSearch()
+                }
 
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                clearQuery()
-              }
-            }}
-            placeholder={t('knowledge.searchPlaceholder')}
-            leftIcon={<Search size={16} />}
-          />
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  clearQuery()
+                }
+              }}
+              placeholder={t('knowledge.searchPlaceholder')}
+              leftIcon={<Search size={16} />}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="md"
+              onClick={runSearch}
+              disabled={!query.trim()}
+            >
+              {t('knowledge.search')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={clearQuery}
+            >
+              {t('chat.cancel')}
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            size="md"
-            onClick={runSearch}
-            disabled={!query.trim()}
-          >
-            {t('knowledge.search')}
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            onClick={clearQuery}
-          >
-            {t('chat.cancel')}
-          </Button>
-        </div>
-      </div>
-      <p className="mb-3 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
-        {t(beginnerMode ? 'knowledge.shortcutsHintSimple' : 'knowledge.shortcutsHint')}
-      </p>
+        <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)]">
+          {t(beginnerMode ? 'knowledge.shortcutsHintSimple' : 'knowledge.shortcutsHint')}
+        </p>
+      </Card>
 
       {indexingProgress && (
         <Card variant="outline" className="mb-4">
@@ -254,24 +256,30 @@ export default function KnowledgePage() {
         </Card>
       )}
 
-      <div className={`grid min-h-0 flex-1 gap-4 ${beginnerMode ? '' : 'lg:grid-cols-[1.2fr_1fr]'}`}>
-        <div className="min-h-0 overflow-auto">
-          <SectionHeader title={hasSearch ? t('knowledge.searchResults') : t('knowledge.documents')} indicator="var(--color-primary)" className="mb-3" />
-          {hasSearch ? (
-            <SearchResults results={searchResults} simpleMode={beginnerMode} />
-          ) : (
-            <DocumentList documents={documents} onRemove={removeDocument} simpleMode={beginnerMode} />
-          )}
-        </div>
+      <div className={`grid min-h-0 flex-1 gap-4 ${beginnerMode ? '' : 'lg:grid-cols-[minmax(0,1.2fr)_320px]'}`}>
+        <Card variant="default" className="min-h-0 overflow-hidden">
+          <SectionHeader title={hasSearch ? t('knowledge.searchResults') : t('knowledge.documents')} indicator="var(--color-primary)" className="mb-4" />
+          <div className="h-full overflow-auto pr-1">
+            {hasSearch ? (
+              <SearchResults results={searchResults} simpleMode={beginnerMode} />
+            ) : (
+              <DocumentList documents={documents} onRemove={removeDocument} simpleMode={beginnerMode} />
+            )}
+          </div>
+        </Card>
 
         {!beginnerMode && (
-          <div className="min-h-0 overflow-auto">
-            <Card variant="elevated" className="space-y-2">
-              <h3 className="text-[length:var(--text-md)] font-semibold text-[var(--color-text)]">{t('knowledge.stats')}</h3>
+          <div className="min-h-0 space-y-4 overflow-auto">
+            <Card variant="outline" className="space-y-2">
+              <SectionHeader title={t('knowledge.stats')} indicator="var(--color-primary)" className="mb-1" />
               <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('knowledge.totalDocuments')}: {documents.length}</p>
               <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{t('knowledge.totalChunks')}: {totalChunks}</p>
               <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">{loading ? t('files.loading') : t('skill.done')}</p>
             </Card>
+
+            <InlineNotice tone="info" title={t('knowledge.quickHelpTitle')}>
+              <p>{t('knowledge.quickHelpBody')}</p>
+            </InlineNotice>
           </div>
         )}
       </div>

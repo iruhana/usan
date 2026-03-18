@@ -6,7 +6,7 @@ import { join, extname, dirname } from 'path'
 import { createHash } from 'crypto'
 
 const CATEGORIES: Record<string, string[]> = {
-  documents: ['pdf', 'doc', 'docx', 'txt', 'md', 'rtf', 'odt', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'],
+  documents: ['pdf', 'doc', 'docx', 'hwp', 'hwpx', 'txt', 'md', 'rtf', 'odt', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'],
   images: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff'],
   videos: ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'],
   audio: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'],

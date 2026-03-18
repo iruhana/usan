@@ -48,6 +48,18 @@ describe('permissions model', () => {
     expect(isPermissionGranted(granted, { skillId: 'other-skill' })).toBe(false)
   })
 
+  it('supports directory-scoped grants', () => {
+    const base = normalizePermissionGrant()
+    const granted = applyPermissionGrantRequest(base, {
+      scope: 'directories',
+      items: ['C:\\Users\\admin\\Desktop'],
+      ttlMinutes: 10,
+    })
+
+    expect(isPermissionGranted(granted, { directoryPath: 'C:\\Users\\admin\\Desktop\\report.txt' })).toBe(true)
+    expect(isPermissionGranted(granted, { directoryPath: 'D:\\Other\\report.txt' })).toBe(false)
+  })
+
   it('ignores empty grant requests safely', () => {
     const base = normalizePermissionGrant()
     const noRequest = applyPermissionGrantRequest(base)

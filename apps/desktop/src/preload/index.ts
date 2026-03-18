@@ -1,6 +1,26 @@
 ﻿import { contextBridge, ipcRenderer } from 'electron'
-import type { ChatRequest, AppSettings, ScreenCaptureResult, FileEntry, ChatChunk, StoredConversation, Note, UpdaterStatus } from '@shared/types/ipc'
-import type { PermissionGrant, PermissionGrantRequest, PermissionRevokeRequest } from '@shared/types/permissions'
+import type {
+  ChatRequest,
+  AppSettings,
+  ScreenCaptureResult,
+  FileEntry,
+  FilePickRequest,
+  FilePickResult,
+  ChatChunk,
+  StoredConversation,
+  Note,
+  UpdaterStatus,
+  CredentialVaultSummary,
+  CredentialImportResult,
+  ExternalOAuthStatus,
+} from '@shared/types/ipc'
+import type {
+  CapabilityGrantRequest,
+  CapabilityGrantResponse,
+  PermissionGrant,
+  PermissionGrantRequest,
+  PermissionRevokeRequest,
+} from '@shared/types/permissions'
 import type {
   SystemMetrics, ProcessInfo, ContextSnapshot, HotkeyBinding,
   WorkflowDefinition, WorkflowRun, WorkflowProgress,
@@ -53,6 +73,7 @@ const api = {
     write: (path: string, content: string) => ipcRenderer.invoke(IPC.FS_WRITE, { path, content }),
     delete: (path: string) => ipcRenderer.invoke(IPC.FS_DELETE, { path }),
     list: (dir: string) => ipcRenderer.invoke(IPC.FS_LIST, { dir }) as Promise<FileEntry[]>,
+    pick: (request: FilePickRequest) => ipcRenderer.invoke(IPC.FS_PICK, request) as Promise<FilePickResult>,
     secureDelete: (path: string) => ipcRenderer.invoke(IPC.FS_SECURE_DELETE, path) as Promise<{ success: boolean; path: string; size: number; error?: string }>,
   },
 
@@ -86,6 +107,8 @@ const api = {
       ipcRenderer.invoke(IPC.PERMISSIONS_GRANT, request) as Promise<PermissionGrant>,
     revoke: (request?: PermissionRevokeRequest) =>
       ipcRenderer.invoke(IPC.PERMISSIONS_REVOKE, request) as Promise<PermissionGrant>,
+    issueCapability: (request: CapabilityGrantRequest) =>
+      ipcRenderer.invoke(IPC.PERMISSIONS_ISSUE_CAPABILITY, request) as Promise<CapabilityGrantResponse>,
   },
 
   // ??? Conversations ??????????????????????????????
@@ -112,6 +135,12 @@ const api = {
   // ??? File Extras ????????????????????????????????
   fsExtras: {
     openPath: (filePath: string) => ipcRenderer.invoke(IPC.FS_OPEN_PATH, filePath),
+  },
+
+  credentials: {
+    getSummary: () => ipcRenderer.invoke(IPC.CREDENTIALS_GET_SUMMARY) as Promise<CredentialVaultSummary>,
+    importBrowserCsv: () => ipcRenderer.invoke(IPC.CREDENTIALS_IMPORT_BROWSER_CSV) as Promise<CredentialImportResult>,
+    clear: () => ipcRenderer.invoke(IPC.CREDENTIALS_CLEAR) as Promise<{ success: boolean }>,
   },
 
   // ??? Notifications ?????????????????????????????
@@ -277,7 +306,7 @@ const api = {
 
   // ??? Orchestration / App Control (F5) ?????????
   appControl: {
-    launch: (name: string, args?: string) =>
+    launch: (name: string, args?: string | string[]) =>
       ipcRenderer.invoke(IPC.APP_LAUNCH, { name, args }) as Promise<{ pid: number }>,
     close: (name: string) =>
       ipcRenderer.invoke(IPC.APP_CLOSE, name) as Promise<{ closed: number }>,
@@ -304,6 +333,16 @@ const api = {
     start: (clientId?: string) => ipcRenderer.invoke(IPC.GOOGLE_OAUTH_START, clientId) as Promise<{ success: boolean; error?: string }>,
     status: () => ipcRenderer.invoke(IPC.GOOGLE_OAUTH_STATUS) as Promise<{ authenticated: boolean }>,
     logout: () => ipcRenderer.invoke(IPC.GOOGLE_OAUTH_LOGOUT) as Promise<{ success: boolean }>,
+  },
+  naverOAuth: {
+    start: () => ipcRenderer.invoke(IPC.NAVER_OAUTH_START) as Promise<{ success: boolean; error?: string }>,
+    status: () => ipcRenderer.invoke(IPC.NAVER_OAUTH_STATUS) as Promise<ExternalOAuthStatus>,
+    logout: () => ipcRenderer.invoke(IPC.NAVER_OAUTH_LOGOUT) as Promise<{ success: boolean }>,
+  },
+  kakaoOAuth: {
+    start: () => ipcRenderer.invoke(IPC.KAKAO_OAUTH_START) as Promise<{ success: boolean; error?: string }>,
+    status: () => ipcRenderer.invoke(IPC.KAKAO_OAUTH_STATUS) as Promise<ExternalOAuthStatus>,
+    logout: () => ipcRenderer.invoke(IPC.KAKAO_OAUTH_LOGOUT) as Promise<{ success: boolean }>,
   },
 
   // ??? Email (F11) ??????????????????????????????

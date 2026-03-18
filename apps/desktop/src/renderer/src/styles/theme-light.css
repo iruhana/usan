@@ -1,0 +1,54 @@
+/*
+ * Usan Light Theme
+ * Applied via: [data-theme="light"] or default (no .dark class)
+ * Light values are the defaults in tokens.css — this file exists for explicit overrides only
+ */
+
+[data-theme="light"] {
+  /* All light values live in tokens.css :root block.
+     This file is reserved for light-specific overrides that differ from :root defaults. */
+}
+
+/* ─── High Contrast Mode ─────────────────────────── */
+/* Supports both new data-attribute and legacy class */
+[data-theme="light"].high-contrast,
+.high-contrast:not(.dark) {
+  --usan-color-bg-page: #ffffff;
+  --usan-color-bg-panel: #ffffff;
+  --usan-color-text-primary: #000000;
+  --usan-color-text-secondary: #1a1a1a;
+  --usan-color-brand-primary: #1e40af;
+  --usan-color-border-primary: rgba(0, 0, 0, 0.4);
+  --usan-color-border-secondary: rgba(0, 0, 0, 0.2);
+  --usan-color-success: #15803d;
+  --usan-color-warning: #a16207;
+  --usan-color-danger: #b91c1c;
+  --usan-glass-bg: rgba(255, 255, 255, 1);
+  --usan-glass-border: rgba(0, 0, 0, 0.4);
+
+  /* Bridge overrides */
+  --color-hc-bg: #ffffff;
+  --color-hc-text: #000000;
+  --color-hc-primary: #1e40af;
+  --color-hc-border: #000000;
+}
+
+/* Dark high contrast */
+[data-theme="dark"].high-contrast,
+.dark.high-contrast {
+  --usan-color-bg-page: #000000;
+  --usan-color-bg-panel: #0a0a0a;
+  --usan-color-text-primary: #ffffff;
+  --usan-color-text-secondary: #e5e5e5;
+  --usan-color-brand-primary: #93c5fd;
+  --usan-color-border-primary: rgba(255, 255, 255, 0.5);
+  --usan-color-border-secondary: rgba(255, 255, 255, 0.3);
+  --usan-glass-bg: rgba(0, 0, 0, 1);
+  --usan-glass-border: rgba(255, 255, 255, 0.5);
+}
+
+/* Disable glassmorphism in high contrast (a11y requirement) */
+.high-contrast .glass {
+  backdrop-filter: none;
+  border-width: 2px;
+}

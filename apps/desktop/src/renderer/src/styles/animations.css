@@ -1,0 +1,178 @@
+/*
+ * Usan Animation System
+ * Philosophy: "Minimal Daily, Impressive First Impression"
+ * Tier 1: Hook (first-run only, use motion library)
+ * Tier 2: Daily (near-invisible, pure CSS)
+ * Tier 3: Ambient (barely perceptible)
+ */
+
+/* ─── Tier 2: Daily Transitions ──────────────────── */
+
+/* Page enter — subtle fade only */
+@keyframes usan-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.usan-animate-in {
+  animation: usan-fade-in var(--usan-duration-fast) ease forwards;
+}
+
+/* Scale-in for modals/overlays */
+@keyframes usan-scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.usan-animate-scale-in {
+  animation: usan-scale-in var(--usan-duration-fast) ease-out forwards;
+}
+
+/* Backdrop fade */
+@keyframes usan-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.usan-animate-backdrop {
+  animation: usan-backdrop-in var(--usan-duration-fast) ease forwards;
+}
+
+/* ─── Tier 3: Ambient Polish ─────────────────────── */
+
+/* Ultra-subtle shimmer (Notion: 0.03 alpha) */
+@keyframes usan-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.usan-shimmer {
+  overflow: hidden;
+  position: relative;
+  z-index: 0;
+}
+
+.usan-shimmer::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  animation: usan-shimmer 1s linear infinite;
+}
+
+[data-theme="light"] .usan-shimmer::before,
+:root:not([data-theme="dark"]) .usan-shimmer::before {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.03) 50%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+[data-theme="dark"] .usan-shimmer::before,
+.dark .usan-shimmer::before {
+  background: linear-gradient(
+    90deg,
+    rgba(86, 86, 86, 0) 0%,
+    rgba(86, 86, 86, 0.1) 50%,
+    rgba(86, 86, 86, 0) 100%
+  );
+}
+
+/* Voice waveform */
+@keyframes usan-voice-pulse {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+.usan-voice-bar {
+  display: inline-block;
+  width: 3px;
+  height: 20px;
+  margin: 0 2px;
+  background: var(--usan-color-text-inverse);
+  border-radius: var(--usan-radius-pill);
+  animation: usan-voice-pulse 0.8s ease-in-out infinite;
+}
+
+.usan-voice-bar:nth-child(2) { animation-delay: 0.1s; }
+.usan-voice-bar:nth-child(3) { animation-delay: 0.2s; }
+.usan-voice-bar:nth-child(4) { animation-delay: 0.3s; }
+.usan-voice-bar:nth-child(5) { animation-delay: 0.15s; }
+
+/* Typing indicator */
+@keyframes usan-typing-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+.usan-typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--usan-radius-pill);
+  background: var(--usan-color-text-tertiary);
+  animation: usan-typing-dot 1.2s ease-in-out infinite;
+}
+
+.usan-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.usan-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Agent step status pulse */
+@keyframes usan-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.usan-step-running {
+  animation: usan-pulse 1.5s ease-in-out infinite;
+}
+
+/* ─── Scrollbar (Notion: near-invisible) ─────────── */
+
+::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb,
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover,
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* ─── Reduced Motion ─────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .usan-shimmer::before,
+  .usan-voice-bar,
+  .usan-typing-dot,
+  .usan-step-running,
+  .usan-animate-in,
+  .usan-animate-scale-in {
+    animation: none !important;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}

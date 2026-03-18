@@ -32,11 +32,10 @@ const PERMISSION_ITEMS = [
 ]
 
 const FEATURE_ITEMS = [
-  { icon: MessageCircle, title: '채팅으로 뭐든 부탁', desc: '궁금한 것, 해야 할 일을 말하면 도와드려요' },
-  { icon: Mic, title: '말로 편하게', desc: '타이핑 대신 마이크 버튼을 눌러 말해보세요' },
-  { icon: Camera, title: '화면을 보고 도움', desc: '화면에 오류가 있으면 캡처해서 물어보세요' },
+  { icon: MessageCircle, titleKey: "onboarding.feature.chatTitle", descKey: "onboarding.feature.chatDesc" },
+  { icon: Mic, titleKey: "onboarding.feature.voiceTitle", descKey: "onboarding.feature.voiceDesc" },
+  { icon: Camera, titleKey: "onboarding.feature.screenTitle", descKey: "onboarding.feature.screenDesc" },
 ]
-
 const TOTAL_STEPS = 5
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
@@ -72,7 +71,11 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   }
 
   return (
-    <div className="flex items-center justify-center h-full bg-[var(--color-bg)] py-8">
+    <div
+      data-view="onboarding"
+      data-onboarding-step={step}
+      className="flex items-center justify-center h-full bg-[var(--color-bg)] py-8"
+    >
       <div className="max-w-md w-full mx-6">
         {/* Step 0: Welcome + Permissions */}
         {step === 0 && (
@@ -120,7 +123,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               })}
             </Card>
 
-            <Button size="lg" className="w-full h-14" onClick={grantPermissions}>
+            <Button data-action="onboarding-agree-all" size="lg" className="w-full h-14" onClick={grantPermissions}>
               {t('onboarding.agreeAll')}
             </Button>
 
@@ -146,10 +149,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 </div>
               </div>
               <h2 className="font-semibold text-[var(--color-text)] mb-1 text-[length:var(--text-xl)]">
-                이런 일들을 도와드려요
+                {t("onboarding.featureTitle")}
               </h2>
               <p className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">
-                우산이 할 수 있는 핵심 기능이에요
+                {t("onboarding.featureHint")}
               </p>
             </div>
 
@@ -164,10 +167,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       </div>
                       <div className="min-w-0">
                         <div className="font-medium text-[var(--color-text)] text-[length:var(--text-md)]">
-                          {item.title}
+                          {t(item.titleKey)}
                         </div>
                         <div className="text-[var(--color-text-muted)] text-[length:var(--text-sm)]">
-                          {item.desc}
+                          {t(item.descKey)}
                         </div>
                       </div>
                     </div>
@@ -176,7 +179,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               })}
             </div>
 
-            <Button size="lg" className="w-full h-14" rightIcon={<ChevronRight size={20} />} onClick={() => setStep(2)}>
+            <Button data-action="onboarding-next-features" size="lg" className="w-full h-14" rightIcon={<ChevronRight size={20} />} onClick={() => setStep(2)}>
               {t('onboarding.next')}
             </Button>
           </div>
@@ -206,7 +209,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             </Card>
 
             <div className="flex items-center gap-4 mb-8 px-2">
-              <span className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">가</span>
+              <span className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">{t("onboarding.fontScaleSmall")}</span>
               <input
                 type="range"
                 min={1}
@@ -215,14 +218,14 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 value={fontScale}
                 onChange={(e) => updateFontScale(parseFloat(e.target.value))}
                 className="flex-1 h-2 accent-[var(--color-primary)] cursor-pointer"
-                style={{ minHeight: '48px' }}
+                style={{ minHeight: '36px' }}
                 aria-label={t('onboarding.fontTitle')}
                 aria-valuetext={`${Math.round(fontScale * 100)}%`}
               />
-              <span className="text-[var(--color-text)] text-[length:var(--text-2xl)]">가</span>
+              <span className="text-[var(--color-text)] text-[length:var(--text-2xl)]">{t("onboarding.fontScaleLarge")}</span>
             </div>
 
-            <Button size="lg" className="w-full h-14" rightIcon={<ChevronRight size={20} />} onClick={() => setStep(3)}>
+            <Button data-action="onboarding-next-font" size="lg" className="w-full h-14" rightIcon={<ChevronRight size={20} />} onClick={() => setStep(3)}>
               {t('onboarding.next')}
             </Button>
           </div>
@@ -238,10 +241,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 </div>
               </div>
               <h2 className="font-semibold text-[var(--color-text)] mb-1 text-[length:var(--text-xl)]">
-                마이크 테스트
+                {t("onboarding.micTitle")}
               </h2>
               <p className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">
-                음성으로 말하려면 마이크가 필요해요
+                {t("onboarding.micStepHint")}
               </p>
             </div>
 
@@ -251,7 +254,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   <>
                     <CheckCircle size={48} className="text-[var(--color-success)]" />
                     <p className="text-[var(--color-text)] text-[length:var(--text-md)] font-medium">
-                      마이크가 잘 작동해요!
+                      {t("onboarding.micSuccess")}
                     </p>
                   </>
                 ) : (
@@ -263,15 +266,15 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       <Mic size={32} className="text-[var(--color-text-inverse)]" />
                     </button>
                     <p className="text-[var(--color-text-muted)] text-[length:var(--text-md)]">
-                      위 버튼을 눌러 마이크를 테스트하세요
+                      {t("onboarding.micPrompt")}
                     </p>
                   </>
                 )}
               </div>
             </Card>
 
-            <Button size="lg" className="w-full h-14" rightIcon={<ChevronRight size={20} />} onClick={() => setStep(4)}>
-              {micTested ? t('onboarding.next') : '건너뛰기'}
+            <Button data-action="onboarding-next-mic" size="lg" className="w-full h-14" rightIcon={<ChevronRight size={20} />} onClick={() => setStep(4)}>
+              {micTested ? t("onboarding.next") : t("onboarding.skip")}
             </Button>
           </div>
         )}
@@ -317,7 +320,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               </ul>
             </Card>
 
-            <Button size="lg" className="w-full h-14 text-[length:var(--text-lg)]" onClick={onComplete}>
+            <Button data-action="onboarding-start" size="lg" className="w-full h-14 text-[length:var(--text-lg)]" onClick={onComplete}>
               {t('onboarding.start')}
             </Button>
           </div>

@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand'
 import type { MarketplaceEntry, InstalledPlugin } from '@shared/types/infrastructure'
+import { toMarketplaceErrorMessage } from '../lib/user-facing-errors'
 
 interface MarketplaceState {
   query: string
@@ -41,7 +42,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       const installed = await window.usan?.plugin.list()
       set({ installed: installed ?? [] })
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toMarketplaceErrorMessage(err, 'load') })
     }
   },
 
@@ -53,7 +54,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       set({ entries: entries ?? [], loading: false })
       await get().loadInstalled()
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toMarketplaceErrorMessage(err, 'search') })
     }
   },
 
@@ -64,7 +65,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       await Promise.all([get().search(), get().loadInstalled()])
       set({ loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toMarketplaceErrorMessage(err, 'install') })
     }
   },
 
@@ -75,7 +76,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       await Promise.all([get().search(), get().loadInstalled()])
       set({ loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toMarketplaceErrorMessage(err, 'update') })
     }
   },
 
@@ -86,7 +87,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       await get().loadInstalled()
       set({ loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toMarketplaceErrorMessage(err, 'uninstall') })
     }
   },
 
@@ -95,7 +96,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       await window.usan?.plugin.enable(id)
       await get().loadInstalled()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toMarketplaceErrorMessage(err, 'enable') })
     }
   },
 
@@ -104,7 +105,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       await window.usan?.plugin.disable(id)
       await get().loadInstalled()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toMarketplaceErrorMessage(err, 'disable') })
     }
   },
 }))

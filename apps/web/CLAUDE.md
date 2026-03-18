@@ -1,41 +1,42 @@
-# usan.ai - AI 보이스피싱 방지 서비스
+# usan.ai Web App
 
-## Quick Start
+## Scope
 
-```bash
-npm run dev    # 개발 서버
-npm run build  # 프로덕션 빌드
-npm run lint   # ESLint
-```
+- Applies to `C:\Users\admin\Projects\usan\apps\web`.
+- Read `C:\Users\admin\Projects\usan\CLAUDE.md` first, then this file.
 
-## Tech Stack
+## Project Essentials
 
-- **Framework:** Next.js 16 (App Router, Turbopack)
-- **Language:** TypeScript 5
-- **Styling:** Tailwind CSS 4 + shadcn/ui (new-york)
-- **i18n:** next-intl (ko, en)
-- **DB/Auth:** Supabase
-- **Hosting:** Vercel + Cloudflare DNS
+- Product surface: web landing and service pages for `usan.ai`.
+- Stack: Next.js 16, TypeScript 5, Tailwind CSS 4, shadcn/ui, next-intl, Supabase.
+- Hosting: Vercel with Cloudflare DNS.
 
-## Next.js 16 Patterns
+## Core Commands
 
-- Dynamic params are `Promise`: `{ params }: { params: Promise<{ id: string }> }`
-- Must `await params`: `const { id } = await params;`
+- Install: `npm install`
+- Dev: `npm run dev`
+- Build: `npm run build`
+- Start: `npm run start`
+- Lint: `npm run lint`
 
-## Supabase Auth
+## Required Validation
 
+- UI or routing changes: `npm run build` and `npm run lint`
+- Content or translation changes: `npm run lint` and confirm locale routing behavior
+- Supabase or auth changes: `npm run build`, `npm run lint`, and validate affected server/client paths
+
+## Local Guardrails
+
+- Next.js 16 dynamic route params are async. Await `params` before use.
+- Supabase clients:
 - Server client: `createServerSupabaseClient` from `@/lib/supabase/server`
 - Service client: `createServiceClient` from `@/lib/supabase/server`
 - Browser client: `createClient` from `@/lib/supabase/client`
-
-## i18n
-
-- Default locale: ko
-- Supported: ko, en
-- URL: `/{locale}/path` (ko prefix 생략)
-- Translations: `messages/ko.json`, `messages/en.json`
-
-## Database
-
+- i18n:
+- Default locale: `ko`
+- Supported locales: `ko`, `en`
+- URL structure: `/{locale}/path` with omitted `ko` prefix behavior where already implemented
+- Translation files: `messages/ko.json`, `messages/en.json`
+- Database:
 - Supabase project ID: `forujutkhlgprfwupqlf`
-- Migrations: `supabase/migrations/`
+- Migrations live in `supabase/migrations/`

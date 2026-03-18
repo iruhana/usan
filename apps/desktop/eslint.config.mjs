@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['out/**', 'dist/**', 'node_modules/**', 'coverage/**'],
+    ignores: ['out/**', 'dist/**', 'node_modules/**', 'coverage/**', 'native/qt-bridge/build/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

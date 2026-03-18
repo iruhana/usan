@@ -30,6 +30,9 @@ import * as macroTools from './macro-tools'
 import * as fileOrgTools from './file-org-tools'
 import * as hotkeyTools from './hotkey-tools'
 import * as marketplaceTools from './marketplace-tools'
+import * as qtBridgeTools from './qt-bridge-tools'
+import * as mcpRoutingTools from './mcp-routing-tools'
+import * as koreanPlatformTools from './korean-platform-tools'
 
 const modules = [
   fsTools,
@@ -49,6 +52,9 @@ const modules = [
   fileOrgTools,
   hotkeyTools,
   marketplaceTools,
+  qtBridgeTools,
+  mcpRoutingTools,
+  koreanPlatformTools,
 ]
 
 export function getAllDefinitions(): ProviderTool[] {

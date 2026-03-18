@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import type { ClipboardTransformFormat } from '@shared/types/infrastructure'
 import { Clipboard, Pin, PinOff, Sparkles, Trash2, RefreshCw } from 'lucide-react'
-import { Card, Button, SectionHeader } from '../ui'
+import { Card, Button, InlineNotice, SectionHeader } from '../ui'
 import ClipboardSearch from './ClipboardSearch'
 import { t } from '../../i18n'
 import { useClipboardStore } from '../../stores/clipboard.store'
@@ -64,17 +64,18 @@ export default function ClipboardHistory() {
         )}
       />
 
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+      {error ? (
+        <InlineNotice tone="error" title={t('clipboard.helpTitle')}>
           {error}
-        </p>
-      )}
+        </InlineNotice>
+      ) : null}
 
       <ClipboardSearch query={query} onQueryChange={setQuery} />
 
       <div className="flex items-center gap-2">
         <select
-          className="h-9 min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-soft)] px-2 text-[length:var(--text-sm)]"
+          aria-label={t('clipboard.transform')}
+          className="h-9 min-w-0 flex-1 rounded-[var(--radius-md)] ring-1 ring-transparent bg-[var(--color-surface-soft)] px-2 text-[length:var(--text-sm)] outline-none transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)]"
           value={transform}
           onChange={(event) => setTransform(event.target.value as ClipboardTransformFormat)}
         >
@@ -101,7 +102,7 @@ export default function ClipboardHistory() {
       ) : (
         <div className="max-h-72 space-y-2 overflow-auto">
           {filtered.map((entry) => (
-            <div key={entry.id} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
+            <div key={entry.id} className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3 transition-all hover:ring-[var(--color-border)]">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <p className="line-clamp-2 text-[length:var(--text-sm)] text-[var(--color-text)]">{entry.text}</p>
                 <span className="shrink-0 text-[length:var(--text-xs)] text-[var(--color-text-muted)]">

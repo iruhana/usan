@@ -10,13 +10,14 @@ import type {
   WorkflowStepResult, WorkflowProgress,
 } from '@shared/types/infrastructure'
 import { eventBus } from './event-bus'
-import { ModelRouter } from '../ai/model-router'
+import { modelRouter } from '../ai/model-router'
+import { securityRuntime, type ToolExecutionContext } from '../security/index'
 
 const WORKFLOWS_FILE = 'workflows.json'
 const RUNS_FILE = 'workflow-runs.json'
 const MAX_RUNS = 100
 
-type ToolExecutor = (name: string, args: Record<string, unknown>) => Promise<unknown>
+type ToolExecutor = (name: string, args: Record<string, unknown>, context?: ToolExecutionContext) => Promise<unknown>
 
 export class WorkflowEngine {
   private workflows: Map<string, WorkflowDefinition> = new Map()
@@ -88,6 +89,7 @@ export class WorkflowEngine {
 
     this.runs.set(runId, run)
     this.activeRuns.set(runId, { paused: false, cancelled: false })
+    securityRuntime.ensureSession(runId, 'workflow', id)
 
     this.emitProgress(run, workflow.steps.length)
 
@@ -104,6 +106,7 @@ export class WorkflowEngine {
     } finally {
       run.completedAt = Date.now()
       this.activeRuns.delete(runId)
+      securityRuntime.destroySession(runId)
       this.emitProgress(run, workflow.steps.length)
       this.trimRuns()
       this.saveRuns()
@@ -245,7 +248,13 @@ export class WorkflowEngine {
       case 'tool_call': {
         if (!step.toolName || !this.toolExecutor) throw new Error('No tool specified')
         const args = this.resolveVariables(step.toolArgs ?? {}, run.variables)
-        return this.toolExecutor(step.toolName, args)
+        return this.toolExecutor(step.toolName, args, {
+          actorType: 'workflow',
+          actorId: run.workflowId,
+          sessionId: run.id,
+          workflowRunId: run.id,
+          source: 'workflow-engine',
+        })
       }
 
       case 'condition': {
@@ -281,16 +290,19 @@ export class WorkflowEngine {
         const contextVars = JSON.stringify(run.variables, null, 2)
         const fullPrompt = `${prompt}\n\nContext variables:\n${contextVars}\n\nRespond with JSON: { "decision": "proceed" | "stop", "reason": "..." }`
 
-        const router = new ModelRouter()
-        const auto = await router.autoSelect()
-        if (!auto) {
+        const route = await modelRouter.resolveRoute({
+          routeHint: 'workflow',
+          userMessage: fullPrompt,
+        })
+        if (!route) {
           return { decision: 'proceed', reason: 'AI unavailable, defaulting to proceed' }
         }
 
         let text = ''
-        await auto.provider.chatStream(
+        await route.provider.chatStream(
           {
-            model: auto.modelId,
+            model: route.modelId,
+            fallbackModels: route.fallbackModelIds,
             messages: [
               { role: 'system', content: 'You are a workflow decision engine. Respond only with valid JSON.' },
               { role: 'user', content: fullPrompt },
@@ -303,10 +315,22 @@ export class WorkflowEngine {
           const jsonMatch = text.match(/\{[\s\S]*\}/)
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]) as { decision: string; reason?: string }
-            return { decision: parsed.decision || 'proceed', reason: parsed.reason, prompt }
+            return {
+              decision: parsed.decision || 'proceed',
+              reason: parsed.reason,
+              prompt,
+              modelId: route.modelId,
+              routeKind: route.routeKind,
+            }
           }
         } catch { /* parse failed */ }
-        return { decision: 'proceed', reason: 'Could not parse AI response', raw: text }
+        return {
+          decision: 'proceed',
+          reason: 'Could not parse AI response',
+          raw: text,
+          modelId: route.modelId,
+          routeKind: route.routeKind,
+        }
       }
 
       default:

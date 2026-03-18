@@ -1,48 +1,95 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { Send, Mic, Monitor, FileSearch, Globe, Square, KeyRound, ArrowRight, MessageSquarePlus } from 'lucide-react'
+import { CloudSun, FileSearch, Plus, ScanSearch, Volume2 } from 'lucide-react'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
-import MessageBubble from '../components/chat/MessageBubble'
-import StreamingText from '../components/chat/StreamingText'
-import ConversationList from '../components/chat/ConversationList'
-import { SkeletonLoader } from '../components/chat/SkeletonLoader'
 import { useAnnouncer } from '../components/accessibility'
 import { t, getSpeechLang } from '../i18n'
+import { useVoiceStore } from '../stores/voice.store'
+import { Composer, buildComposerPrompt, type ComposerSubmitPayload } from '../components/composer'
+import { Timeline } from '../components/agent'
+import { ArtifactShelf, ArtifactView, deriveArtifactsFromMessages } from '../components/artifact'
+import ConversationList from '../components/chat/ConversationList'
+import { Badge, Button, Card, PageIntro, SectionHeader } from '../components/ui'
 
-const quickActions = [
-  { icon: Monitor, labelKey: 'home.quickAction.screenError', descKey: 'home.quickAction.screenErrorDesc', promptKey: 'home.quickAction.screenErrorPrompt' },
-  { icon: FileSearch, labelKey: 'home.quickAction.findFile', descKey: 'home.quickAction.findFileDesc', promptKey: 'home.quickAction.findFilePrompt' },
-  { icon: Globe, labelKey: 'home.quickAction.weather', descKey: 'home.quickAction.weatherDesc', promptKey: 'home.quickAction.weatherPrompt' },
-] as const
+interface QuickLaunchItem {
+  id: string
+  title: string
+  description: string
+  prompt: string
+  icon: typeof ScanSearch
+}
 
-function getGreeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return t('home.greetingMorning')
-  if (hour < 18) return t('home.greetingAfternoon')
-  return t('home.greetingEvening')
+type VoiceCommandResult = { text?: string; error?: string } | undefined
+
+function buildQuickLaunchItems(): QuickLaunchItem[] {
+  return [
+    {
+      id: 'screen-error',
+      title: t('home.quickAction.screenError'),
+      description: t('home.quickAction.screenErrorDescSimple'),
+      prompt: t('home.quickAction.screenErrorPrompt'),
+      icon: ScanSearch,
+    },
+    {
+      id: 'find-file',
+      title: t('home.quickAction.findFile'),
+      description: t('home.quickAction.findFileDescSimple'),
+      prompt: t('home.quickAction.findFilePrompt'),
+      icon: FileSearch,
+    },
+    {
+      id: 'weather',
+      title: t('home.quickAction.weather'),
+      description: t('home.quickAction.weatherDescSimple'),
+      prompt: t('home.quickAction.weatherPrompt'),
+      icon: CloudSun,
+    },
+    {
+      id: 'read-aloud',
+      title: t('home.quickAction.readAloud'),
+      description: t('home.quickAction.readAloudDesc'),
+      prompt: t('home.quickAction.readAloudPrompt'),
+      icon: Volume2,
+    },
+  ]
+}
+
+function createVoiceErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return typeof error === 'string' ? error : 'Voice input had a problem.'
+}
+
+function canUseBrowserSpeechRecognition(): boolean {
+  return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
 }
 
 export default function HomePage() {
   const [input, setInput] = useState('')
-  const [isListening, setIsListening] = useState(false)
+  const [browserListening, setBrowserListening] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const browserRecognitionRef = useRef<SpeechRecognition | null>(null)
   const prevMessageCountRef = useRef(0)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const handledVoiceEventRef = useRef(0)
+  const listeningBaseRef = useRef('')
+  const voiceRequestRef = useRef<Promise<void> | null>(null)
 
   const conversations = useChatStore((s) => s.conversations)
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const streamingPhase = useChatStore((s) => s.streamingPhase)
   const streamingText = useChatStore((s) => s.streamingText)
+  const activeToolName = useChatStore((s) => s.activeToolName)
+  const newConversation = useChatStore((s) => s.newConversation)
   const sendMessage = useChatStore((s) => s.sendMessage)
+  const retryLastMessage = useChatStore((s) => s.retryLastMessage)
   const stopStreaming = useChatStore((s) => s.stopStreaming)
   const loadFromDisk = useChatStore((s) => s.loadFromDisk)
-  const newConversation = useChatStore((s) => s.newConversation)
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation)
 
   const { settings } = useSettingsStore()
+  const voiceStatus = useVoiceStore((s) => s.status)
+  const voiceEventVersion = useVoiceStore((s) => s.eventVersion)
   const { announce } = useAnnouncer()
+  const applyVoiceError = useVoiceStore((s) => s.setError)
 
   const prevStreamingRef = useRef(false)
   useEffect(() => {
@@ -52,294 +99,376 @@ export default function HomePage() {
   }, [isStreaming, announce])
 
   const activeConversation = useMemo(
-    () => conversations.find((c) => c.id === activeConversationId),
+    () => conversations.find((conversation) => conversation.id === activeConversationId),
     [conversations, activeConversationId],
   )
   const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation])
-  const recentConversations = useMemo(() => {
-    return [...conversations]
-      .sort((a, b) => {
-        const aTime = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : a.createdAt
-        const bTime = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : b.createdAt
-        return bTime - aTime
-      })
-      .slice(0, 5)
-  }, [conversations])
+  const completedConversationCount = useMemo(
+    () => conversations.filter((conversation) => conversation.messages.length > 0).length,
+    [conversations],
+  )
+  const artifacts = useMemo(
+    () =>
+      deriveArtifactsFromMessages(messages, {
+        streamingText,
+        activeToolName,
+      }),
+    [activeToolName, messages, streamingText],
+  )
+  const quickLaunchItems = buildQuickLaunchItems()
+  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
+  const selectedArtifact = useMemo(
+    () => artifacts.find((artifact) => artifact.id === selectedArtifactId) ?? artifacts[0] ?? null,
+    [artifacts, selectedArtifactId],
+  )
 
-  useEffect(() => { loadFromDisk() }, [loadFromDisk])
-  useEffect(() => { return () => { recognitionRef.current?.stop(); recognitionRef.current = null } }, [])
+  useEffect(() => {
+    loadFromDisk()
+  }, [loadFromDisk])
 
-  // Stop voice recognition when window loses focus
+  useEffect(() => {
+    return () => {
+      browserRecognitionRef.current?.stop()
+      browserRecognitionRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
     const handleBlur = () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-        recognitionRef.current = null
-        setIsListening(false)
+      if (browserRecognitionRef.current) {
+        browserRecognitionRef.current.stop()
+        browserRecognitionRef.current = null
+        setBrowserListening(false)
+      }
+
+      if (voiceStatus.status === 'listening') {
+        void window.usan?.voice.listenStop()
       }
     }
+
     window.addEventListener('blur', handleBlur)
     return () => window.removeEventListener('blur', handleBlur)
+  }, [voiceStatus.status])
+
+  const appendVoiceText = useCallback((nextText: string) => {
+    const normalized = nextText.trim()
+    if (!normalized) return
+
+    setInput((prev) => (prev ? `${prev} ${normalized}` : normalized))
   }, [])
 
-  // Feed Whisper STT results into input field
   useEffect(() => {
-    const unsubscribe = window.usan?.voice.onStatus((event) => {
-      if (event.status === 'idle' && event.text) {
-        const t = event.text
-        setInput((prev) => prev ? `${prev} ${t}` : t)
-      }
-    })
-    return () => { if (unsubscribe) unsubscribe() }
-  }, [])
+    if (voiceEventVersion === 0 || handledVoiceEventRef.current === voiceEventVersion) {
+      return
+    }
+    handledVoiceEventRef.current = voiceEventVersion
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streamingText])
+    if (voiceStatus.status === 'idle' && voiceStatus.text?.trim()) {
+      appendVoiceText(voiceStatus.text)
+    }
+  }, [appendVoiceText, voiceEventVersion, voiceStatus])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages.length, streamingText, isStreaming])
+
+  useEffect(() => {
+    if (!artifacts.length) {
+      if (selectedArtifactId !== null) {
+        setSelectedArtifactId(null)
+      }
+      return
+    }
+
+    if (!selectedArtifactId || !artifacts.some((artifact) => artifact.id === selectedArtifactId)) {
+      setSelectedArtifactId(artifacts[0]?.id ?? null)
+    }
+  }, [artifacts, selectedArtifactId])
 
   useEffect(() => {
     if (!settings.voiceEnabled) return
-    if (messages.length <= prevMessageCountRef.current) { prevMessageCountRef.current = messages.length; return }
+    if (messages.length <= prevMessageCountRef.current) {
+      prevMessageCountRef.current = messages.length
+      return
+    }
     prevMessageCountRef.current = messages.length
-    const lastMsg = messages[messages.length - 1]
-    if (lastMsg?.role === 'assistant' && !lastMsg.toolCalls?.length) {
-      const utterance = new SpeechSynthesisUtterance(lastMsg.content)
+
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage?.role === 'assistant' && !lastMessage.toolCalls?.length) {
+      const utterance = new SpeechSynthesisUtterance(lastMessage.content)
       utterance.lang = getSpeechLang()
       utterance.rate = settings.voiceSpeed
       speechSynthesis.speak(utterance)
     }
   }, [messages, settings.voiceEnabled, settings.voiceSpeed])
 
-  // Auto-resize textarea
-  const resizeTextarea = useCallback(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
-  }, [])
+  const handleComposerSubmit = useCallback(
+    async (payload: ComposerSubmitPayload) => {
+      if (isStreaming) return
+      await sendMessage(buildComposerPrompt(payload))
+    },
+    [isStreaming, sendMessage],
+  )
 
-  useEffect(() => { resizeTextarea() }, [input, resizeTextarea])
+  const handleQuickLaunch = useCallback(
+    async (prompt: string) => {
+      if (isStreaming) return
+      setInput('')
+      newConversation()
+      await sendMessage(prompt)
+    },
+    [isStreaming, newConversation, sendMessage],
+  )
 
-  const handleSend = useCallback((text: string) => {
-    if (!text.trim() || isStreaming) return
-    sendMessage(text)
-    setInput('')
-  }, [isStreaming, sendMessage])
-
-  const toggleListening = useCallback(() => {
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return }
+  const startBrowserSpeechRecognition = useCallback(() => {
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognitionCtor) return
+    if (!SpeechRecognitionCtor) {
+      applyVoiceError('Voice input is not ready on this computer.')
+      return
+    }
+
     const recognition = new SpeechRecognitionCtor()
     recognition.lang = getSpeechLang()
     recognition.interimResults = true
     recognition.continuous = true
-    recognitionRef.current = recognition
+    browserRecognitionRef.current = recognition
+    listeningBaseRef.current = input.trim()
+
     let silenceTimer: ReturnType<typeof setTimeout> | null = null
+
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let transcript = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript
-      if (event.results[event.results.length - 1].isFinal) {
-        if (transcript.trim()) handleSend(transcript.trim())
-        setInput('')
-        if (silenceTimer) clearTimeout(silenceTimer)
-        silenceTimer = setTimeout(() => { recognitionRef.current?.stop(); setIsListening(false) }, 10000)
-      } else { setInput(transcript) }
-    }
-    recognition.onerror = () => { if (!recognitionRef.current) return; setIsListening(false); if (silenceTimer) clearTimeout(silenceTimer) }
-    recognition.onend = () => { if (!recognitionRef.current) return; setIsListening(false); if (silenceTimer) clearTimeout(silenceTimer) }
-    setIsListening(true)
-    recognition.start()
-  }, [isListening, handleSend])
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        transcript += event.results[index][0].transcript
+      }
 
-  const hasMessages = messages.length > 0 || isStreaming
-  const hasApiKey = !!settings.cloudApiKey
+      const normalized = transcript.trim()
+      const withBase = normalized
+        ? listeningBaseRef.current
+          ? `${listeningBaseRef.current} ${normalized}`
+          : normalized
+        : listeningBaseRef.current
+
+      if (event.results[event.results.length - 1].isFinal) {
+        setInput(withBase)
+        if (silenceTimer) clearTimeout(silenceTimer)
+        silenceTimer = setTimeout(() => {
+          browserRecognitionRef.current?.stop()
+          browserRecognitionRef.current = null
+          setBrowserListening(false)
+        }, 10000)
+      } else {
+        setInput(withBase)
+      }
+    }
+
+    recognition.onerror = () => {
+      if (!browserRecognitionRef.current) return
+      browserRecognitionRef.current = null
+      setBrowserListening(false)
+      if (silenceTimer) clearTimeout(silenceTimer)
+    }
+
+    recognition.onend = () => {
+      browserRecognitionRef.current = null
+      setBrowserListening(false)
+      if (silenceTimer) clearTimeout(silenceTimer)
+    }
+
+    setBrowserListening(true)
+    recognition.start()
+  }, [applyVoiceError, input])
+
+  const stopComposerVoice = useCallback(async () => {
+    if (browserRecognitionRef.current) {
+      browserRecognitionRef.current.stop()
+      browserRecognitionRef.current = null
+      setBrowserListening(false)
+      return
+    }
+
+    if (voiceStatus.status === 'listening' || voiceStatus.status === 'processing') {
+      try {
+        const result = await window.usan?.voice.listenStop() as VoiceCommandResult
+        if (result?.error) applyVoiceError(result.error)
+      } catch (error) {
+        applyVoiceError(createVoiceErrorMessage(error))
+      }
+    }
+  }, [applyVoiceError, voiceStatus.status])
+
+  const toggleListening = useCallback(() => {
+    if (browserRecognitionRef.current || voiceStatus.status === 'listening' || voiceStatus.status === 'processing') {
+      void stopComposerVoice()
+      return
+    }
+
+    if (!window.usan?.voice.listenStart) {
+      startBrowserSpeechRecognition()
+      return
+    }
+
+    const request = Promise.resolve(window.usan.voice.listenStart() as Promise<VoiceCommandResult>)
+      .then((result) => {
+        if (!result?.error) return
+        if (canUseBrowserSpeechRecognition()) {
+          startBrowserSpeechRecognition()
+          return
+        }
+        applyVoiceError(result.error)
+      })
+      .catch((error) => {
+        if (canUseBrowserSpeechRecognition()) {
+          startBrowserSpeechRecognition()
+          return
+        }
+        applyVoiceError(createVoiceErrorMessage(error))
+      })
+      .finally(() => {
+        if (voiceRequestRef.current === request) {
+          voiceRequestRef.current = null
+        }
+      })
+
+    voiceRequestRef.current = request
+  }, [applyVoiceError, startBrowserSpeechRecognition, stopComposerVoice, voiceStatus.status])
+
+  const isListening = browserListening || voiceStatus.status === 'listening' || voiceStatus.status === 'processing'
+
+  const currentConversationLabel = activeConversation?.title || t('home.welcome')
+  const hasHistory = completedConversationCount > 0
+  const hasTimelineActivity = messages.length > 0 || isStreaming
 
   return (
-    <div className="flex h-full">
-      <ConversationList />
-
-      <div className="flex flex-col flex-1 min-w-0">
-      {/* API key banner */}
-      {!hasApiKey && (
-        <div className="border-b border-[var(--color-warning)]/30 bg-[var(--color-surface-soft)]">
-          <div className="max-w-2xl mx-auto flex items-center gap-3 px-6 py-3">
-            <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--color-warning)]/10 flex items-center justify-center shrink-0">
-              <KeyRound size={16} className="text-[var(--color-warning)]" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[length:var(--text-md)] font-medium text-[var(--color-text)]">
-                {t('home.apiKeyNeeded')}
-              </p>
-              <p className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
-                {t('home.apiKeyHint')}
-              </p>
-            </div>
-            <ArrowRight size={16} className="text-[var(--color-text-muted)] shrink-0" />
-          </div>
-        </div>
-      )}
-
-      {/* Chat area */}
-      <div className="flex-1 overflow-auto px-6 py-8">
-        {!hasMessages ? (
-          <div className="flex flex-col items-center justify-center h-full gap-8 max-w-xl mx-auto animate-in">
-            {/* Welcome */}
-            <div className="text-center">
-              <h1 className="font-semibold tracking-tight text-[length:var(--text-2xl)] text-[var(--color-text)]">
-                {getGreeting()}
-              </h1>
-              <div className="h-1 w-12 rounded-full bg-[var(--color-primary)] mx-auto mt-3 mb-2" />
-              <p className="text-[length:var(--text-md)] text-[var(--color-text-muted)] mt-2">
-                {t('home.welcomeSub')}
-              </p>
-            </div>
-
-            {/* Quick action cards */}
-            <div className="flex flex-col gap-3 w-full">
-              {quickActions.map((action, i) => {
-                const Icon = action.icon
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleSend(t(action.promptKey))}
-                    className="group flex items-center gap-4 p-5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:shadow-[var(--shadow-md)] hover:-translate-y-px transition-all text-left shadow-[var(--shadow-sm)]"
-                    style={{ minHeight: '72px' }}
-                  >
-                    <div className="w-14 h-14 rounded-[var(--radius-lg)] bg-[var(--color-primary-light)] flex items-center justify-center shrink-0 group-hover:bg-[var(--color-primary)] group-hover:shadow-[var(--shadow-md)] transition-all">
-                      <Icon size={24} className="text-[var(--color-primary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[length:var(--text-lg)] font-medium text-[var(--color-text)]">{t(action.labelKey)}</div>
-                      <div className="text-[length:var(--text-md)] text-[var(--color-text-muted)]">{t(action.descKey)}</div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Recent tasks */}
-            {conversations.length > 0 && (
-              <div className="w-full">
-                <h2 className="text-[length:var(--text-xs)] font-medium text-[var(--color-text-muted)] mb-2 uppercase tracking-wide">
-                  {t('home.recentTasks')}
-                </h2>
-                <div className="flex flex-col">
-                  {recentConversations.map((conv) => (
-                    <button
-                      key={conv.id}
-                      onClick={() => setActiveConversation(conv.id)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-soft)] transition-all text-left"
-                      style={{ minHeight: '48px' }}
-                      title={conv.title}
-                    >
-                      <span className="flex-1 truncate text-[length:var(--text-md)] text-[var(--color-text)]">{conv.title}</span>
-                      <span className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] shrink-0">{conv.messages.length}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="max-w-2xl mx-auto flex flex-col gap-3">
-            {messages.map((msg) => (<MessageBubble key={msg.id} message={msg} />))}
-            {isStreaming && !streamingText && <SkeletonLoader phase={streamingPhase === 'idle' ? 'waiting' : streamingPhase} />}
-            {isStreaming && streamingText && <StreamingText text={streamingText} />}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
-
-      {/* Quick chips - only when no messages */}
-      {!isStreaming && !hasMessages && (
-        <div className="border-t border-[var(--color-border)] px-4 pt-2 pb-0">
-          <div className="max-w-2xl mx-auto">
-            <p className="text-[length:var(--text-xs)] text-[var(--color-text-muted)] mb-1 uppercase tracking-wide">
-              {t('home.quickSuggestions')}
-            </p>
-            <div className="flex gap-2 overflow-x-auto scrollbar-none">
-              {quickActions.map((action, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSend(t(action.promptKey))}
-                  className="shrink-0 px-3 py-2 rounded-full border border-[var(--color-border)] text-[length:var(--text-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-light)] transition-all"
-                  style={{ minHeight: '48px' }}
-                >
-                  {t(action.labelKey)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Input area */}
-      <div className="border-t border-[var(--color-border)] p-3">
-        <div className="max-w-2xl mx-auto flex items-end gap-2">
-          <button
-            onClick={toggleListening}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${
-              isListening
-                ? 'bg-[var(--color-danger)] text-[var(--color-text-inverse)] shadow-[var(--shadow-md)]'
-                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-text)]'
-            }`}
-            aria-label={isListening ? t('home.voiceStop') : t('home.voiceStart')}
-            title={isListening ? t('home.voiceStop') : t('home.voiceStart')}
-          >
-            {isListening ? (
-              <div className="flex items-center gap-1"><span className="voice-wave-bar" /><span className="voice-wave-bar" /><span className="voice-wave-bar" /></div>
-            ) : (<Mic size={18} />)}
-          </button>
-
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              const enterToSend = useSettingsStore.getState().settings.enterToSend
-              if (e.key === 'Enter' && !e.shiftKey && enterToSend) {
-                e.preventDefault()
-                handleSend(input)
-              }
-            }}
-            rows={1}
-            placeholder={isListening ? t('home.listening') : t('home.inputPlaceholder')}
-            className="flex-1 min-h-[44px] max-h-[160px] px-4 py-2.5 rounded-2xl bg-[var(--color-surface-soft)] border border-transparent text-[length:var(--text-md)] focus:border-[var(--color-primary)] focus:bg-[var(--color-bg-card)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none transition-all resize-none leading-relaxed"
-            disabled={isStreaming}
+    <div className="flex h-full min-w-0 flex-col bg-[var(--color-bg)]" data-testid="home-page">
+      <div className="flex-1 overflow-hidden px-4 pb-4 pt-5 md:px-5 md:pb-5">
+        <div className="mx-auto flex h-full w-full max-w-[1480px] flex-col gap-4">
+          <PageIntro
+            title={currentConversationLabel}
+            description={
+              activeConversation
+                ? `${messages.length} ${t('chat.messages')} · ${t('chat.resumeHint')}`
+                : t('home.welcomeSub')
+            }
+            action={
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                leftIcon={<Plus size={14} />}
+                onClick={() => newConversation()}
+                data-testid="home-new-task-button"
+              >
+                {t('chat.newChat')}
+              </Button>
+            }
           />
 
-          {hasMessages && !isStreaming && (
-            <button
-              onClick={() => newConversation()}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-text-muted)] hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-text)] transition-all shrink-0"
-              aria-label={t('chat.newConversation')}
-              title={t('chat.newConversation')}
-            >
-              <MessageSquarePlus size={18} />
-            </button>
-          )}
+          <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="home-main-grid">
+            <div className="flex min-h-0 flex-col gap-4" data-testid="home-timeline-pane">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={isStreaming ? 'info' : hasTimelineActivity ? 'success' : 'default'}>
+                  {isStreaming ? t('agent.status.running') : hasTimelineActivity ? t('agent.status.completed') : t('agent.status.pending')}
+                </Badge>
+                <Badge variant="default">{`${completedConversationCount} ${t('chat.conversations')}`}</Badge>
+                {activeToolName ? <Badge variant="info">{activeToolName}</Badge> : null}
+              </div>
 
-          {isStreaming ? (
-            <button
-              onClick={stopStreaming}
-              className="w-10 h-10 rounded-full bg-[var(--color-danger)] text-[var(--color-text-inverse)] flex items-center justify-center hover:opacity-90 transition-all shrink-0 shadow-[var(--shadow-md)]"
-              aria-label={t('home.stop')}
-              title={t('home.stop')}
-            >
-              <Square size={14} />
-            </button>
-          ) : (
-            <button
-              onClick={() => handleSend(input)}
-              disabled={!input.trim()}
-              className="w-10 h-10 rounded-full bg-[var(--color-primary)] text-[var(--color-text-inverse)] flex items-center justify-center hover:bg-[var(--color-primary-hover)] shadow-[0_2px_4px_rgba(99,102,241,0.15)] disabled:opacity-30 disabled:shadow-none transition-all shrink-0"
-              aria-label={t('home.send')}
-              title={t('home.send')}
-            >
-              <Send size={16} />
-            </button>
-          )}
+              <div className="min-h-0 flex-1 overflow-auto pr-1">
+                <Timeline
+                  messages={messages}
+                  isStreaming={isStreaming}
+                  streamingPhase={streamingPhase}
+                  streamingText={streamingText}
+                  activeToolName={activeToolName}
+                  onRetry={retryLastMessage}
+                  className="min-h-full"
+                />
+                <div ref={messagesEndRef} />
+              </div>
+
+              <Card
+                variant="default"
+                padding="md"
+                className="shrink-0"
+                data-testid="home-artifact-workspace"
+              >
+                <ArtifactShelf
+                  artifacts={artifacts}
+                  selectedArtifactId={selectedArtifact?.id ?? null}
+                  onSelectArtifact={setSelectedArtifactId}
+                />
+                <ArtifactView artifact={selectedArtifact} className="mt-4" />
+              </Card>
+            </div>
+
+            <aside className="flex min-h-0 flex-col gap-4" data-testid="home-side-panel">
+              <Card variant="elevated" padding="md" data-testid="home-quick-launch">
+                <SectionHeader title={t('home.quickLaunchTitle')} />
+                <p className="mb-4 text-[13px] leading-6 text-[var(--color-text-secondary)]">
+                  {t('home.quickLaunchBody')}
+                </p>
+
+                <div className="grid gap-2">
+                  {quickLaunchItems.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => void handleQuickLaunch(item.prompt)}
+                        className="group rounded-[18px] bg-[var(--color-panel-muted)] px-4 py-3 text-left transition-all hover:bg-[var(--color-surface-soft)] hover:shadow-[var(--shadow-xs)]"
+                        data-testid={`home-quick-action-${item.id}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-[var(--color-panel-bg-strong)] text-[var(--color-primary)]">
+                            <Icon size={17} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[14px] font-semibold text-[var(--color-text)]">
+                              {item.title}
+                            </span>
+                            <span className="mt-1 block text-[12px] leading-5 text-[var(--color-text-secondary)]">
+                              {item.description}
+                            </span>
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </Card>
+
+              <Card
+                variant="default"
+                padding="md"
+                className="min-h-[280px] flex-1 overflow-hidden"
+                data-testid="home-recent-work"
+              >
+                <ConversationList className="h-full" />
+                {!hasHistory ? (
+                  <p className="mt-4 text-[12px] leading-5 text-[var(--color-text-muted)]">
+                    {t('chat.resumeHint')}
+                  </p>
+                ) : null}
+              </Card>
+            </aside>
+          </div>
         </div>
       </div>
+
+      <div className="border-t border-[var(--color-border-subtle)] px-4 pb-4 pt-3 md:px-5 md:pb-5">
+        <div className="mx-auto flex w-full max-w-[1480px] flex-col items-center">
+          <Composer
+            value={input}
+            onValueChange={setInput}
+            onSubmit={handleComposerSubmit}
+            onStop={stopStreaming}
+            onToggleVoice={toggleListening}
+            isStreaming={isStreaming}
+            isListening={isListening}
+          />
+        </div>
       </div>
     </div>
   )

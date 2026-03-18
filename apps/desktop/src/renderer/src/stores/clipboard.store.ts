@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ClipboardEntry, ClipboardTransformFormat } from '@shared/types/infrastructure'
+import { toClipboardErrorMessage } from '../lib/user-facing-errors'
 
 const DEFAULT_TRANSFORM: ClipboardTransformFormat = 'json_pretty'
 
@@ -34,7 +35,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       const entries = await window.usan?.clipboardManager.history()
       set({ entries: entries ?? [], loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toClipboardErrorMessage(err, 'load') })
     }
   },
 
@@ -43,7 +44,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       await window.usan?.clipboardManager.clear()
       await get().load()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toClipboardErrorMessage(err, 'clear') })
     }
   },
 
@@ -56,7 +57,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       }
       await get().load()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toClipboardErrorMessage(err, 'pin') })
     }
   },
 
@@ -68,7 +69,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
         await navigator.clipboard.writeText(transformed)
       }
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toClipboardErrorMessage(err, 'transform') })
     }
   },
 }))

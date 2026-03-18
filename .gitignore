@@ -10,3 +10,6 @@ out/
 Thumbs.db
 apps/desktop/logs/
 .codex-reports/
+apps/desktop/output/
+apps/desktop/native/qt-bridge/build-manual/
+*.tgz

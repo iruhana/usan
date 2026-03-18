@@ -1,24 +1,14 @@
-﻿import { useEffect, useState } from 'react'
 import { Mic, Loader2, AlertCircle } from 'lucide-react'
-import type { VoiceStatusEvent } from '@shared/types/infrastructure'
 import { t } from '../../i18n'
-
-const DEFAULT_STATUS: VoiceStatusEvent = { status: 'idle' }
+import { toVoiceErrorMessage } from '../../lib/user-facing-errors'
+import { useSettingsStore } from '../../stores/settings.store'
+import { useVoiceStore } from '../../stores/voice.store'
 
 export default function VoiceIndicator() {
-  const [status, setStatus] = useState<VoiceStatusEvent>(DEFAULT_STATUS)
+  const voiceOverlayEnabled = useSettingsStore((s) => s.settings.voiceOverlayEnabled)
+  const status = useVoiceStore((s) => s.status)
 
-  useEffect(() => {
-    const unsub = window.usan?.voice.onStatus((next) => {
-      setStatus(next)
-    })
-
-    return () => {
-      if (unsub) unsub()
-    }
-  }, [])
-
-  if (status.status === 'idle') return null
+  if (!voiceOverlayEnabled || status.status === 'idle') return null
 
   const label = status.status === 'listening'
     ? t('voice.indicator.listening')
@@ -27,7 +17,10 @@ export default function VoiceIndicator() {
       : t('voice.indicator.error')
 
   return (
-    <span className="inline-flex items-center gap-1.5" title={status.error || status.text || label}>
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-soft)] px-2.5 py-1 text-[length:var(--text-xs)] font-medium text-[var(--color-text-secondary)]"
+      title={status.error ? toVoiceErrorMessage(status.error) : status.text || label}
+    >
       {status.status === 'listening' && <Mic size={12} className="text-[var(--color-primary)]" />}
       {status.status === 'processing' && <Loader2 size={12} className="animate-spin text-[var(--color-primary)]" />}
       {status.status === 'error' && <AlertCircle size={12} className="text-[var(--color-danger)]" />}

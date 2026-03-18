@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { toAppControlErrorMessage } from '../lib/user-facing-errors'
 
 export interface RunningAppInfo {
   name: string
@@ -12,7 +13,7 @@ interface AppOrchestrationState {
   error: string | null
 
   loadRunningApps: () => Promise<void>
-  launchApp: (name: string, args?: string) => Promise<void>
+  launchApp: (name: string, args?: string | string[]) => Promise<void>
   closeApp: (name: string) => Promise<void>
   sendKeys: (keys: string) => Promise<void>
 }
@@ -28,7 +29,7 @@ export const useAppOrchestrationStore = create<AppOrchestrationState>((set, get)
       const apps = await window.usan?.appControl.listRunning()
       set({ runningApps: apps ?? [], loading: false })
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      set({ loading: false, error: toAppControlErrorMessage(err, 'load') })
     }
   },
 
@@ -37,7 +38,7 @@ export const useAppOrchestrationStore = create<AppOrchestrationState>((set, get)
       await window.usan?.appControl.launch(name, args)
       await get().loadRunningApps()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toAppControlErrorMessage(err, 'launch') })
     }
   },
 
@@ -46,7 +47,7 @@ export const useAppOrchestrationStore = create<AppOrchestrationState>((set, get)
       await window.usan?.appControl.close(name)
       await get().loadRunningApps()
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toAppControlErrorMessage(err, 'close') })
     }
   },
 
@@ -54,7 +55,7 @@ export const useAppOrchestrationStore = create<AppOrchestrationState>((set, get)
     try {
       await window.usan?.appControl.sendKeys(keys)
     } catch (err) {
-      set({ error: (err as Error).message })
+      set({ error: toAppControlErrorMessage(err, 'sendKeys') })
     }
   },
 }))

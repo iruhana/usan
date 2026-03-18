@@ -10,12 +10,16 @@ interface SectionHeaderProps {
 
 export function SectionHeader({ title, icon: Icon, indicator, action, className }: SectionHeaderProps) {
   return (
-    <div className={`mb-3 flex items-center gap-2 ${className ?? ''}`}>
+    <div className={`mb-3 flex items-center gap-2.5 ${className ?? ''}`}>
       {indicator && (
-        <div className="h-4 w-1 rounded-full" style={{ backgroundColor: indicator }} />
+        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: indicator }} />
       )}
-      {Icon && <Icon size={16} className="text-[var(--color-text-muted)] shrink-0" />}
-      <h3 className="text-[length:var(--text-sm)] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide flex-1">
+      {Icon && (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-surface-soft)] text-[var(--color-primary)]">
+          <Icon size={16} className="shrink-0" />
+        </div>
+      )}
+      <h3 className="flex-1 text-[length:var(--text-md)] font-semibold tracking-tight text-[var(--color-text)]">
         {title}
       </h3>
       {action}

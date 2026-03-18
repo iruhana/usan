@@ -6,6 +6,8 @@ import { create } from 'zustand'
 import type { ChatChunk, ChatMessage, StoredConversation } from '@shared/types/ipc'
 import type { ToolResult } from '@shared/types/tools'
 import { t } from '../i18n'
+import { toChatErrorMessage, toSkillErrorMessage, toToolExecutionErrorMessage } from '../lib/user-facing-errors'
+import { useSkillStore } from './skill.store'
 
 type Conversation = StoredConversation
 
@@ -18,6 +20,7 @@ interface ChatState {
   isStreaming: boolean
   streamingPhase: StreamingPhase
   streamingText: string
+  activeToolName: string | null
   loaded: boolean
 
   // Actions
@@ -108,6 +111,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     isStreaming: false,
     streamingPhase: 'idle' as StreamingPhase,
     streamingText: '',
+    activeToolName: null,
     loaded: false,
 
     loadFromDisk: async () => {
@@ -141,7 +145,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     setActiveConversation: (id) => {
-      set({ activeConversationId: id, streamingText: '', isStreaming: false })
+      set({ activeConversationId: id, streamingText: '', isStreaming: false, activeToolName: null })
     },
 
     deleteConversation: (id) => {
@@ -188,6 +192,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         streamingPhase: 'waiting' as StreamingPhase,
         streamingConversationId: convId,
         streamingText: '',
+        activeToolName: null,
       }))
 
       // Send to main process
@@ -224,7 +229,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (convId) {
         window.usan?.ai.stop(convId)
       }
-      set({ isStreaming: false, streamingPhase: 'idle' as StreamingPhase, streamingConversationId: null })
+      set({ isStreaming: false, streamingPhase: 'idle' as StreamingPhase, streamingConversationId: null, activeToolName: null })
     },
 
     handleChunk: (chunk) => {
@@ -238,8 +243,10 @@ export const useChatStore = create<ChatState>((set, get) => {
 
         case 'tool_call':
           if (chunk.toolCall) {
+            syncSkillRunnerFromToolCall(chunk.toolCall)
             set((s) => ({
               streamingPhase: 'tool' as StreamingPhase,
+              activeToolName: getToolLabel(chunk.toolCall!.name),
               conversations: s.conversations.map((c) =>
                 c.id === convId
                   ? {
@@ -263,6 +270,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
         case 'tool_result':
           if (chunk.toolResult) {
+            syncSkillRunnerFromToolResult(chunk.toolResult)
             set((s) => ({
               conversations: s.conversations.map((c) =>
                 c.id === convId
@@ -309,15 +317,17 @@ export const useChatStore = create<ChatState>((set, get) => {
               isStreaming: false,
               streamingPhase: 'idle' as StreamingPhase,
               streamingConversationId: null,
+              activeToolName: null,
             }))
           } else {
-            set({ isStreaming: false, streamingPhase: 'idle' as StreamingPhase, streamingConversationId: null })
+            set({ isStreaming: false, streamingPhase: 'idle' as StreamingPhase, streamingConversationId: null, activeToolName: null })
           }
           persistToDisk()
           break
         }
 
         case 'error':
+          syncSkillRunnerFromStreamError(chunk.content)
           set((s) => ({
             conversations: s.conversations.map((c) =>
               c.id === convId
@@ -328,7 +338,7 @@ export const useChatStore = create<ChatState>((set, get) => {
                       {
                         id: crypto.randomUUID(),
                         role: 'assistant' as const,
-                        content: chunk.content,
+                        content: toChatErrorMessage(chunk.content),
                         timestamp: Date.now(),
                         isError: true,
                       },
@@ -340,6 +350,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             streamingPhase: 'idle' as StreamingPhase,
             streamingConversationId: null,
             streamingText: '',
+            activeToolName: null,
           }))
           break
       }
@@ -353,7 +364,85 @@ function getToolLabel(name: string): string {
   return t(`tool.${name}`) !== `tool.${name}` ? t(`tool.${name}`) : name
 }
 
+function formatSkillRunTitle(skillId: string, scriptName: string): string {
+  const normalizedSkill = skillId.replace(/[-_]+/g, ' ').trim()
+  const normalizedScript = scriptName.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ').trim()
+
+  if (normalizedSkill && normalizedScript) {
+    return `${normalizedSkill}: ${normalizedScript}`
+  }
+
+  return normalizedScript || normalizedSkill || t('skill.title')
+}
+
+function syncSkillRunnerFromToolCall(toolCall: NonNullable<ChatChunk['toolCall']>): void {
+  if (toolCall.name !== 'run_skill_script') {
+    return
+  }
+
+  const skillId = typeof toolCall.args.skill_id === 'string' ? toolCall.args.skill_id : 'skill'
+  const scriptName = typeof toolCall.args.script_name === 'string' ? toolCall.args.script_name : ''
+
+  useSkillStore.getState().startRun(skillId, formatSkillRunTitle(skillId, scriptName), [
+    {
+      id: 'prepare',
+      title: t('skill.progressPreparing'),
+      status: 'done',
+      detail: t('skill.progressAccepted'),
+    },
+    {
+      id: 'run',
+      title: formatSkillRunTitle(skillId, scriptName),
+      status: 'running',
+    },
+    {
+      id: 'finish',
+      title: t('skill.progressFinishing'),
+      status: 'pending',
+    },
+  ])
+}
+
+function syncSkillRunnerFromToolResult(result: ToolResult): void {
+  if (result.name !== 'run_skill_script') {
+    return
+  }
+
+  const store = useSkillStore.getState()
+  if (!store.currentRun) {
+    store.startRun('skill', t('skill.title'), [
+      { id: 'prepare', title: t('skill.progressPreparing'), status: 'done' },
+      { id: 'run', title: t('skill.title'), status: 'running' },
+      { id: 'finish', title: t('skill.progressFinishing'), status: 'pending' },
+    ])
+  }
+
+  if (result.error) {
+    useSkillStore.getState().updateStep('run', 'failed', toSkillErrorMessage(result.error))
+    useSkillStore.getState().setState('failed', result.error)
+    return
+  }
+
+  useSkillStore.getState().updateStep('run', 'done', `${t('tool.done')} (${result.duration}ms)`)
+  useSkillStore.getState().updateStep('finish', 'done', t('skill.progressComplete'))
+  useSkillStore.getState().setState('done')
+}
+
+function syncSkillRunnerFromStreamError(input: string): void {
+  const store = useSkillStore.getState()
+  if (!store.currentRun) {
+    return
+  }
+
+  if (store.currentRun.state !== 'running' && store.currentRun.state !== 'validating') {
+    return
+  }
+
+  useSkillStore.getState().updateStep('run', 'failed', toSkillErrorMessage(input))
+  useSkillStore.getState().setState('failed', input)
+}
+
 function formatToolResult(result: ToolResult): string {
-  if (result.error) return `❌ ${result.error}`
+  if (result.error) return `❌ ${getToolLabel(result.name)}: ${toToolExecutionErrorMessage(result.name, result.error)}`
   return `✅ ${getToolLabel(result.name)} ${t('tool.done')} (${result.duration}ms)`
 }

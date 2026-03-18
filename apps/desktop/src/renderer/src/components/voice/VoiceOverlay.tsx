@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Mic, MicOff, Loader2, X } from 'lucide-react'
 import { Button } from '../ui'
 import { t } from '../../i18n'
@@ -16,6 +16,7 @@ export default function VoiceOverlay() {
   const setError = useVoiceStore((s) => s.setError)
   const applyStatus = useVoiceStore((s) => s.applyStatus)
   const [busy, setBusy] = useState(false)
+  const sessionPromiseRef = useRef<Promise<void> | null>(null)
 
   const effectiveStatus =
     forceVisible && status.status === 'idle' && !lastText
@@ -97,16 +98,24 @@ export default function VoiceOverlay() {
         ) : (
           <Button
             size="sm"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true)
-              try {
-                const result = await window.usan?.voice.listenStart() as { text?: string; error?: string } | undefined
-                if (result?.text) applyStatus({ status: 'idle', text: result.text })
-                if (result?.error) setError(result.error)
-              } finally {
-                setBusy(false)
-              }
+            disabled={Boolean(sessionPromiseRef.current)}
+            onClick={() => {
+              if (sessionPromiseRef.current) return
+
+              const promise = Promise.resolve(
+                window.usan?.voice.listenStart() as Promise<{ text?: string; error?: string } | undefined>,
+              )
+                .then((result) => {
+                  if (result?.text) applyStatus({ status: 'idle', text: result.text })
+                  if (result?.error) setError(result.error)
+                })
+                .finally(() => {
+                  if (sessionPromiseRef.current === promise) {
+                    sessionPromiseRef.current = null
+                  }
+                })
+
+              sessionPromiseRef.current = promise
             }}
           >
             {t('voice.start')}

@@ -3,7 +3,13 @@
  * All IPC goes through typed contextBridge, never raw ipcRenderer
  */
 
-import type { PermissionGrant, PermissionGrantRequest, PermissionRevokeRequest } from './permissions'
+import type {
+  CapabilityGrantRequest,
+  CapabilityGrantResponse,
+  PermissionGrant,
+  PermissionGrantRequest,
+  PermissionRevokeRequest,
+} from './permissions'
 import type { ToolResult } from './tools'
 
 export type Locale = 'ko' | 'en' | 'ja'
@@ -54,6 +60,17 @@ export interface FileEntry {
   modifiedAt: number
 }
 
+export interface FilePickRequest {
+  mode: 'file' | 'directory'
+  multi?: boolean
+  title?: string
+}
+
+export interface FilePickResult {
+  canceled: boolean
+  paths: string[]
+}
+
 // ─── Computer Use ────────────────────────────────
 
 export interface ScreenCaptureResult {
@@ -88,16 +105,41 @@ export interface AppSettings {
   fontScale: number
   highContrast: boolean
   voiceEnabled: boolean
+  voiceOverlayEnabled: boolean
   voiceSpeed: number
   locale: Locale
+  localeConfigured: boolean
   theme: 'light' | 'dark' | 'system'
   openAtLogin: boolean
   updateChannel: UpdateChannel
   autoDownloadUpdates: boolean
   permissionProfile: PermissionProfile
+  beginnerMode: boolean
+  browserCredentialAutoImportEnabled: boolean
+  browserCredentialAutoImportDone: boolean
   sidebarCollapsed: boolean
   enterToSend: boolean
   cloudApiKey?: string
+}
+
+export interface CredentialSummaryItem {
+  id: string
+  site: string
+  usernameMasked: string
+  importedAt: number
+}
+
+export interface CredentialVaultSummary {
+  totalCount: number
+  lastImportedAt: number | null
+  preview: CredentialSummaryItem[]
+}
+
+export interface CredentialImportResult {
+  importedCount: number
+  skippedCount: number
+  totalCount: number
+  sourcePath: string
 }
 
 export interface UpdaterStatus {
@@ -112,9 +154,26 @@ export interface UpdaterStatus {
   crashStreak: number
 }
 
+export interface ExternalOAuthProfile {
+  id: string
+  name?: string
+  nickname?: string
+  email?: string
+  avatarUrl?: string
+}
+
+export interface ExternalOAuthStatus {
+  provider: 'google' | 'naver' | 'kakao'
+  configured: boolean
+  authenticated: boolean
+  expiresAt: number | null
+  scopes: string[]
+  profile?: ExternalOAuthProfile
+}
+
 // ─── Permissions ─────────────────────────────────
 
-// All granted at install, no per-action prompts
+// Permissions are granted explicitly and may be time-bound.
 
 // ─── IPC Channel Map ─────────────────────────────
 
@@ -151,6 +210,7 @@ export interface IPCChannels {
   'permissions:get': { request: void; response: PermissionGrant }
   'permissions:grant': { request: PermissionGrantRequest | void; response: PermissionGrant }
   'permissions:revoke': { request: PermissionRevokeRequest | void; response: PermissionGrant }
+  'permissions:issue-capability': { request: CapabilityGrantRequest; response: CapabilityGrantResponse }
 
   // Conversations
   'conversations:load': { request: void; response: StoredConversation[] }
@@ -164,7 +224,13 @@ export interface IPCChannels {
   'ai:validate-key': { request: string; response: { valid: boolean; error?: string } }
 
   // File system extras
+  'fs:pick': { request: FilePickRequest; response: FilePickResult }
   'fs:open-path': { request: string; response: void }
+
+  // Browser credentials (CSV import)
+  'credentials:get-summary': { request: void; response: CredentialVaultSummary }
+  'credentials:import-browser-csv': { request: void; response: CredentialImportResult }
+  'credentials:clear': { request: void; response: { success: boolean } }
 
   // System
   'system:desktop-path': { request: void; response: string }
@@ -176,4 +242,15 @@ export interface IPCChannels {
 
   // Notification (renderer event, not handle)
   'notification': { event: { title: string; body: string; level: string } }
+
+  // OAuth integrations
+  'google:oauth-start': { request: string | void; response: { success: boolean; error?: string } }
+  'google:oauth-status': { request: void; response: { authenticated: boolean } }
+  'google:oauth-logout': { request: void; response: { success: boolean } }
+  'naver:oauth-start': { request: void; response: { success: boolean; error?: string } }
+  'naver:oauth-status': { request: void; response: ExternalOAuthStatus }
+  'naver:oauth-logout': { request: void; response: { success: boolean } }
+  'kakao:oauth-start': { request: void; response: { success: boolean; error?: string } }
+  'kakao:oauth-status': { request: void; response: ExternalOAuthStatus }
+  'kakao:oauth-logout': { request: void; response: { success: boolean } }
 }

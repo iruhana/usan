@@ -7,8 +7,9 @@ import { browserDisconnect } from './browser/browser-manager'
 import { reminderManager } from './reminders/reminder-manager'
 import { ensureElevated } from './admin/elevation'
 import { initAutoUpdater, markUpdaterWillQuit } from './updater'
-import { loadSettings } from './store'
-import type { Locale, PermissionProfile } from '@shared/types/ipc'
+import { loadSettings, saveSettings } from './store'
+import { autoImportFromInstalledBrowsers } from './password/password-vault'
+import type { AppSettings, Locale, PermissionProfile } from '@shared/types/ipc'
 
 // Infrastructure modules
 import { eventBus } from './infrastructure/event-bus'
@@ -24,12 +25,21 @@ import { vectorStore } from './rag/vector-store'
 import { toolCatalog } from './ai/tool-catalog'
 import { mcpRegistry } from './mcp/mcp-registry'
 import { mcpToolBridge } from './mcp/mcp-tool-bridge'
-import { closeDb } from './db/database'
+import { qtBridgeProvider } from './mcp/providers/qt-bridge'
+import { closeDb, getDb } from './db/database'
+import { createSqliteSecurityAuditSink, securityRuntime } from './security/index'
 let currentLocale: Locale = 'ko'
 let powerProfileListenersRegistered = false
 const ALLOWED_SESSION_PERMISSIONS = new Set<string>()
 const IS_SMOKE_SELFTEST = process.env['USAN_SMOKE_SELFTEST'] === '1'
 const SMOKE_TIMEOUT_MS = Number.parseInt(process.env['USAN_SMOKE_SELFTEST_TIMEOUT_MS'] ?? '30000', 10)
+const FORCE_RENDER_ERROR_E2E = process.env['USAN_E2E_FORCE_RENDER_ERROR'] === '1'
+const FORCE_SKILL_RUNNER_E2E = process.env['USAN_E2E_FORCE_SKILL_RUNNER'] === '1'
+const FORCE_VOICE_OVERLAY_E2E = process.env['USAN_E2E_FORCE_VOICE_OVERLAY'] === '1'
+const FORCE_EMAIL_NOTICE_E2E = process.env['USAN_E2E_FORCE_EMAIL_NOTICE'] === '1'
+const FORCE_CALENDAR_NOTICE_E2E = process.env['USAN_E2E_FORCE_CALENDAR_NOTICE'] === '1'
+const FORCE_MCP_NOTICE_E2E = process.env['USAN_E2E_FORCE_MCP_NOTICE'] === '1'
+const FORCE_FILE_ORG_NOTICE_E2E = process.env['USAN_E2E_FORCE_FILE_ORG_NOTICE'] === '1'
 const DEFAULT_PERMISSION_PROFILE: PermissionProfile = 'full'
 
 const POWER_PROFILES = {
@@ -78,6 +88,66 @@ const trayLabels: Record<Locale, { tooltip: string; open: string; quit: string }
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+
+function buildRendererQuery(): Record<string, string> | undefined {
+  const query: Record<string, string> = {}
+
+  if (FORCE_RENDER_ERROR_E2E) {
+    query['usan_e2e_force_error'] = '1'
+  }
+
+  if (FORCE_SKILL_RUNNER_E2E) {
+    query['usan_e2e_force_skill_runner'] = '1'
+  }
+
+  if (FORCE_VOICE_OVERLAY_E2E) {
+    query['usan_e2e_force_voice_overlay'] = '1'
+  }
+
+  if (FORCE_EMAIL_NOTICE_E2E) {
+    query['usan_e2e_force_email_notice'] = '1'
+  }
+
+  if (FORCE_CALENDAR_NOTICE_E2E) {
+    query['usan_e2e_force_calendar_notice'] = '1'
+  }
+
+  if (FORCE_MCP_NOTICE_E2E) {
+    query['usan_e2e_force_mcp_notice'] = '1'
+  }
+
+  if (FORCE_FILE_ORG_NOTICE_E2E) {
+    query['usan_e2e_force_file_org_notice'] = '1'
+  }
+
+  return Object.keys(query).length > 0 ? query : undefined
+}
+
+async function ensureInstallTimeCredentialAutoImport(settings: AppSettings): Promise<AppSettings> {
+  if (!settings.browserCredentialAutoImportEnabled) return settings
+  if (settings.browserCredentialAutoImportDone) return settings
+
+  let importSucceeded = false
+  try {
+    await autoImportFromInstalledBrowsers()
+    importSucceeded = true
+  } catch {
+    // Keep startup resilient even if browser data is locked or unavailable.
+  }
+
+  if (!importSucceeded) {
+    // Retry on next launch when auto import could not complete this time.
+    return settings
+  }
+
+  const next = { ...settings, browserCredentialAutoImportDone: true }
+  try {
+    await saveSettings(next)
+  } catch {
+    // Ignore persistence failures; app can still continue.
+  }
+  return next
+}
 
 function createTrayIcon(): Electron.NativeImage {
   // Create a 16x16 tray icon programmatically (blue circle with white dot)
@@ -176,8 +246,9 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     frame: false,
-    titleBarStyle: 'hidden',
+    title: '우산 — 나만의 비서',
     autoHideMenuBar: true,
+    backgroundColor: '#F6F8FB',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -190,6 +261,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    mainWindow?.setTitle('우산 — 나만의 비서')
     if (!IS_SMOKE_SELFTEST) {
       mainWindow?.show()
     }
@@ -226,6 +298,7 @@ function createWindow(): void {
 
   configureSessionPermissionHandlers(mainWindow)
 
+
   // Dev: load from vite dev server, Prod: load built files
   mainWindow.webContents.on('did-fail-load', (_event, code, description) => {
     if (IS_SMOKE_SELFTEST) {
@@ -234,22 +307,32 @@ function createWindow(): void {
     }
   })
 
+  const rendererQuery = buildRendererQuery()
+
   if (isDev && devUrl) {
-    mainWindow.loadURL(devUrl)
+    const rendererUrl = new URL(devUrl)
+    for (const [key, value] of Object.entries(rendererQuery ?? {})) {
+      rendererUrl.searchParams.set(key, value)
+    }
+    mainWindow.loadURL(rendererUrl.toString())
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(
+      join(__dirname, '../renderer/index.html'),
+      rendererQuery ? { query: rendererQuery } : undefined,
+    )
   }
 }
 
 let isQuitting = false
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setAppUserModelId('com.usan.app')
 
   // Re-launch as admin via Task Scheduler if not elevated (production only)
   if (ensureElevated()) return
 
-  const startupSettings = loadSettings()
+  let startupSettings = loadSettings()
+  startupSettings = await ensureInstallTimeCredentialAutoImport(startupSettings)
   applySessionPermissionProfile(startupSettings.permissionProfile ?? DEFAULT_PERMISSION_PROFILE)
 
   // Register all IPC handlers before creating window
@@ -320,9 +403,11 @@ export function applySessionPermissionProfile(profile: PermissionProfile): void 
 
 // ─── Infrastructure Lifecycle ────────────────────
 function initInfrastructure(): void {
+  securityRuntime.attachAuditSink(createSqliteSecurityAuditSink(getDb()))
+
   // Connect workflow engine to tool catalog
-  workflowEngine.setToolExecutor(async (name, args) => {
-    const result = await toolCatalog.execute(name, args)
+  workflowEngine.setToolExecutor(async (name, args, context) => {
+    const result = await toolCatalog.execute(name, args, context)
     if (result.error) throw new Error(result.error)
     return result.result
   })
@@ -369,6 +454,7 @@ function cleanupInfrastructure(): void {
   contextManager.destroy()
   hotkeyManager.destroy()
   workflowEngine.destroy()
+  qtBridgeProvider.destroy()
   mcpRegistry.destroy()
   pluginManager.destroy()
   eventBus.destroy()

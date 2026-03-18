@@ -1,19 +1,25 @@
 import { useMemo, useState } from 'react'
 import { Send } from 'lucide-react'
-import { Button, Input } from '../ui'
+import { Button, InlineNotice, Input } from '../ui'
 import { t } from '../../i18n'
+import { toEmailErrorMessage } from '../../lib/user-facing-errors'
 
 interface EmailComposeProps {
   configured: boolean
   onSent?: () => void
 }
 
+interface NoticeState {
+  tone: 'error' | 'success'
+  title: string
+  body: string
+}
+
 export default function EmailCompose({ configured, onSent }: EmailComposeProps) {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
 
   const recipients = useMemo(() => (
     to
@@ -24,16 +30,11 @@ export default function EmailCompose({ configured, onSent }: EmailComposeProps) 
 
   return (
     <div className="space-y-2">
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
-          {error}
-        </p>
-      )}
-      {success && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-success)]/20 bg-[var(--color-success)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text)]">
-          {success}
-        </p>
-      )}
+      {notice ? (
+        <InlineNotice tone={notice.tone} title={notice.title}>
+          {notice.body}
+        </InlineNotice>
+      ) : null}
       <Input
         label={t('email.to')}
         value={to}
@@ -46,26 +47,36 @@ export default function EmailCompose({ configured, onSent }: EmailComposeProps) 
         onChange={(event) => setSubject(event.target.value)}
         placeholder={t('email.subjectPlaceholder')}
       />
-      <textarea
-        className="min-h-24 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-soft)] px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text)]"
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        placeholder={t('email.bodyPlaceholder')}
-      />
+      <div className="space-y-1">
+        <label className="text-[length:var(--text-sm)] font-medium text-[var(--color-text-muted)]">{t('email.body')}</label>
+        <textarea
+          className="min-h-24 w-full rounded-[var(--radius-md)] ring-1 ring-transparent bg-[var(--color-surface-soft)] px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text)] outline-none transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)]"
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          placeholder={t('email.bodyPlaceholder')}
+        />
+      </div>
       <Button
         size="sm"
         leftIcon={<Send size={14} />}
         disabled={!configured || recipients.length === 0 || subject.trim().length === 0}
         onClick={async () => {
-          setError(null)
-          setSuccess(null)
+          setNotice(null)
           const result = await window.usan?.email.send(recipients, subject.trim(), body)
           if (result?.success) {
             setBody('')
-            setSuccess(t('email.sendSuccess'))
+            setNotice({
+              tone: 'success',
+              title: t('email.noticeSendSuccessTitle'),
+              body: t('email.sendSuccess'),
+            })
             onSent?.()
           } else {
-            setError(result?.error ?? t('error.unknown'))
+            setNotice({
+              tone: 'error',
+              title: t('email.noticeSendTitle'),
+              body: toEmailErrorMessage(result?.error ?? t('error.unknown'), 'send'),
+            })
           }
         }}
       >

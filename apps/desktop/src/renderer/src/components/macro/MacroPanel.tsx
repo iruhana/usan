@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Circle, Square, RefreshCw } from 'lucide-react'
-import { Card, Button, Input, SectionHeader } from '../ui'
+import { Card, Button, InlineNotice, Input, SectionHeader } from '../ui'
 import MacroList from './MacroList'
 import { t } from '../../i18n'
 import { useMacroStore } from '../../stores/macro.store'
@@ -26,11 +26,11 @@ export default function MacroPanel() {
         )}
       />
 
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+      {error ? (
+        <InlineNotice tone="error" title={t('macro.helpTitle')}>
           {error}
-        </p>
-      )}
+        </InlineNotice>
+      ) : null}
 
       <Input
         value={newName}

@@ -32,6 +32,7 @@ export const IPC = {
   PERMISSIONS_GET: 'permissions:get',
   PERMISSIONS_GRANT: 'permissions:grant',
   PERMISSIONS_REVOKE: 'permissions:revoke',
+  PERMISSIONS_ISSUE_CAPABILITY: 'permissions:issue-capability',
 
   // Conversations
   CONVERSATIONS_LOAD: 'conversations:load',
@@ -49,7 +50,13 @@ export const IPC = {
   AI_VALIDATE_KEY: 'ai:validate-key',
 
   // File system extras
+  FS_PICK: 'fs:pick',
   FS_OPEN_PATH: 'fs:open-path',
+
+  // Browser credentials (CSV import)
+  CREDENTIALS_GET_SUMMARY: 'credentials:get-summary',
+  CREDENTIALS_IMPORT_BROWSER_CSV: 'credentials:import-browser-csv',
+  CREDENTIALS_CLEAR: 'credentials:clear',
 
   // Notifications
   NOTIFICATION: 'notification',
@@ -173,6 +180,12 @@ export const IPC = {
   GOOGLE_OAUTH_START: 'google:oauth-start',
   GOOGLE_OAUTH_STATUS: 'google:oauth-status',
   GOOGLE_OAUTH_LOGOUT: 'google:oauth-logout',
+  NAVER_OAUTH_START: 'naver:oauth-start',
+  NAVER_OAUTH_STATUS: 'naver:oauth-status',
+  NAVER_OAUTH_LOGOUT: 'naver:oauth-logout',
+  KAKAO_OAUTH_START: 'kakao:oauth-start',
+  KAKAO_OAUTH_STATUS: 'kakao:oauth-status',
+  KAKAO_OAUTH_LOGOUT: 'kakao:oauth-logout',
 
   // Email (F11)
   EMAIL_LIST: 'email:list',

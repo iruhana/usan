@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Wand2 } from 'lucide-react'
-import { Button, Card, Input, SectionHeader } from '../ui'
+import { Button, Card, InlineNotice, Input, SectionHeader } from '../ui'
 import ImagePreview from './ImagePreview'
 import { t } from '../../i18n'
+import { toImageErrorMessage } from '../../lib/user-facing-errors'
 
 type ImageFormat = 'png' | 'jpeg' | 'webp'
 
@@ -32,7 +33,7 @@ export default function ImageEditor() {
     try {
       await runner()
     } catch (err) {
-      setError((err as Error).message)
+      setError(toImageErrorMessage(err))
     } finally {
       setLoadingAction(null)
     }
@@ -57,11 +58,11 @@ export default function ImageEditor() {
     <Card variant="outline" className="space-y-3">
       <SectionHeader title={t('image.title')} icon={Wand2} indicator="var(--color-primary)" />
 
-      {error && (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-danger)]">
+      {error ? (
+        <InlineNotice tone="error" title={t('image.helpTitle')}>
           {error}
-        </p>
-      )}
+        </InlineNotice>
+      ) : null}
 
       <Input
         label={t('image.prompt')}
@@ -115,7 +116,7 @@ export default function ImageEditor() {
         <label className="text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
           {t('image.format')}
           <select
-            className="mt-1 h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-soft)] px-2 text-[length:var(--text-sm)]"
+            className="mt-1 h-9 w-full rounded-[var(--radius-md)] ring-1 ring-transparent bg-[var(--color-surface-soft)] px-2 text-[length:var(--text-sm)] outline-none transition-all focus:ring-[var(--color-primary)] focus:shadow-[var(--shadow-primary)] focus:bg-[var(--color-bg-card)]"
             value={format}
             onChange={(event) => setFormat(event.target.value as ImageFormat)}
           >
