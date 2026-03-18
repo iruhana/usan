@@ -946,9 +946,9 @@ Tasks are labeled for routing between agents:
 |---|------|-------|----------|
 | 3.1 | **[x] [Codex]** Local AI (implemented on 2026-03-19; Ollama auto-detect + optional `node-llama-cpp` GGUF fallback + settings model surface update) | [Codex] | P2 |
 | 3.2 | **[x] [Codex-L]** MiniLauncher (implemented on 2026-03-18; Ctrl+Space / Alt+U ambient overlay, quick actions, recent tasks, accessibility + tests) | [Codex] | P2 |
-| 3.3 | FloatingToolbar (context-aware) | [Codex] | P2 |
-| 3.4 | Screen understanding (accessibility tree) | [Codex] | P2 |
-| 3.5 | Proactive features (context monitors) | [Codex] | P2 |
+| 3.3 | **[x] [Codex]** FloatingToolbar (implemented on 2026-03-19; global renderer selection overlay, contextual actions, composer handoff, accessibility + tests) | [Codex] | P2 |
+| 3.4 | **[x] [Codex]** Screen understanding (implemented on 2026-03-19; bounded Windows UI Automation tree, OCR-integrated analysis, renderer tree inspector, AI structured output, tests) | [Codex] | P2 |
+| 3.5 | **[x] [Codex]** Proactive features (context monitors) (implemented on 2026-03-19; event-driven context/clipboard/workflow/voice suggestions + Home proactive tray + tests) | [Codex] | P2 |
 | 3.6 | **[x]** Port: thinking tools (first-principles, decision-trees, pre-mortem, BMC) | [Claude] | P2 |
 | 3.7 | **[x]** Port: browser/desktop automation skills (agent-browser, stealth, windows-control, ui-automation) | [Claude] | P2 |
 | 3.8 | **[x]** Skeleton loading components (Notion shimmer, Timeline/Tasks/Files skeletons) | [Claude] | P2 |
@@ -958,12 +958,12 @@ Tasks are labeled for routing between agents:
 
 | # | Task | Label | Priority |
 |---|------|-------|----------|
-| 4.1 | Email integration (IMAP/SMTP) | [Codex] | P2 |
-| 4.2 | Calendar integration (Google + CalDAV) | [Codex] | P2 |
-| 4.3 | Open Banking / MyData API | [Codex] | P3 |
-| 4.4 | Government24 / Hometax API | [Codex] | P3 |
-| 4.5 | Plugin/extension marketplace (MCP-based) | [Codex] | P3 |
-| 4.6 | Real-time collaboration (Supabase Realtime) | [Codex] | P3 |
+| 4.1 | **[x] [Codex]** Email integration (IMAP/SMTP) (implemented on 2026-03-19; encrypted local account store + IMAP/SMTP routing + Settings connector UI) | [Codex] | P2 |
+| 4.2 | **[x] [Codex]** Calendar integration (Google + CalDAV) (implemented on 2026-03-19; encrypted CalDAV account store + CalDAV routing + Settings connector UI) | [Codex] | P2 |
+| 4.3 | **[x] [Codex]** Open Banking / MyData API (implemented on 2026-03-19; encrypted finance connector + Open Banking summary/transactions/transfer route + Settings UI) | [Codex] | P3 |
+| 4.4 | **[x] [Codex]** Government24 / Hometax API (implemented on 2026-03-19; encrypted data.go.kr/odcloud connector + Barobill-compatible tax route + Settings UI) | [Codex] | P3 |
+| 4.5 | **[x] [Codex]** Plugin/extension marketplace (MCP-based) (implemented on 2026-03-19; remote ZIP catalog install + managed MCP bundle lifecycle + Tools page integration) | [Codex] | P3 |
+| 4.6 | **[x] [Codex]** Real-time collaboration (Supabase Realtime) (implemented on 2026-03-19; share/join session flow, Supabase Broadcast + Presence, Home collaboration panel, remote conversation merge, post-implementation hardening audit completed) | [Codex] | P3 |
 | 4.7 | **[Codex-M]** Qt Bridge runtime validation (implemented on 2026-03-18; QWidget + Quick fixture validation passed) | [Codex] | P3 |
 
 ### Codex Quick Reference: Label ??Task Map
@@ -1226,8 +1226,12 @@ npx eslint apps/desktop/src/main/mcp/  # Lint specific directory
 | UI Design Plan | `docs/ui-design-plan-2026-03-18.md` | Visual design spec |
 | Codex Guide | `docs/codex-development-guide.md` | This file ??technical implementation spec |
 | Local AI Status | `docs/local-ai-implementation-status-2026-03-19.md` | OpenRouter-first local fallback, Ollama detection, and GGUF runtime state |
+| Floating Toolbar Status | `docs/floating-toolbar-implementation-status-2026-03-19.md` | Renderer selection overlay, contextual actions, and composer handoff |
 | MCP Routing Status | `docs/mcp-routing-implementation-status-2026-03-19.md` | Implementation & validation state |
 | Naver/Kakao Integration Status | `docs/naver-kakao-integration-status-2026-03-19.md` | OAuth, Naver Search, and KakaoTalk integration state |
+| Email Integration Status | `docs/email-integration-implementation-status-2026-03-19.md` | Local-first IMAP/SMTP account path and verification state |
+| Plugin Marketplace Status | `docs/plugin-marketplace-implementation-status-2026-03-19.md` | Remote ZIP install path, managed MCP bundle lifecycle, and Tools integration state |
+| Realtime Collaboration Status | `docs/realtime-collaboration-implementation-status-2026-03-19.md` | Supabase Broadcast + Presence collaboration rooms, Home panel wiring, and live conversation sync state |
 | Qt Bridge Status | `docs/qt-bridge-implementation-status-2026-03-18.md` | Implementation & validation state |
 | HWPX Parser Status | `docs/hwpx-parser-implementation-status-2026-03-18.md` | Implementation & validation state |
 | UBridge-Qt Guide | `Desktop/UBridge-Qt-嶺뚯솘??곸굹維곮땻?md` | Qt automation bridge spec |

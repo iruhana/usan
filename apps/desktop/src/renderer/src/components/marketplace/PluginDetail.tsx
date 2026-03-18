@@ -36,6 +36,7 @@ export default function PluginDetail({ entry, installed, onEnable, onDisable, on
         <p><strong>{t('marketplace.version')}:</strong> {entry.version}</p>
         <p><strong>{t('marketplace.rating')}:</strong> {entry.rating.toFixed(1)}</p>
         <p><strong>{t('marketplace.downloads')}:</strong> {entry.downloads.toLocaleString()}</p>
+        {entry.mcpServerCount > 0 ? <p><strong>MCP:</strong> {entry.mcpServerCount}</p> : null}
       </div>
 
       {installedEntry && (

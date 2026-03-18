@@ -1,6 +1,8 @@
-import { readFile, stat } from 'fs/promises'
+import AdmZip from 'adm-zip'
+import { createHash } from 'crypto'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'fs/promises'
 import { app } from 'electron'
-import { isAbsolute, join, resolve } from 'path'
+import { extname, isAbsolute, join, resolve, sep } from 'path'
 import type { InstalledPlugin, MarketplaceEntry } from '@shared/types/infrastructure'
 import { pluginManager } from '../infrastructure/plugin-manager'
 
@@ -14,13 +16,26 @@ interface MarketplaceCatalogEntry {
   rating?: number
   tags?: string[]
   source?: string
+  sourceSha256?: string
+  mcpServerCount?: number
 }
 
 interface MarketplaceCatalogPayload {
   plugins?: MarketplaceCatalogEntry[]
 }
 
+interface CatalogSourceMetadata {
+  sourceSha256?: string
+}
+
+interface ResolvedInstallSource {
+  path: string
+  cleanupPath?: string
+}
+
 const CATALOG_CACHE_MS = 5 * 60 * 1000
+const FETCH_TIMEOUT_MS = 30_000
+const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 
 function parseNumber(value: unknown, fallback: number): number {
   const n = Number(value)
@@ -48,14 +63,30 @@ function isLikelyUrl(value: string): boolean {
   return /^https?:\/\//i.test(value)
 }
 
+function isArchivePath(pathLike: string): boolean {
+  return extname(pathLike).toLowerCase() === '.zip'
+}
+
 async function isDirectory(pathLike: string): Promise<boolean> {
   const meta = await stat(pathLike).catch(() => null)
   return !!meta?.isDirectory()
 }
 
+async function isFile(pathLike: string): Promise<boolean> {
+  const meta = await stat(pathLike).catch(() => null)
+  return !!meta?.isFile()
+}
+
+function decodeFileUrl(value: string): string {
+  return value.startsWith('file:///')
+    ? decodeURIComponent(value.replace(/^file:\/\//i, ''))
+    : value
+}
+
 export class MarketplaceClient {
   private catalogEntriesCache: MarketplaceEntry[] = []
   private catalogSourceById: Map<string, string> = new Map()
+  private catalogMetadataById: Map<string, CatalogSourceMetadata> = new Map()
   private cacheExpiresAt = 0
 
   async search(query: string): Promise<MarketplaceEntry[]> {
@@ -77,7 +108,6 @@ export class MarketplaceClient {
         continue
       }
 
-      // Keep richer catalog metadata while preserving discovered local tags.
       merged.set(entry.id, {
         ...prev,
         ...entry,
@@ -107,9 +137,15 @@ export class MarketplaceClient {
       throw new Error('pluginId is required')
     }
 
-    const source = await this.resolveSource(normalizedId)
-    if (source) {
-      return pluginManager.install(source)
+    const resolvedSource = await this.resolveSource(normalizedId)
+    if (resolvedSource) {
+      try {
+        return await pluginManager.install(resolvedSource.path)
+      } finally {
+        if (resolvedSource.cleanupPath) {
+          await rm(resolvedSource.cleanupPath, { recursive: true, force: true }).catch(() => {})
+        }
+      }
     }
 
     return pluginManager.installFromMarketplace(normalizedId)
@@ -129,7 +165,7 @@ export class MarketplaceClient {
     return this.install(normalizedId)
   }
 
-  private async resolveSource(pluginId: string): Promise<string | null> {
+  private async resolveSource(pluginId: string): Promise<ResolvedInstallSource | null> {
     let source = this.catalogSourceById.get(pluginId)
     if (!source) {
       await this.loadCatalogEntries(true)
@@ -137,19 +173,138 @@ export class MarketplaceClient {
     }
 
     if (!source) return null
+
+    const metadata = this.catalogMetadataById.get(pluginId)
     if (isLikelyUrl(source)) {
-      throw new Error(`Remote plugin source is not supported yet: ${source}`)
+      return this.resolveRemoteArchive(pluginId, source, metadata)
     }
 
-    const asPath = source.startsWith('file:///')
-      ? decodeURIComponent(source.replace(/^file:\/\//i, ''))
-      : source
+    const asPath = decodeFileUrl(source)
     const resolved = resolve(asPath)
-    if (!(await isDirectory(resolved))) {
-      throw new Error(`Plugin source directory not found: ${resolved}`)
+    if (await isDirectory(resolved)) {
+      return { path: resolved }
+    }
+    if (await isFile(resolved) && isArchivePath(resolved)) {
+      return this.resolveArchiveFromFile(pluginId, resolved, metadata)
     }
 
-    return resolved
+    throw new Error(`Plugin source not found or unsupported: ${resolved}`)
+  }
+
+  private async resolveRemoteArchive(
+    pluginId: string,
+    sourceUrl: string,
+    metadata?: CatalogSourceMetadata,
+  ): Promise<ResolvedInstallSource> {
+    const response = await fetch(sourceUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to download plugin archive: ${response.status}`)
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer())
+    if (bytes.length === 0 || bytes.length > MAX_ARCHIVE_BYTES) {
+      throw new Error('Plugin archive is empty or exceeds the supported size limit')
+    }
+
+    if (metadata?.sourceSha256) {
+      const actual = this.sha256(bytes)
+      if (actual !== metadata.sourceSha256.trim().toLowerCase()) {
+        throw new Error('Plugin archive checksum mismatch')
+      }
+    }
+
+    return this.extractArchive(bytes)
+  }
+
+  private async resolveArchiveFromFile(
+    pluginId: string,
+    archivePath: string,
+    metadata?: CatalogSourceMetadata,
+  ): Promise<ResolvedInstallSource> {
+    const bytes = await readFile(archivePath)
+    if (bytes.length === 0 || bytes.length > MAX_ARCHIVE_BYTES) {
+      throw new Error('Plugin archive is empty or exceeds the supported size limit')
+    }
+
+    if (metadata?.sourceSha256) {
+      const actual = this.sha256(bytes)
+      if (actual !== metadata.sourceSha256.trim().toLowerCase()) {
+        throw new Error('Plugin archive checksum mismatch')
+      }
+    }
+
+    return this.extractArchive(bytes)
+  }
+
+  private async extractArchive(bytes: Buffer): Promise<ResolvedInstallSource> {
+    const stagingRoot = await mkdtemp(join(app.getPath('temp'), 'usan-marketplace-'))
+    const extractRoot = join(stagingRoot, 'archive')
+    try {
+      await mkdir(extractRoot, { recursive: true })
+
+      const archive = new AdmZip(bytes)
+      let totalUncompressedBytes = 0
+
+      for (const entry of archive.getEntries()) {
+        const entryName = entry.entryName.replace(/\\/g, '/').replace(/^\/+/, '')
+        if (!entryName) continue
+        if (
+          entryName.includes('../')
+          || entryName.startsWith('..')
+          || /^[a-zA-Z]:/.test(entryName)
+        ) {
+          throw new Error(`Plugin archive contains an invalid path: ${entryName}`)
+        }
+
+        const normalizedDest = resolve(join(extractRoot, entryName))
+        const normalizedRoot = resolve(extractRoot)
+        if (!normalizedDest.startsWith(normalizedRoot + sep) && normalizedDest !== normalizedRoot) {
+          throw new Error(`Plugin archive escaped extraction root: ${entryName}`)
+        }
+        const destination = normalizedDest
+
+        if (entry.isDirectory) {
+          await mkdir(destination, { recursive: true })
+          continue
+        }
+
+        totalUncompressedBytes += entry.header.size
+        if (totalUncompressedBytes > MAX_ARCHIVE_BYTES) {
+          throw new Error('Plugin archive expands beyond the supported size limit')
+        }
+
+        await mkdir(resolve(join(destination, '..')), { recursive: true })
+        await writeFile(destination, entry.getData())
+      }
+
+      const pluginRoot = await this.findPluginRoot(extractRoot)
+      return { path: pluginRoot, cleanupPath: stagingRoot }
+    } catch (error) {
+      await rm(stagingRoot, { recursive: true, force: true }).catch(() => {})
+      throw error
+    }
+  }
+
+  private async findPluginRoot(extractRoot: string): Promise<string> {
+    if (await isFile(join(extractRoot, 'manifest.json'))) {
+      return extractRoot
+    }
+
+    const entries = await readdir(extractRoot, { withFileTypes: true })
+    const directories = entries.filter((entry) => entry.isDirectory())
+    if (directories.length !== 1) {
+      throw new Error('Plugin archive must contain manifest.json at the root or in a single top-level folder')
+    }
+
+    const candidateRoot = join(extractRoot, directories[0].name)
+    if (!(await isFile(join(candidateRoot, 'manifest.json')))) {
+      throw new Error('Plugin archive is missing manifest.json')
+    }
+
+    return candidateRoot
   }
 
   private async loadCatalogEntries(force = false): Promise<MarketplaceEntry[]> {
@@ -159,6 +314,7 @@ export class MarketplaceClient {
     }
 
     const sourceById = new Map<string, string>()
+    const metadataById = new Map<string, CatalogSourceMetadata>()
     const entriesById = new Map<string, MarketplaceEntry>()
 
     const filePaths = this.getCatalogFilePaths()
@@ -170,6 +326,7 @@ export class MarketplaceClient {
         }
         if (item.sourcePath && !sourceById.has(item.entry.id)) {
           sourceById.set(item.entry.id, item.sourcePath)
+          metadataById.set(item.entry.id, item.metadata ?? {})
         }
       }
     }
@@ -183,11 +340,13 @@ export class MarketplaceClient {
         }
         if (item.sourcePath && !sourceById.has(item.entry.id)) {
           sourceById.set(item.entry.id, item.sourcePath)
+          metadataById.set(item.entry.id, item.metadata ?? {})
         }
       }
     }
 
     this.catalogSourceById = sourceById
+    this.catalogMetadataById = metadataById
     this.catalogEntriesCache = Array.from(entriesById.values())
     this.cacheExpiresAt = now + CATALOG_CACHE_MS
     return this.catalogEntriesCache
@@ -217,21 +376,30 @@ export class MarketplaceClient {
       .filter((value) => isLikelyUrl(value))
   }
 
-  private async readCatalogFromFile(filePath: string): Promise<Array<{ entry: MarketplaceEntry; sourcePath?: string }>> {
+  private async readCatalogFromFile(
+    filePath: string,
+  ): Promise<Array<{ entry: MarketplaceEntry; sourcePath?: string; metadata?: CatalogSourceMetadata }>> {
     const raw = await readFile(filePath, 'utf-8').catch(() => null)
     if (!raw) return []
     return this.parseCatalog(raw, filePath)
   }
 
-  private async readCatalogFromUrl(url: string): Promise<Array<{ entry: MarketplaceEntry; sourcePath?: string }>> {
-    const response = await fetch(url).catch(() => null)
+  private async readCatalogFromUrl(
+    url: string,
+  ): Promise<Array<{ entry: MarketplaceEntry; sourcePath?: string; metadata?: CatalogSourceMetadata }>> {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    }).catch(() => null)
     if (!response?.ok) return []
     const raw = await response.text().catch(() => '')
     if (!raw) return []
     return this.parseCatalog(raw, url)
   }
 
-  private parseCatalog(raw: string, sourceHint: string): Array<{ entry: MarketplaceEntry; sourcePath?: string }> {
+  private parseCatalog(
+    raw: string,
+    sourceHint: string,
+  ): Array<{ entry: MarketplaceEntry; sourcePath?: string; metadata?: CatalogSourceMetadata }> {
     let payload: MarketplaceCatalogPayload | MarketplaceCatalogEntry[]
     try {
       payload = JSON.parse(raw) as MarketplaceCatalogPayload | MarketplaceCatalogEntry[]
@@ -245,7 +413,7 @@ export class MarketplaceClient {
         ? payload.plugins
         : []
 
-    const out: Array<{ entry: MarketplaceEntry; sourcePath?: string }> = []
+    const out: Array<{ entry: MarketplaceEntry; sourcePath?: string; metadata?: CatalogSourceMetadata }> = []
     for (const item of list) {
       const id = String(item.id ?? '').trim()
       if (!id) continue
@@ -259,12 +427,17 @@ export class MarketplaceClient {
         downloads: parseNumber(item.downloads, 0),
         rating: parseNumber(item.rating, 0),
         tags: normalizeTags(item.tags),
+        mcpServerCount: parseNumber(item.mcpServerCount, 0),
       }
 
       const source = typeof item.source === 'string' ? item.source.trim() : ''
+      const metadata: CatalogSourceMetadata = {
+        sourceSha256: typeof item.sourceSha256 === 'string' ? item.sourceSha256.trim().toLowerCase() : undefined,
+      }
+
       if (source) {
         const sourcePath = this.resolveCatalogSource(source, sourceHint)
-        out.push({ entry, sourcePath })
+        out.push({ entry, sourcePath, metadata })
       } else {
         out.push({ entry })
       }
@@ -287,6 +460,10 @@ export class MarketplaceClient {
     return isAbsolute(source)
       ? resolve(source)
       : resolve(join(sourceHint, '..'), source)
+  }
+
+  private sha256(value: string | Buffer): string {
+    return createHash('sha256').update(value).digest('hex')
   }
 }
 

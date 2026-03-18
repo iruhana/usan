@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, useMemo, useEffectEvent } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { CloudSun, FileSearch, Plus, ScanSearch, Volume2 } from 'lucide-react'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
@@ -13,8 +13,12 @@ import {
 import { Composer, buildComposerPrompt, type ComposerSubmitPayload } from '../components/composer'
 import { Timeline } from '../components/agent'
 import { ArtifactShelf, ArtifactView, deriveArtifactsFromMessages } from '../components/artifact'
+import CollaborationPanel from '../components/collaboration/CollaborationPanel'
 import ConversationList from '../components/chat/ConversationList'
+import SuggestionTray from '../components/proactive/SuggestionTray'
 import { Badge, Button, Card, PageIntro, SectionHeader } from '../components/ui'
+import { useProactiveStore } from '../stores/proactive.store'
+import { useCollaborationStore } from '../stores/collaboration.store'
 
 interface QuickLaunchItem {
   id: string
@@ -93,8 +97,27 @@ export default function HomePage() {
   const { settings } = useSettingsStore()
   const voiceStatus = useVoiceStore((s) => s.status)
   const voiceEventVersion = useVoiceStore((s) => s.eventVersion)
+  const proactiveSuggestions = useProactiveStore((s) => s.suggestions)
+  const proactiveContext = useProactiveStore((s) => s.contextSnapshot)
+  const initializeProactive = useProactiveStore((s) => s.initialize)
+  const loadProactive = useProactiveStore((s) => s.load)
+  const dismissSuggestion = useProactiveStore((s) => s.dismissSuggestion)
+  const executeSuggestionAction = useProactiveStore((s) => s.executeSuggestionAction)
+  const collaborationStatus = useCollaborationStore((s) => s.status)
+  const collaborationRemoteDraft = useCollaborationStore((s) => s.remoteDraft)
+  const collaborationLoading = useCollaborationStore((s) => s.loading)
+  const collaborationError = useCollaborationStore((s) => s.error)
+  const initializeCollaboration = useCollaborationStore((s) => s.initialize)
+  const startCollaboration = useCollaborationStore((s) => s.startSession)
+  const joinCollaboration = useCollaborationStore((s) => s.joinSession)
+  const leaveCollaboration = useCollaborationStore((s) => s.leaveSession)
+  const syncSharedConversation = useCollaborationStore((s) => s.syncConversation)
+  const syncSharedDraft = useCollaborationStore((s) => s.syncDraft)
+  const clearRemoteDraft = useCollaborationStore((s) => s.clearRemoteDraft)
   const { announce } = useAnnouncer()
   const applyVoiceError = useVoiceStore((s) => s.setError)
+  const collaborationSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const collaborationDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const prevStreamingRef = useRef(false)
   useEffect(() => {
@@ -131,21 +154,28 @@ export default function HomePage() {
     loadFromDisk()
   }, [loadFromDisk])
 
-  const applyFloatingToolbarDraft = useEffectEvent(
-    (draft?: FloatingToolbarComposerDraft | null) => {
-      const normalizedText = draft?.text?.trim()
-      if (!normalizedText) return
+  useEffect(() => {
+    initializeProactive()
+    void loadProactive()
+  }, [initializeProactive, loadProactive])
 
-      setInput((prev) => (prev.trim() ? `${prev}\n\n${normalizedText}` : normalizedText))
-      announce(t('floatingToolbar.composeReady'))
+  useEffect(() => {
+    void initializeCollaboration()
+  }, [initializeCollaboration])
 
-      requestAnimationFrame(() => {
-        document
-          .querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
-          ?.focus()
-      })
-    },
-  )
+  const applyFloatingToolbarDraft = useCallback((draft?: FloatingToolbarComposerDraft | null) => {
+    const normalizedText = draft?.text?.trim()
+    if (!normalizedText) return
+
+    setInput((prev) => (prev.trim() ? `${prev}\n\n${normalizedText}` : normalizedText))
+    announce(t('floatingToolbar.composeReady'))
+
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+        ?.focus()
+    })
+  }, [announce])
 
   useEffect(() => {
     applyFloatingToolbarDraft(consumeFloatingToolbarComposerDraft())
@@ -173,6 +203,8 @@ export default function HomePage() {
     return () => {
       browserRecognitionRef.current?.stop()
       browserRecognitionRef.current = null
+      if (collaborationSyncTimerRef.current) clearTimeout(collaborationSyncTimerRef.current)
+      if (collaborationDraftTimerRef.current) clearTimeout(collaborationDraftTimerRef.current)
     }
   }, [])
 
@@ -243,7 +275,62 @@ export default function HomePage() {
       utterance.rate = settings.voiceSpeed
       speechSynthesis.speak(utterance)
     }
+
+    return () => {
+      window.speechSynthesis?.cancel()
+    }
   }, [messages, settings.voiceEnabled, settings.voiceSpeed])
+
+  useEffect(() => {
+    if (!collaborationStatus.connected || !activeConversation || collaborationStatus.conversationId !== activeConversation.id) {
+      return
+    }
+
+    if (collaborationSyncTimerRef.current) clearTimeout(collaborationSyncTimerRef.current)
+    collaborationSyncTimerRef.current = setTimeout(() => {
+      void syncSharedConversation(activeConversation)
+    }, 240)
+
+    return () => {
+      if (collaborationSyncTimerRef.current) {
+        clearTimeout(collaborationSyncTimerRef.current)
+        collaborationSyncTimerRef.current = null
+      }
+    }
+  }, [activeConversation, collaborationStatus.connected, collaborationStatus.conversationId, syncSharedConversation])
+
+  useEffect(() => {
+    if (!collaborationStatus.connected || !activeConversationId || collaborationStatus.conversationId !== activeConversationId) {
+      return
+    }
+
+    const draftKind: 'response' | 'composer' = isStreaming ? 'response' : 'composer'
+    const draft = {
+      conversationId: activeConversationId,
+      text: isStreaming ? streamingText : input,
+      kind: draftKind,
+    }
+
+    if (collaborationDraftTimerRef.current) clearTimeout(collaborationDraftTimerRef.current)
+    collaborationDraftTimerRef.current = setTimeout(() => {
+      void syncSharedDraft(draft)
+    }, 180)
+
+    return () => {
+      if (collaborationDraftTimerRef.current) {
+        clearTimeout(collaborationDraftTimerRef.current)
+        collaborationDraftTimerRef.current = null
+      }
+    }
+  }, [
+    activeConversationId,
+    collaborationStatus.connected,
+    collaborationStatus.conversationId,
+    input,
+    isStreaming,
+    streamingText,
+    syncSharedDraft,
+  ])
 
   const handleComposerSubmit = useCallback(
     async (payload: ComposerSubmitPayload) => {
@@ -262,6 +349,24 @@ export default function HomePage() {
     },
     [isStreaming, newConversation, sendMessage],
   )
+
+  const handleStartCollaboration = useCallback(async () => {
+    let nextConversationId = activeConversationId
+    if (!nextConversationId) {
+      nextConversationId = newConversation()
+    }
+
+    const conversation = useChatStore.getState().conversations.find((item) => item.id === nextConversationId) ?? null
+    await startCollaboration(nextConversationId, conversation?.title)
+  }, [activeConversationId, newConversation, startCollaboration])
+
+  const handleJoinCollaboration = useCallback(async (shareCode: string) => {
+    await joinCollaboration(shareCode)
+  }, [joinCollaboration])
+
+  const handleLeaveCollaboration = useCallback(async () => {
+    await leaveCollaboration()
+  }, [leaveCollaboration])
 
   const startBrowserSpeechRecognition = useCallback(() => {
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -445,7 +550,7 @@ export default function HomePage() {
               </Card>
             </div>
 
-            <aside className="flex min-h-0 flex-col gap-4" data-testid="home-side-panel">
+            <aside className="flex min-h-0 flex-col gap-4 overflow-auto pr-1" data-testid="home-side-panel">
               <Card variant="elevated" padding="md" data-testid="home-quick-launch">
                 <SectionHeader title={t('home.quickLaunchTitle')} />
                 <p className="mb-4 text-[13px] leading-6 text-[var(--color-text-secondary)]">
@@ -481,6 +586,26 @@ export default function HomePage() {
                   })}
                 </div>
               </Card>
+
+              <CollaborationPanel
+                status={collaborationStatus}
+                remoteDraft={collaborationRemoteDraft}
+                activeConversation={activeConversation ?? null}
+                loading={collaborationLoading}
+                error={collaborationError}
+                onStart={() => void handleStartCollaboration()}
+                onJoin={(shareCode) => void handleJoinCollaboration(shareCode)}
+                onLeave={() => void handleLeaveCollaboration()}
+                onClearRemoteDraft={clearRemoteDraft}
+              />
+
+              <SuggestionTray
+                suggestions={proactiveSuggestions}
+                contextSnapshot={proactiveContext}
+                onDismiss={(id) => void dismissSuggestion(id)}
+                onAction={(suggestionId, action) => void executeSuggestionAction(suggestionId, action)}
+                className="shrink-0"
+              />
 
               <Card
                 variant="default"

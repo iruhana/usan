@@ -1,7 +1,21 @@
-﻿/**
- * Calendar manager with provider adapters (Google / Outlook).
- * OAuth policy is enforced via oauth-policy.ts through provider client helpers.
+/**
+ * Calendar manager with provider adapters.
+ * Preferred order: CalDAV local account -> Google OAuth -> Outlook OAuth.
  */
+import type { CalendarAccountConfigInput, CalendarAccountStatus } from '@shared/types/ipc'
+import {
+  clearCalendarAccountConfig,
+  loadCalendarAccountConfig,
+  normalizeCalendarAccountConfigInput,
+  saveCalendarAccountConfig as persistCalendarAccountConfig,
+  toCalendarAccountStatus,
+} from './calendar-account-store'
+import {
+  createCaldavEvent,
+  deleteCaldavEvent,
+  listCaldavEvents,
+  verifyCaldavConnection,
+} from './caldav-client'
 import {
   createGoogleCalendarOAuthAuthorizationRequest,
   listGoogleCalendarEvents,
@@ -14,7 +28,7 @@ import {
   createOutlookCalendarEvent,
   deleteOutlookCalendarEvent,
 } from './outlook-calendar'
-import { loadGoogleTokens } from '../auth/oauth-google'
+import { getGoogleAccessToken, isGoogleAuthenticated } from '../auth/oauth-google'
 import type { DesktopOAuthAuthorizationRequest } from '../auth/oauth-policy'
 
 export interface CalendarEvent {
@@ -26,27 +40,47 @@ export interface CalendarEvent {
   location?: string
   attendees?: string[]
   allDay?: boolean
+  provider?: 'caldav' | 'google' | 'microsoft'
+  calendarName?: string
 }
 
-export type CalendarProvider = 'google' | 'microsoft'
+export type CalendarProvider = 'caldav' | 'google' | 'microsoft'
 
-const DEFAULT_PROVIDER: CalendarProvider = 'google'
+const DEFAULT_PROVIDER: Extract<CalendarProvider, 'google' | 'microsoft'> = 'google'
 
-function resolveCalendarProvider(explicit?: CalendarProvider): CalendarProvider {
+function resolveOauthProvider(
+  explicit?: Extract<CalendarProvider, 'google' | 'microsoft'>,
+): Extract<CalendarProvider, 'google' | 'microsoft'> {
   if (explicit === 'google' || explicit === 'microsoft') return explicit
   const envProvider = process.env['USAN_CALENDAR_PROVIDER']?.trim().toLowerCase()
   if (envProvider === 'google' || envProvider === 'microsoft') return envProvider
   return DEFAULT_PROVIDER
 }
 
-function getProviderAccessToken(provider: CalendarProvider): string {
+async function getProviderAccessToken(provider: Extract<CalendarProvider, 'google' | 'microsoft'>): Promise<string> {
   if (provider === 'google') {
-    // Try stored OAuth token first, fall back to env var
-    const tokens = loadGoogleTokens()
-    if (tokens?.accessToken) return tokens.accessToken
+    const accessToken = await getGoogleAccessToken()
+    if (accessToken) return accessToken
     return process.env['USAN_GOOGLE_ACCESS_TOKEN']?.trim() ?? ''
   }
+
   return process.env['USAN_MICROSOFT_ACCESS_TOKEN']?.trim() ?? ''
+}
+
+function getConfiguredProvider(): CalendarProvider | null {
+  if (loadCalendarAccountConfig()) {
+    return 'caldav'
+  }
+
+  if (isGoogleAuthenticated() || (process.env['USAN_GOOGLE_ACCESS_TOKEN']?.trim() ?? '').length > 0) {
+    return 'google'
+  }
+
+  if ((process.env['USAN_MICROSOFT_ACCESS_TOKEN']?.trim() ?? '').length > 0) {
+    return 'microsoft'
+  }
+
+  return null
 }
 
 function toIso(input: string | number | Date): string {
@@ -75,12 +109,12 @@ function dayRangeIso(dateLike: string): { start: string; end: string } {
 export function createCalendarOAuthAuthorizationRequest(options: {
   clientId: string
   redirectUri: string
-  provider?: CalendarProvider
+  provider?: Extract<CalendarProvider, 'google' | 'microsoft'>
   scopes?: string[]
   state?: string
   tenantId?: string
 }): DesktopOAuthAuthorizationRequest {
-  const provider = resolveCalendarProvider(options.provider)
+  const provider = resolveOauthProvider(options.provider)
 
   if (provider === 'google') {
     return createGoogleCalendarOAuthAuthorizationRequest({
@@ -104,12 +138,17 @@ export async function listEvents(
   startDate?: string | number,
   endDate?: string | number,
 ): Promise<CalendarEvent[]> {
-  const provider = resolveCalendarProvider()
-  const accessToken = getProviderAccessToken(provider)
-  if (!accessToken) return []
-
   const rangeStart = startDate == null ? new Date().toISOString() : toIso(startDate)
   const rangeEnd = endDate == null ? new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() : toIso(endDate)
+
+  const caldavConfig = loadCalendarAccountConfig()
+  if (caldavConfig) {
+    return listCaldavEvents(caldavConfig, rangeStart, rangeEnd)
+  }
+
+  const provider = resolveOauthProvider()
+  const accessToken = await getProviderAccessToken(provider)
+  if (!accessToken) return []
 
   if (provider === 'google') {
     return listGoogleCalendarEvents(accessToken, rangeStart, rangeEnd)
@@ -120,15 +159,6 @@ export async function listEvents(
 
 export async function createEvent(event: Partial<CalendarEvent>): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
-    const provider = resolveCalendarProvider()
-    const accessToken = getProviderAccessToken(provider)
-    if (!accessToken) {
-      return {
-        success: false,
-        error: 'Calendar integration is not configured. Set provider access token and run desktop OAuth.',
-      }
-    }
-
     if (!event.title || event.start == null || event.end == null) {
       return { success: false, error: 'title/start/end are required' }
     }
@@ -141,6 +171,20 @@ export async function createEvent(event: Partial<CalendarEvent>): Promise<{ succ
       location: event.location,
       attendees: event.attendees,
       allDay: event.allDay,
+    }
+
+    const caldavConfig = loadCalendarAccountConfig()
+    if (caldavConfig) {
+      return createCaldavEvent(caldavConfig, payload)
+    }
+
+    const provider = resolveOauthProvider()
+    const accessToken = await getProviderAccessToken(provider)
+    if (!accessToken) {
+      return {
+        success: false,
+        error: 'Calendar integration is not configured. Open Settings and connect a calendar account first.',
+      }
     }
 
     if (provider === 'google') {
@@ -163,12 +207,17 @@ export async function deleteEvent(eventId: string): Promise<{ success: boolean; 
   }
 
   try {
-    const provider = resolveCalendarProvider()
-    const accessToken = getProviderAccessToken(provider)
+    const caldavConfig = loadCalendarAccountConfig()
+    if (caldavConfig) {
+      return deleteCaldavEvent(caldavConfig, normalizedId)
+    }
+
+    const provider = resolveOauthProvider()
+    const accessToken = await getProviderAccessToken(provider)
     if (!accessToken) {
       return {
         success: false,
-        error: 'Calendar integration is not configured. Set provider access token and run desktop OAuth.',
+        error: 'Calendar integration is not configured. Open Settings and connect a calendar account first.',
       }
     }
 
@@ -228,7 +277,53 @@ export async function findFreeTime(
 }
 
 export function isCalendarConfigured(): boolean {
-  const provider = resolveCalendarProvider()
-  const accessToken = getProviderAccessToken(provider)
-  return accessToken.length > 0
+  return getConfiguredProvider() !== null
+}
+
+export function getCalendarAccountStatus(): CalendarAccountStatus {
+  const caldavConfig = loadCalendarAccountConfig()
+  if (caldavConfig) {
+    return toCalendarAccountStatus(caldavConfig)
+  }
+
+  const provider = getConfiguredProvider()
+  if (!provider) {
+    return {
+      provider: 'none',
+      configured: false,
+      hasStoredPassword: false,
+      lastVerifiedAt: null,
+    }
+  }
+
+  return {
+    provider,
+    configured: true,
+    hasStoredPassword: false,
+    lastVerifiedAt: null,
+  }
+}
+
+export async function saveCalendarAccountConfig(input: CalendarAccountConfigInput): Promise<CalendarAccountStatus> {
+  const existing = loadCalendarAccountConfig()
+  const normalized = normalizeCalendarAccountConfigInput(input, {
+    fallbackPassword: existing?.password,
+    calendarUrl: input.calendarUrl || existing?.calendarUrl,
+    calendarName: input.calendarName || existing?.calendarName,
+    lastVerifiedAt: Date.now(),
+  })
+  const verified = await verifyCaldavConnection(normalized)
+  const stored = await persistCalendarAccountConfig(input, {
+    fallbackPassword: existing?.password,
+    calendarUrl: verified.calendarUrl,
+    calendarName: verified.calendarName,
+    lastVerifiedAt: normalized.lastVerifiedAt,
+  })
+
+  return toCalendarAccountStatus(stored)
+}
+
+export async function clearCalendarAccount(): Promise<CalendarAccountStatus> {
+  await clearCalendarAccountConfig()
+  return getCalendarAccountStatus()
 }

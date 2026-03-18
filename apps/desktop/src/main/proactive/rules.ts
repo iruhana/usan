@@ -1,4 +1,4 @@
-import type { SuggestionType } from '@shared/types/infrastructure'
+import type { SuggestionAction, SuggestionType } from '@shared/types/infrastructure'
 
 export type ProactiveRuleKind = 'cpu' | 'memory' | 'disk' | 'battery' | 'idle'
 
@@ -10,7 +10,7 @@ export interface ProactiveRule {
   type: SuggestionType
   priority: number
   title: string
-  action?: { label: string; action: string }
+  action?: SuggestionAction
 }
 
 export interface ProactiveRuleConfig {
@@ -20,6 +20,10 @@ export interface ProactiveRuleConfig {
     disk: boolean
     battery: boolean
     idle: boolean
+    clipboard: boolean
+    workflow: boolean
+    voice: boolean
+    appContext: boolean
   }
   thresholds: {
     cpuPercent: number
@@ -40,7 +44,7 @@ export function buildRulesFromConfig(config: ProactiveRuleConfig): ProactiveRule
       type: 'warning',
       priority: 8,
       title: 'High CPU usage',
-      action: { label: 'View processes', action: 'show_processes' },
+      action: { label: 'Open tools', action: 'navigate', params: { page: 'tools' } },
     },
     {
       id: 'memory-high',
@@ -50,7 +54,7 @@ export function buildRulesFromConfig(config: ProactiveRuleConfig): ProactiveRule
       type: 'warning',
       priority: 8,
       title: 'High memory usage',
-      action: { label: 'View processes', action: 'show_processes' },
+      action: { label: 'Open tools', action: 'navigate', params: { page: 'tools' } },
     },
     {
       id: 'disk-high',

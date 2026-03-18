@@ -1,9 +1,21 @@
-import type { Suggestion } from '@shared/types/infrastructure'
-import { systemMonitor } from '../infrastructure/system-monitor'
+import type {
+  ClipboardEntry,
+  Suggestion,
+  VoiceStatusEvent,
+  WorkflowProgress,
+} from '@shared/types/infrastructure'
+import { clipboardManager } from '../infrastructure/clipboard-manager'
 import { contextManager } from '../infrastructure/context-manager'
 import { eventBus } from '../infrastructure/event-bus'
+import { systemMonitor } from '../infrastructure/system-monitor'
 import { buildRulesFromConfig } from './rules'
-import { evaluateProactiveTriggers } from './triggers'
+import {
+  evaluateClipboardSuggestion,
+  evaluateContextSuggestion,
+  evaluateProactiveTriggers,
+  evaluateVoiceSuggestion,
+  evaluateWorkflowSuggestion,
+} from './triggers'
 
 const MAX_SUGGESTIONS = 20
 const MIN_EVALUATE_INTERVAL_MS = 5_000
@@ -17,6 +29,10 @@ type EngineEnabledFlags = {
   disk: boolean
   battery: boolean
   idle: boolean
+  clipboard: boolean
+  workflow: boolean
+  voice: boolean
+  appContext: boolean
 }
 
 type EngineThresholds = {
@@ -43,6 +59,10 @@ const DEFAULT_CONFIG: SuggestionEngineConfig = {
     disk: true,
     battery: true,
     idle: true,
+    clipboard: true,
+    workflow: true,
+    voice: true,
+    appContext: true,
   },
   thresholds: {
     cpuPercent: 90,
@@ -81,6 +101,8 @@ export class SuggestionEngine {
   private suggestions: Suggestion[] = []
   private timer: ReturnType<typeof setInterval> | null = null
   private lastEmitted: Map<string, number> = new Map()
+  private started = false
+  private eventUnsubscribers: Array<() => void> = []
   private config: SuggestionEngineConfig = {
     evaluateIntervalMs: DEFAULT_CONFIG.evaluateIntervalMs,
     cooldownMs: DEFAULT_CONFIG.cooldownMs,
@@ -88,9 +110,16 @@ export class SuggestionEngine {
     thresholds: { ...DEFAULT_CONFIG.thresholds },
   }
 
+  constructor() {
+    this.attachEventListeners()
+  }
+
   start(): void {
     if (this.timer) return
+    this.started = true
     this.evaluate()
+    this.evaluateContextSuggestion()
+    this.evaluateClipboardSuggestion(clipboardManager.getHistory()[0] ?? null)
     this.timer = setInterval(() => this.evaluate(), this.config.evaluateIntervalMs)
   }
 
@@ -98,6 +127,7 @@ export class SuggestionEngine {
     if (!this.timer) return
     clearInterval(this.timer)
     this.timer = null
+    this.started = false
   }
 
   list(): Suggestion[] {
@@ -131,6 +161,52 @@ export class SuggestionEngine {
     return this.getConfig()
   }
 
+  private attachEventListeners(): void {
+    this.eventUnsubscribers.push(
+      eventBus.on('clipboard.changed', (event) => {
+        if (!this.started || !this.config.enabled.clipboard) return
+        this.evaluateClipboardSuggestion((event.payload['entry'] as ClipboardEntry | undefined) ?? null)
+      }),
+    )
+
+    this.eventUnsubscribers.push(
+      eventBus.on('context.changed', () => {
+        if (!this.started || !this.config.enabled.appContext) return
+        this.evaluateContextSuggestion()
+      }),
+    )
+
+    this.eventUnsubscribers.push(
+      eventBus.on('workflow.progress', (event) => {
+        if (!this.started || !this.config.enabled.workflow) return
+        const suggestion = evaluateWorkflowSuggestion(event.payload as unknown as WorkflowProgress)
+        if (suggestion) this.addSuggestion(suggestion)
+      }),
+    )
+
+    this.eventUnsubscribers.push(
+      eventBus.on('voice.status', (event) => {
+        if (!this.started || !this.config.enabled.voice) return
+        const suggestion = evaluateVoiceSuggestion(event.payload as unknown as VoiceStatusEvent)
+        if (suggestion) this.addSuggestion(suggestion)
+      }),
+    )
+  }
+
+  private evaluateContextSuggestion(): void {
+    const suggestion = evaluateContextSuggestion(contextManager.getSnapshot())
+    if (suggestion) {
+      this.addSuggestion(suggestion)
+    }
+  }
+
+  private evaluateClipboardSuggestion(entry: ClipboardEntry | null): void {
+    const suggestion = evaluateClipboardSuggestion(entry)
+    if (suggestion) {
+      this.addSuggestion(suggestion)
+    }
+  }
+
   private mergeConfig(
     current: SuggestionEngineConfig,
     rawConfig: Record<string, unknown>,
@@ -154,6 +230,10 @@ export class SuggestionEngine {
       next.enabled.disk = sanitizeBoolean(enabledRaw['disk'], current.enabled.disk)
       next.enabled.battery = sanitizeBoolean(enabledRaw['battery'], current.enabled.battery)
       next.enabled.idle = sanitizeBoolean(enabledRaw['idle'], current.enabled.idle)
+      next.enabled.clipboard = sanitizeBoolean(enabledRaw['clipboard'], current.enabled.clipboard)
+      next.enabled.workflow = sanitizeBoolean(enabledRaw['workflow'], current.enabled.workflow)
+      next.enabled.voice = sanitizeBoolean(enabledRaw['voice'], current.enabled.voice)
+      next.enabled.appContext = sanitizeBoolean(enabledRaw['appContext'], current.enabled.appContext)
     }
 
     const thresholdsRaw = rawConfig['thresholds']
@@ -189,7 +269,7 @@ export class SuggestionEngine {
     type: Suggestion['type']
     title: string
     description: string
-    actions: Array<{ label: string; action: string }>
+    actions: Suggestion['actions']
     priority: number
   }): void {
     const key = `${item.type}:${item.title}`
@@ -220,6 +300,9 @@ export class SuggestionEngine {
     this.stop()
     this.suggestions = []
     this.lastEmitted.clear()
+    for (const unsubscribe of this.eventUnsubscribers.splice(0)) {
+      unsubscribe()
+    }
   }
 }
 

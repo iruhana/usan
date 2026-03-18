@@ -8,6 +8,7 @@ import { join, resolve, sep } from 'path'
 import { app } from 'electron'
 import type { PluginManifest, InstalledPlugin, MarketplaceEntry } from '@shared/types/infrastructure'
 import { eventBus } from './event-bus'
+import { mcpRegistry } from '../mcp/mcp-registry'
 
 const PLUGINS_DIR = 'plugins'
 const REGISTRY_FILE = 'plugin-registry.json'
@@ -82,23 +83,39 @@ export class PluginManager {
       }
     }
 
-    const plugin: InstalledPlugin = {
-      manifest,
-      path: pluginDir,
-      enabled: true,
-      installedAt: Date.now(),
+    try {
+      const managedMcpServerIds = await this.ensureManagedMcpServers({
+        manifest,
+        path: pluginDir,
+        enabled: true,
+        installedAt: Date.now(),
+      })
+
+      const plugin: InstalledPlugin = {
+        manifest,
+        path: pluginDir,
+        enabled: true,
+        installedAt: Date.now(),
+        managedMcpServerIds,
+      }
+
+      this.installed.set(manifest.id, plugin)
+      await this.saveRegistry()
+
+      eventBus.emit('plugin.installed', { id: manifest.id, name: manifest.name }, 'plugin-manager')
+      return plugin
+    } catch (error) {
+      await this.unregisterManagedMcpServers(this.getManagedServerIds(manifest))
+      await rm(pluginDir, { recursive: true, force: true })
+      throw error
     }
-
-    this.installed.set(manifest.id, plugin)
-    await this.saveRegistry()
-
-    eventBus.emit('plugin.installed', { id: manifest.id, name: manifest.name }, 'plugin-manager')
-    return plugin
   }
 
   async uninstall(id: string): Promise<void> {
     const plugin = this.installed.get(id)
     if (!plugin) throw new Error(`Plugin not found: ${id}`)
+
+    await this.unregisterManagedMcpServers(plugin.managedMcpServerIds)
 
     try {
       await rm(plugin.path, { recursive: true, force: true })
@@ -112,19 +129,22 @@ export class PluginManager {
     eventBus.emit('plugin.uninstalled', { id }, 'plugin-manager')
   }
 
-  enable(id: string): void {
+  async enable(id: string): Promise<void> {
     const plugin = this.installed.get(id)
     if (!plugin) throw new Error(`Plugin not found: ${id}`)
+
+    plugin.managedMcpServerIds = await this.ensureManagedMcpServers(plugin)
     plugin.enabled = true
-    this.saveRegistry()
+    await this.saveRegistry()
     eventBus.emit('plugin.enabled', { id }, 'plugin-manager')
   }
 
-  disable(id: string): void {
+  async disable(id: string): Promise<void> {
     const plugin = this.installed.get(id)
     if (!plugin) throw new Error(`Plugin not found: ${id}`)
+    await this.disconnectManagedMcpServers(plugin.managedMcpServerIds)
     plugin.enabled = false
-    this.saveRegistry()
+    await this.saveRegistry()
     eventBus.emit('plugin.disabled', { id }, 'plugin-manager')
   }
 
@@ -188,6 +208,19 @@ export class PluginManager {
     if (!Array.isArray(manifest.skills)) {
       throw new Error('Invalid plugin manifest: skills must be an array')
     }
+
+    if (manifest.mcpServers && !Array.isArray(manifest.mcpServers)) {
+      throw new Error('Invalid plugin manifest: mcpServers must be an array')
+    }
+
+    for (const server of manifest.mcpServers ?? []) {
+      if (!server.name?.trim()) {
+        throw new Error('Invalid plugin manifest: managed MCP servers require a name')
+      }
+      if (server.transport !== 'stdio' && server.transport !== 'sse') {
+        throw new Error('Invalid plugin manifest: managed MCP server transport must be stdio or sse')
+      }
+    }
   }
 
   private getMarketplaceRoots(): string[] {
@@ -209,7 +242,102 @@ export class PluginManager {
       downloads: 0,
       rating: 0,
       tags: (manifest.skills ?? []).slice(0, 6),
+      mcpServerCount: manifest.mcpServers?.length ?? 0,
     }
+  }
+
+  private async ensureManagedMcpServers(plugin: InstalledPlugin): Promise<string[]> {
+    const definitions = plugin.manifest.mcpServers ?? []
+    if (definitions.length === 0) {
+      return []
+    }
+
+    const existingConfigs = new Map(mcpRegistry.getAllConfigs().map((config) => [config.id, config]))
+    const managedIds: string[] = []
+
+    for (let index = 0; index < definitions.length; index += 1) {
+      const definition = definitions[index]
+      const id = this.buildManagedServerId(plugin.manifest, definition.id, index)
+      const config = this.toManagedMcpConfig(plugin, definition, id)
+      const existing = existingConfigs.get(id)
+      if (!existing) {
+        await mcpRegistry.addServer(config)
+      }
+
+      managedIds.push(id)
+
+      if (definition.autoConnect !== false) {
+        await mcpRegistry.connect(id)
+      }
+    }
+
+    return managedIds
+  }
+
+  private async disconnectManagedMcpServers(serverIds?: string[]): Promise<void> {
+    for (const serverId of serverIds ?? []) {
+      mcpRegistry.disconnect(serverId)
+    }
+  }
+
+  private async unregisterManagedMcpServers(serverIds?: string[]): Promise<void> {
+    for (const serverId of serverIds ?? []) {
+      mcpRegistry.disconnect(serverId)
+      if (mcpRegistry.getAllConfigs().some((config) => config.id === serverId)) {
+        await mcpRegistry.removeServer(serverId)
+      }
+    }
+  }
+
+  private buildManagedServerId(manifest: PluginManifest, rawId: string | undefined, index: number): string {
+    const suffix = this.sanitizeServerIdSegment(rawId || `server-${index + 1}`)
+    return `${manifest.id}--${suffix}`
+  }
+
+  private sanitizeServerIdSegment(value: string): string {
+    const normalized = value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '')
+    return normalized || 'server'
+  }
+
+  private toManagedMcpConfig(
+    plugin: InstalledPlugin,
+    definition: NonNullable<PluginManifest['mcpServers']>[number],
+    id: string,
+  ) {
+    if (definition.transport === 'stdio') {
+      if (!definition.command?.trim()) {
+        throw new Error(`Managed MCP server "${id}" requires a command`)
+      }
+
+      const command = definition.command.includes(':') || definition.command.startsWith('.') || definition.command.startsWith('\\')
+        ? resolve(plugin.path, definition.command)
+        : resolve(plugin.path, definition.command)
+
+      return {
+        id,
+        name: definition.name,
+        transport: definition.transport,
+        command,
+        args: definition.args,
+        env: definition.env,
+      } as const
+    }
+
+    if (!definition.url?.trim()) {
+      throw new Error(`Managed MCP server "${id}" requires a url`)
+    }
+
+    return {
+      id,
+      name: definition.name,
+      transport: definition.transport,
+      url: definition.url.trim(),
+      env: definition.env,
+    } as const
+  }
+
+  private getManagedServerIds(manifest: PluginManifest): string[] {
+    return (manifest.mcpServers ?? []).map((server, index) => this.buildManagedServerId(manifest, server.id, index))
   }
 
   private async discoverMarketplaceEntries(): Promise<MarketplaceEntry[]> {

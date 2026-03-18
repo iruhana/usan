@@ -24,6 +24,8 @@ import * as orchestrationTools from './orchestration-tools'
 import * as imageTools from './image-tools'
 import * as emailTools from './email-tools'
 import * as calendarTools from './calendar-tools'
+import * as financeTools from './finance-tools'
+import * as governmentHometaxTools from './government-hometax-tools'
 
 // Phase 4: Automation & Extensibility
 import * as macroTools from './macro-tools'
@@ -48,6 +50,8 @@ const modules = [
   imageTools,
   emailTools,
   calendarTools,
+  financeTools,
+  governmentHometaxTools,
   macroTools,
   fileOrgTools,
   hotkeyTools,

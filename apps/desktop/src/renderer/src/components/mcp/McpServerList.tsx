@@ -15,7 +15,11 @@ interface NoticeState {
   body: string
 }
 
-export default function McpServerList() {
+interface McpServerListProps {
+  reloadToken?: number
+}
+
+export default function McpServerList({ reloadToken = 0 }: McpServerListProps) {
   const forceNotice = hasE2EQueryFlag('usan_e2e_force_mcp_notice')
   const [servers, setServers] = useState<McpServerStatus[]>([])
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
@@ -66,7 +70,7 @@ export default function McpServerList() {
   useEffect(() => {
     if (forceNotice) return
     loadServers().catch(() => {})
-  }, [forceNotice, loadServers])
+  }, [forceNotice, loadServers, reloadToken])
 
   const effectiveNotice = forceNotice
     ? {

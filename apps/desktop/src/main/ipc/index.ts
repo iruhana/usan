@@ -2,8 +2,43 @@
 import type { IpcMainInvokeEvent } from 'electron'
 import { basename, extname, join } from 'path'
 import { IPC } from '@shared/constants/channels'
-import type { AppSettings, ScreenCaptureResult, FileEntry, StoredConversation, Note } from '@shared/types/ipc'
-import type { HotkeyBinding, WorkflowDefinition, ClipboardTransformFormat, SystemMetrics, ContextSnapshot, WorkflowProgress, Suggestion, CalendarEvent, RagIndexProgress, VoiceStatusEvent, McpServerConfig } from '@shared/types/infrastructure'
+import type {
+  AppSettings,
+  CalendarAccountConfigInput,
+  FinanceAccountConfigInput,
+  FinanceTransactionQuery,
+  FinanceTransferDraft,
+  HometaxEvidenceQuery,
+  EmailAccountConfigInput,
+  FileEntry,
+  Note,
+  PublicBusinessStatusLookup,
+  PublicDataAccountConfigInput,
+  PublicDataQuery,
+  ScreenCaptureResult,
+  StoredConversation,
+  TaxAccountConfigInput,
+  TaxBusinessStatusLookup,
+} from '@shared/types/ipc'
+import type {
+  CollaborationDraftUpdate,
+  CollaborationJoinRequest,
+  CollaborationRemoteConversation,
+  CollaborationRemoteDraft,
+  CollaborationSessionStatus,
+  CollaborationStartRequest,
+  HotkeyBinding,
+  WorkflowDefinition,
+  ClipboardTransformFormat,
+  SystemMetrics,
+  ContextSnapshot,
+  WorkflowProgress,
+  Suggestion,
+  CalendarEvent,
+  RagIndexProgress,
+  VoiceStatusEvent,
+  McpServerConfig,
+} from '@shared/types/infrastructure'
 import { systemMonitor, getProcesses } from '../infrastructure/system-monitor'
 import { contextManager } from '../infrastructure/context-manager'
 import { hotkeyManager } from '../infrastructure/hotkey-manager'
@@ -21,8 +56,46 @@ import { macroRecorder } from '../macro/macro-recorder'
 import { launchApp, closeApp, sendKeys, listRunningApps } from '../orchestration/app-launcher'
 import { resizeImage, cropImage, convertImage, compressImage, getImageInfo } from '../image/image-processor'
 import { generateImage } from '../image/ai-generator'
-import { listEmails, readEmail, sendEmail, isEmailConfigured } from '../email/email-manager'
-import { listEvents, createEvent, deleteEvent, findFreeTime } from '../calendar/calendar-manager'
+import {
+  clearEmailAccount,
+  getEmailAccountStatus,
+  isEmailConfigured,
+  listEmails,
+  readEmail,
+  saveEmailAccountConfig,
+  sendEmail,
+} from '../email/email-manager'
+import {
+  clearCalendarAccount,
+  createEvent,
+  deleteEvent,
+  findFreeTime,
+  getCalendarAccountStatus,
+  listEvents,
+  saveCalendarAccountConfig,
+} from '../calendar/calendar-manager'
+import {
+  clearFinanceAccount,
+  getFinanceAccountStatus,
+  getFinanceAccountSummary,
+  listFinanceTransactions,
+  saveFinanceAccountConfig,
+  sendFinanceTransfer,
+} from '../finance/finance-manager'
+import {
+  clearPublicDataAccount,
+  getPublicDataAccountStatus,
+  lookupGovernmentBusinessStatus,
+  queryGovernmentPublicData,
+  savePublicDataAccountConfig,
+} from '../public-data/public-data-manager'
+import {
+  clearTaxAccount,
+  getTaxAccountStatus,
+  listHometaxEvidence,
+  lookupTaxBusinessStatus,
+  saveTaxAccountConfig,
+} from '../tax/tax-manager'
 import { startGoogleOAuthFlow, isGoogleAuthenticated, clearGoogleTokens } from '../auth/oauth-google'
 import { startNaverOAuthFlow, getNaverAuthStatus, clearNaverTokens } from '../auth/oauth-naver'
 import { startKakaoOAuthFlow, getKakaoAuthStatus, clearKakaoTokens } from '../auth/oauth-kakao'
@@ -60,6 +133,7 @@ import { cleanTempFiles } from '../system/temp-cleaner'
 import { listStartupPrograms, toggleStartupProgram } from '../system/startup-manager'
 import type { StartupSource } from '../system/startup-manager'
 import { signInWithEmail, signUp, signInWithOTP, verifyOTP, signOut, getSession } from '../auth/auth-manager'
+import { realtimeCollaborationManager } from '../collaboration/realtime-collaboration'
 import { pushData, pullData, getSyncStatus, validateSyncUser } from '../sync/sync-engine'
 import type { UserMemory } from '../store'
 import { logObsInfo, logObsWarn } from '../observability'
@@ -378,6 +452,7 @@ export function registerIpcHandlers(): void {
     const safe: Partial<AppSettings> = {}
     if (partial.fontScale !== undefined) safe.fontScale = Number(partial.fontScale)
     if (partial.highContrast !== undefined) safe.highContrast = Boolean(partial.highContrast)
+    if (partial.aiLabelEnabled !== undefined) safe.aiLabelEnabled = Boolean(partial.aiLabelEnabled)
     if (partial.voiceEnabled !== undefined) safe.voiceEnabled = Boolean(partial.voiceEnabled)
     if (partial.voiceOverlayEnabled !== undefined) safe.voiceOverlayEnabled = Boolean(partial.voiceOverlayEnabled)
     if (partial.voiceSpeed !== undefined) safe.voiceSpeed = Number(partial.voiceSpeed)
@@ -741,6 +816,25 @@ export function registerIpcHandlers(): void {
     return getSyncStatus()
   })
 
+  safeHandle(IPC.COLLABORATION_STATUS, (): CollaborationSessionStatus => {
+    return realtimeCollaborationManager.getStatus()
+  })
+  safeHandle(IPC.COLLABORATION_START, async (_, request: CollaborationStartRequest) => {
+    return realtimeCollaborationManager.startSession(request)
+  })
+  safeHandle(IPC.COLLABORATION_JOIN, async (_, request: CollaborationJoinRequest) => {
+    return realtimeCollaborationManager.joinSession(request)
+  })
+  safeHandle(IPC.COLLABORATION_LEAVE, async () => {
+    return realtimeCollaborationManager.leaveSession()
+  })
+  safeHandle(IPC.COLLABORATION_SYNC_CONVERSATION, async (_, conversation: StoredConversation) => {
+    await realtimeCollaborationManager.syncConversation(conversation)
+  })
+  safeHandle(IPC.COLLABORATION_SYNC_DRAFT, async (_, draft: CollaborationDraftUpdate) => {
+    await realtimeCollaborationManager.syncDraft(draft)
+  })
+
   // ??? Memory (long-term user preferences) ????????
   safeHandle(IPC.MEMORY_LOAD, (): UserMemory => {
     return loadMemory()
@@ -848,11 +942,11 @@ export function registerIpcHandlers(): void {
   safeHandle(IPC.PLUGIN_UNINSTALL, async (_, id: string) => {
     return pluginManager.uninstall(id)
   })
-  safeHandle(IPC.PLUGIN_ENABLE, (_, id: string) => {
-    pluginManager.enable(id)
+  safeHandle(IPC.PLUGIN_ENABLE, async (_, id: string) => {
+    await pluginManager.enable(id)
   })
-  safeHandle(IPC.PLUGIN_DISABLE, (_, id: string) => {
-    pluginManager.disable(id)
+  safeHandle(IPC.PLUGIN_DISABLE, async (_, id: string) => {
+    await pluginManager.disable(id)
   })
 
   // ??? Clipboard Manager ????????????????????????????
@@ -915,8 +1009,7 @@ export function registerIpcHandlers(): void {
     return runOcr({ region })
   })
   safeHandle(IPC.VISION_ANALYZE_UI, async () => {
-    const analysis = await analyzeUiFromScreen()
-    return { elements: analysis.elements, screenshot: analysis.screenshot }
+    return analyzeUiFromScreen()
   })
   safeHandle(IPC.VISION_FIND_ELEMENT, async (_, query: string) => {
     if (!query || !query.trim()) return null
@@ -1006,6 +1099,15 @@ export function registerIpcHandlers(): void {
   safeHandle(IPC.EMAIL_CONFIGURED, () => {
     return isEmailConfigured()
   })
+  safeHandle(IPC.EMAIL_STATUS, () => {
+    return getEmailAccountStatus()
+  })
+  safeHandle(IPC.EMAIL_SAVE_CONFIG, async (_, config: EmailAccountConfigInput) => {
+    return saveEmailAccountConfig(config)
+  })
+  safeHandle(IPC.EMAIL_CLEAR_CONFIG, async () => {
+    return clearEmailAccount()
+  })
 
   // ??? Calendar (F12) ???????????????????????????????
   safeHandle(IPC.CALENDAR_LIST_EVENTS, async (_, { startDate, endDate }: { startDate: string; endDate: string }) => {
@@ -1020,6 +1122,66 @@ export function registerIpcHandlers(): void {
   })
   safeHandle(IPC.CALENDAR_FIND_FREE_TIME, async (_, { date, durationMinutes }: { date: string; durationMinutes: number }) => {
     return findFreeTime(date, durationMinutes)
+  })
+  safeHandle(IPC.CALENDAR_STATUS, () => {
+    return getCalendarAccountStatus()
+  })
+  safeHandle(IPC.CALENDAR_SAVE_CONFIG, async (_, config: CalendarAccountConfigInput) => {
+    return saveCalendarAccountConfig(config)
+  })
+  safeHandle(IPC.CALENDAR_CLEAR_CONFIG, async () => {
+    return clearCalendarAccount()
+  })
+
+  safeHandle(IPC.FINANCE_STATUS, () => {
+    return getFinanceAccountStatus()
+  })
+  safeHandle(IPC.FINANCE_SAVE_CONFIG, async (_, config: FinanceAccountConfigInput) => {
+    return saveFinanceAccountConfig(config)
+  })
+  safeHandle(IPC.FINANCE_CLEAR_CONFIG, async () => {
+    return clearFinanceAccount()
+  })
+  safeHandle(IPC.FINANCE_ACCOUNT_SUMMARY, async () => {
+    return getFinanceAccountSummary()
+  })
+  safeHandle(IPC.FINANCE_TRANSACTIONS, async (_, query: FinanceTransactionQuery) => {
+    return listFinanceTransactions(query)
+  })
+  safeHandle(IPC.FINANCE_TRANSFER, async (_, draft: FinanceTransferDraft) => {
+    return sendFinanceTransfer(draft)
+  })
+
+  safeHandle(IPC.PUBLIC_DATA_STATUS, () => {
+    return getPublicDataAccountStatus()
+  })
+  safeHandle(IPC.PUBLIC_DATA_SAVE_CONFIG, async (_, config: PublicDataAccountConfigInput) => {
+    return savePublicDataAccountConfig(config)
+  })
+  safeHandle(IPC.PUBLIC_DATA_CLEAR_CONFIG, async () => {
+    return clearPublicDataAccount()
+  })
+  safeHandle(IPC.PUBLIC_DATA_QUERY, async (_, query: PublicDataQuery) => {
+    return queryGovernmentPublicData(query)
+  })
+  safeHandle(IPC.PUBLIC_DATA_BUSINESS_STATUS, async (_, lookup: PublicBusinessStatusLookup) => {
+    return lookupGovernmentBusinessStatus(lookup)
+  })
+
+  safeHandle(IPC.TAX_STATUS, () => {
+    return getTaxAccountStatus()
+  })
+  safeHandle(IPC.TAX_SAVE_CONFIG, async (_, config: TaxAccountConfigInput) => {
+    return saveTaxAccountConfig(config)
+  })
+  safeHandle(IPC.TAX_CLEAR_CONFIG, async () => {
+    return clearTaxAccount()
+  })
+  safeHandle(IPC.TAX_BUSINESS_STATUS, async (_, lookup: TaxBusinessStatusLookup) => {
+    return lookupTaxBusinessStatus(lookup)
+  })
+  safeHandle(IPC.TAX_HOMETAX_EVIDENCE, async (_, query: HometaxEvidenceQuery) => {
+    return listHometaxEvidence(query)
   })
 
   // ??? Macro (F13) ??????????????????????????????????
@@ -1151,6 +1313,30 @@ export function registerInfrastructureEventForwarding(mainWindow: BrowserWindow)
   eventBus.on('workflow.progress', (event) => {
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC.WORKFLOW_PROGRESS, event.payload as unknown as WorkflowProgress)
+    }
+  })
+
+  eventBus.on('collaboration.status', (event) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC.COLLABORATION_STATUS_CHANGED, event.payload as unknown as CollaborationSessionStatus)
+    }
+  })
+
+  eventBus.on('collaboration.remote-conversation', (event) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(
+        IPC.COLLABORATION_REMOTE_CONVERSATION,
+        event.payload as unknown as CollaborationRemoteConversation,
+      )
+    }
+  })
+
+  eventBus.on('collaboration.remote-draft', (event) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(
+        IPC.COLLABORATION_REMOTE_DRAFT,
+        event.payload as unknown as CollaborationRemoteDraft,
+      )
     }
   })
 

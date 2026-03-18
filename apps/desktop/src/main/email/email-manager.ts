@@ -1,7 +1,21 @@
-﻿/**
- * Email manager with provider adapters (Gmail / Outlook).
- * OAuth policy is enforced via oauth-policy.ts through provider client helpers.
+/**
+ * Email manager with provider adapters.
+ * Preferred order: IMAP/SMTP local account -> Gmail OAuth -> Outlook OAuth.
  */
+import type { EmailAccountConfigInput, EmailAccountStatus } from '@shared/types/ipc'
+import {
+  clearEmailAccountConfig,
+  loadEmailAccountConfig,
+  normalizeEmailAccountConfigInput,
+  saveEmailAccountConfig as persistEmailAccountConfig,
+  toEmailAccountStatus,
+} from './email-account-store'
+import {
+  listImapSmtpMessages,
+  readImapSmtpMessage,
+  sendImapSmtpMessage,
+  verifyImapSmtpConnection,
+} from './imap-smtp-client'
 import {
   createGmailOAuthAuthorizationRequest,
   exchangeGmailAuthorizationCode,
@@ -31,6 +45,8 @@ export interface EmailMessage {
   date: number
   read: boolean
   snippet: string
+  cc?: string[]
+  attachments?: Array<{ name: string; size: number }>
 }
 
 export interface EmailDraft {
@@ -39,20 +55,21 @@ export interface EmailDraft {
   body: string
 }
 
-export type EmailProvider = 'google' | 'microsoft'
+export type EmailProvider = 'imap-smtp' | 'google' | 'microsoft'
 
-const DEFAULT_PROVIDER: EmailProvider = 'google'
+const DEFAULT_PROVIDER: Extract<EmailProvider, 'google' | 'microsoft'> = 'google'
 
-function resolveEmailProvider(explicit?: EmailProvider): EmailProvider {
+function resolveOauthProvider(
+  explicit?: Extract<EmailProvider, 'google' | 'microsoft'>,
+): Extract<EmailProvider, 'google' | 'microsoft'> {
   if (explicit === 'google' || explicit === 'microsoft') return explicit
   const envProvider = process.env['USAN_EMAIL_PROVIDER']?.trim().toLowerCase()
   if (envProvider === 'google' || envProvider === 'microsoft') return envProvider
   return DEFAULT_PROVIDER
 }
 
-function getProviderAccessToken(provider: EmailProvider): string {
+function getProviderAccessToken(provider: Extract<EmailProvider, 'google' | 'microsoft'>): string {
   if (provider === 'google') {
-    // Try stored OAuth token first, fall back to env var
     const tokens = loadGoogleTokens()
     if (tokens?.accessToken) return tokens.accessToken
     return process.env['USAN_GOOGLE_ACCESS_TOKEN']?.trim() ?? ''
@@ -60,16 +77,25 @@ function getProviderAccessToken(provider: EmailProvider): string {
   return process.env['USAN_MICROSOFT_ACCESS_TOKEN']?.trim() ?? ''
 }
 
+function getConfiguredProvider(): EmailProvider | null {
+  if (loadEmailAccountConfig()) {
+    return 'imap-smtp'
+  }
+
+  const oauthProvider = resolveOauthProvider()
+  return getProviderAccessToken(oauthProvider) ? oauthProvider : null
+}
+
 export function createEmailOAuthAuthorizationRequest(options: {
   clientId: string
   redirectUri: string
-  provider?: EmailProvider
+  provider?: Extract<EmailProvider, 'google' | 'microsoft'>
   authEndpoint?: string
   scopes?: string[]
   state?: string
   tenantId?: string
 }): DesktopOAuthAuthorizationRequest {
-  const provider = resolveEmailProvider(options.provider)
+  const provider = resolveOauthProvider(options.provider)
 
   if (provider === 'google') {
     return createGmailOAuthAuthorizationRequest({
@@ -90,14 +116,14 @@ export function createEmailOAuthAuthorizationRequest(options: {
 }
 
 export async function exchangeEmailOAuthCode(options: {
-  provider?: EmailProvider
+  provider?: Extract<EmailProvider, 'google' | 'microsoft'>
   clientId: string
   code: string
   redirectUri: string
   codeVerifier: string
   tenantId?: string
 }): Promise<OAuthTokenResponse> {
-  const provider = resolveEmailProvider(options.provider)
+  const provider = resolveOauthProvider(options.provider)
 
   if (provider === 'google') {
     const input: GmailOAuthExchangeInput = {
@@ -120,7 +146,12 @@ export async function exchangeEmailOAuthCode(options: {
 }
 
 export async function listEmails(limit = 20): Promise<EmailMessage[]> {
-  const provider = resolveEmailProvider()
+  const imapConfig = loadEmailAccountConfig()
+  if (imapConfig) {
+    return listImapSmtpMessages(imapConfig, limit)
+  }
+
+  const provider = resolveOauthProvider()
   const accessToken = getProviderAccessToken(provider)
   if (!accessToken) return []
 
@@ -132,7 +163,12 @@ export async function listEmails(limit = 20): Promise<EmailMessage[]> {
 }
 
 export async function readEmail(id: string): Promise<EmailMessage | null> {
-  const provider = resolveEmailProvider()
+  const imapConfig = loadEmailAccountConfig()
+  if (imapConfig) {
+    return readImapSmtpMessage(imapConfig, id)
+  }
+
+  const provider = resolveOauthProvider()
   const accessToken = getProviderAccessToken(provider)
   if (!accessToken) return null
 
@@ -143,14 +179,21 @@ export async function readEmail(id: string): Promise<EmailMessage | null> {
   return readOutlookMessage(accessToken, id)
 }
 
-export async function sendEmail(draft: EmailDraft): Promise<{ success: boolean; messageId?: string; error?: string }> {
+export async function sendEmail(
+  draft: EmailDraft,
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const provider = resolveEmailProvider()
+    const imapConfig = loadEmailAccountConfig()
+    if (imapConfig) {
+      return sendImapSmtpMessage(imapConfig, draft)
+    }
+
+    const provider = resolveOauthProvider()
     const accessToken = getProviderAccessToken(provider)
     if (!accessToken) {
       return {
         success: false,
-        error: 'Email integration is not configured. Set provider access token and run desktop OAuth.',
+        error: 'Email integration is not configured. Open Settings and connect an email account first.',
       }
     }
 
@@ -159,16 +202,59 @@ export async function sendEmail(draft: EmailDraft): Promise<{ success: boolean; 
     }
 
     return sendOutlookMessage(accessToken, draft)
-  } catch (err) {
+  } catch (error) {
     return {
       success: false,
-      error: (err as Error).message,
+      error: (error as Error).message,
     }
   }
 }
 
 export function isEmailConfigured(): boolean {
-  const provider = resolveEmailProvider()
-  const accessToken = getProviderAccessToken(provider)
-  return accessToken.length > 0
+  return getConfiguredProvider() !== null
+}
+
+export function getEmailAccountStatus(): EmailAccountStatus {
+  const imapConfig = loadEmailAccountConfig()
+  if (imapConfig) {
+    return toEmailAccountStatus(imapConfig)
+  }
+
+  const provider = getConfiguredProvider()
+  if (!provider) {
+    return {
+      provider: 'none',
+      configured: false,
+      hasStoredPassword: false,
+      lastVerifiedAt: null,
+    }
+  }
+
+  return {
+    provider,
+    configured: true,
+    hasStoredPassword: false,
+    lastVerifiedAt: null,
+  }
+}
+
+export async function saveEmailAccountConfig(input: EmailAccountConfigInput): Promise<EmailAccountStatus> {
+  const existing = loadEmailAccountConfig()
+  const normalized = normalizeEmailAccountConfigInput(input, {
+    fallbackPassword: existing?.password,
+    lastVerifiedAt: Date.now(),
+  })
+
+  await verifyImapSmtpConnection(normalized)
+  const stored = await persistEmailAccountConfig(input, {
+    fallbackPassword: existing?.password,
+    lastVerifiedAt: normalized.lastVerifiedAt,
+  })
+
+  return toEmailAccountStatus(stored)
+}
+
+export async function clearEmailAccount(): Promise<EmailAccountStatus> {
+  await clearEmailAccountConfig()
+  return getEmailAccountStatus()
 }

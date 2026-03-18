@@ -1,5 +1,7 @@
 ﻿import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  CalendarAccountConfigInput,
+  CalendarAccountStatus,
   ChatRequest,
   AppSettings,
   ScreenCaptureResult,
@@ -12,7 +14,28 @@ import type {
   UpdaterStatus,
   CredentialVaultSummary,
   CredentialImportResult,
+  EmailAccountConfigInput,
+  EmailAccountStatus,
   ExternalOAuthStatus,
+  FinanceAccountConfigInput,
+  FinanceAccountStatus,
+  FinanceAccountSummary,
+  FinanceTransactionEntry,
+  FinanceTransactionQuery,
+  FinanceTransferDraft,
+  FinanceTransferResult,
+  HometaxEvidenceEntry,
+  HometaxEvidenceQuery,
+  PublicBusinessStatusEntry,
+  PublicBusinessStatusLookup,
+  PublicDataAccountConfigInput,
+  PublicDataAccountStatus,
+  PublicDataQuery,
+  PublicDataQueryResult,
+  TaxAccountConfigInput,
+  TaxAccountStatus,
+  TaxBusinessStatusEntry,
+  TaxBusinessStatusLookup,
 } from '@shared/types/ipc'
 import type {
   CapabilityGrantRequest,
@@ -22,13 +45,19 @@ import type {
   PermissionRevokeRequest,
 } from '@shared/types/permissions'
 import type {
+  CollaborationDraftUpdate,
+  CollaborationJoinRequest,
+  CollaborationRemoteConversation,
+  CollaborationRemoteDraft,
+  CollaborationSessionStatus,
+  CollaborationStartRequest,
   SystemMetrics, ProcessInfo, ContextSnapshot, HotkeyBinding,
   WorkflowDefinition, WorkflowRun, WorkflowProgress,
   InstalledPlugin, ClipboardEntry, ClipboardTransformFormat,
   RagDocument, RagSearchResult, RagIndexProgress,
   RagIndexFileResult, RagIndexFolderResult,
   Suggestion, VoiceStatusEvent,
-  OcrResult, UiElement,
+  OcrResult, UiAnalysisResult, UiElement,
   MacroEntry,
   FileOrgPreview, DuplicateGroup,
   ImageInfo,
@@ -178,6 +207,30 @@ const api = {
     status: () => ipcRenderer.invoke(IPC.SYNC_STATUS) as Promise<{ lastSynced: number; pending: number; status: string; error?: string }>,
   },
 
+  collaboration: {
+    status: () => ipcRenderer.invoke(IPC.COLLABORATION_STATUS) as Promise<CollaborationSessionStatus>,
+    start: (request: CollaborationStartRequest) => ipcRenderer.invoke(IPC.COLLABORATION_START, request) as Promise<CollaborationSessionStatus>,
+    join: (request: CollaborationJoinRequest) => ipcRenderer.invoke(IPC.COLLABORATION_JOIN, request) as Promise<CollaborationSessionStatus>,
+    leave: () => ipcRenderer.invoke(IPC.COLLABORATION_LEAVE) as Promise<CollaborationSessionStatus>,
+    syncConversation: (conversation: StoredConversation) => ipcRenderer.invoke(IPC.COLLABORATION_SYNC_CONVERSATION, conversation),
+    syncDraft: (draft: CollaborationDraftUpdate) => ipcRenderer.invoke(IPC.COLLABORATION_SYNC_DRAFT, draft),
+    onStatusChanged: (callback: (status: CollaborationSessionStatus) => void) => {
+      const handler = (_: unknown, status: CollaborationSessionStatus) => callback(status)
+      ipcRenderer.on(IPC.COLLABORATION_STATUS_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC.COLLABORATION_STATUS_CHANGED, handler)
+    },
+    onRemoteConversation: (callback: (event: CollaborationRemoteConversation) => void) => {
+      const handler = (_: unknown, event: CollaborationRemoteConversation) => callback(event)
+      ipcRenderer.on(IPC.COLLABORATION_REMOTE_CONVERSATION, handler)
+      return () => ipcRenderer.removeListener(IPC.COLLABORATION_REMOTE_CONVERSATION, handler)
+    },
+    onRemoteDraft: (callback: (event: CollaborationRemoteDraft) => void) => {
+      const handler = (_: unknown, event: CollaborationRemoteDraft) => callback(event)
+      ipcRenderer.on(IPC.COLLABORATION_REMOTE_DRAFT, handler)
+      return () => ipcRenderer.removeListener(IPC.COLLABORATION_REMOTE_DRAFT, handler)
+    },
+  },
+
   // ??? Memory (long-term preferences) ????????????
   memory: {
     load: () => ipcRenderer.invoke(IPC.MEMORY_LOAD) as Promise<{ facts: Array<{ key: string; value: string; learnedAt: number; source: string }>; preferences: Array<{ key: string; value: string; learnedAt: number; source: string }> }>,
@@ -289,7 +342,7 @@ const api = {
   // ??? Vision (F2) ??????????????????????????????
   vision: {
     ocr: (region?: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke(IPC.VISION_OCR, region) as Promise<OcrResult>,
-    analyzeUI: () => ipcRenderer.invoke(IPC.VISION_ANALYZE_UI) as Promise<{ elements: UiElement[]; screenshot: string }>,
+    analyzeUI: () => ipcRenderer.invoke(IPC.VISION_ANALYZE_UI) as Promise<UiAnalysisResult>,
     findElement: (query: string) => ipcRenderer.invoke(IPC.VISION_FIND_ELEMENT, query) as Promise<UiElement | null>,
   },
 
@@ -351,14 +404,60 @@ const api = {
     read: (id: string) => ipcRenderer.invoke(IPC.EMAIL_READ, id) as Promise<EmailFull | null>,
     send: (to: string[], subject: string, body: string) => ipcRenderer.invoke(IPC.EMAIL_SEND, { to, subject, body }) as Promise<{ success: boolean; error?: string }>,
     isConfigured: () => ipcRenderer.invoke(IPC.EMAIL_CONFIGURED) as Promise<boolean>,
+    status: () => ipcRenderer.invoke(IPC.EMAIL_STATUS) as Promise<EmailAccountStatus>,
+    saveConfig: (config: EmailAccountConfigInput) => ipcRenderer.invoke(IPC.EMAIL_SAVE_CONFIG, config) as Promise<EmailAccountStatus>,
+    clearConfig: () => ipcRenderer.invoke(IPC.EMAIL_CLEAR_CONFIG) as Promise<EmailAccountStatus>,
   },
 
   // ??? Calendar (F12) ???????????????????????????
   calendar: {
     listEvents: (startDate: string, endDate: string) => ipcRenderer.invoke(IPC.CALENDAR_LIST_EVENTS, { startDate, endDate }) as Promise<CalendarEvent[]>,
-    createEvent: (event: Partial<CalendarEvent>) => ipcRenderer.invoke(IPC.CALENDAR_CREATE_EVENT, event) as Promise<CalendarEvent>,
-    deleteEvent: (id: string) => ipcRenderer.invoke(IPC.CALENDAR_DELETE_EVENT, id),
-    findFreeTime: (date: string, durationMinutes: number) => ipcRenderer.invoke(IPC.CALENDAR_FIND_FREE_TIME, { date, durationMinutes }) as Promise<Array<{ start: string; end: string }>>,
+    createEvent: (event: Partial<CalendarEvent>) =>
+      ipcRenderer.invoke(IPC.CALENDAR_CREATE_EVENT, event) as Promise<{ success: boolean; eventId?: string; error?: string }>,
+    deleteEvent: (id: string) =>
+      ipcRenderer.invoke(IPC.CALENDAR_DELETE_EVENT, id) as Promise<{ success: boolean; error?: string }>,
+    findFreeTime: (date: string, durationMinutes: number) =>
+      ipcRenderer.invoke(IPC.CALENDAR_FIND_FREE_TIME, { date, durationMinutes }) as Promise<Array<{ start: number; end: number }>>,
+    status: () => ipcRenderer.invoke(IPC.CALENDAR_STATUS) as Promise<CalendarAccountStatus>,
+    saveConfig: (config: CalendarAccountConfigInput) =>
+      ipcRenderer.invoke(IPC.CALENDAR_SAVE_CONFIG, config) as Promise<CalendarAccountStatus>,
+    clearConfig: () => ipcRenderer.invoke(IPC.CALENDAR_CLEAR_CONFIG) as Promise<CalendarAccountStatus>,
+  },
+
+  finance: {
+    status: () => ipcRenderer.invoke(IPC.FINANCE_STATUS) as Promise<FinanceAccountStatus>,
+    saveConfig: (config: FinanceAccountConfigInput) =>
+      ipcRenderer.invoke(IPC.FINANCE_SAVE_CONFIG, config) as Promise<FinanceAccountStatus>,
+    clearConfig: () => ipcRenderer.invoke(IPC.FINANCE_CLEAR_CONFIG) as Promise<FinanceAccountStatus>,
+    accountSummary: () =>
+      ipcRenderer.invoke(IPC.FINANCE_ACCOUNT_SUMMARY) as Promise<FinanceAccountSummary>,
+    transactions: (query: FinanceTransactionQuery) =>
+      ipcRenderer.invoke(IPC.FINANCE_TRANSACTIONS, query) as Promise<FinanceTransactionEntry[]>,
+    transfer: (draft: FinanceTransferDraft) =>
+      ipcRenderer.invoke(IPC.FINANCE_TRANSFER, draft) as Promise<FinanceTransferResult>,
+  },
+
+  publicData: {
+    status: () => ipcRenderer.invoke(IPC.PUBLIC_DATA_STATUS) as Promise<PublicDataAccountStatus>,
+    saveConfig: (config: PublicDataAccountConfigInput) =>
+      ipcRenderer.invoke(IPC.PUBLIC_DATA_SAVE_CONFIG, config) as Promise<PublicDataAccountStatus>,
+    clearConfig: () =>
+      ipcRenderer.invoke(IPC.PUBLIC_DATA_CLEAR_CONFIG) as Promise<PublicDataAccountStatus>,
+    query: (request: PublicDataQuery) =>
+      ipcRenderer.invoke(IPC.PUBLIC_DATA_QUERY, request) as Promise<PublicDataQueryResult>,
+    businessStatus: (request: PublicBusinessStatusLookup) =>
+      ipcRenderer.invoke(IPC.PUBLIC_DATA_BUSINESS_STATUS, request) as Promise<PublicBusinessStatusEntry[]>,
+  },
+
+  tax: {
+    status: () => ipcRenderer.invoke(IPC.TAX_STATUS) as Promise<TaxAccountStatus>,
+    saveConfig: (config: TaxAccountConfigInput) =>
+      ipcRenderer.invoke(IPC.TAX_SAVE_CONFIG, config) as Promise<TaxAccountStatus>,
+    clearConfig: () => ipcRenderer.invoke(IPC.TAX_CLEAR_CONFIG) as Promise<TaxAccountStatus>,
+    businessStatus: (request: TaxBusinessStatusLookup) =>
+      ipcRenderer.invoke(IPC.TAX_BUSINESS_STATUS, request) as Promise<TaxBusinessStatusEntry[]>,
+    hometaxEvidence: (query: HometaxEvidenceQuery) =>
+      ipcRenderer.invoke(IPC.TAX_HOMETAX_EVIDENCE, query) as Promise<HometaxEvidenceEntry[]>,
   },
 
   // ??? Macro (F13) ??????????????????????????????

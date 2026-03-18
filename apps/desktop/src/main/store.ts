@@ -55,6 +55,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   fontScale: 1.0,
   highContrast: false,
+  aiLabelEnabled: true,
   voiceEnabled: true,
   voiceOverlayEnabled: true,
   voiceSpeed: 1.0,
@@ -113,6 +114,10 @@ function migrateSettings(s: Record<string, unknown>): Record<string, unknown> {
     }
   }
 
+  if (s.aiLabelEnabled === undefined) {
+    s.aiLabelEnabled = DEFAULT_SETTINGS.aiLabelEnabled
+  }
+
   s.schemaVersion = CURRENT_SCHEMA_VERSION
   return s
 }
@@ -127,6 +132,7 @@ export function loadSettings(): AppSettings {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       fontScale: typeof s.fontScale === 'number' && (s.fontScale as number) >= 0.5 && (s.fontScale as number) <= 3 ? s.fontScale as number : DEFAULT_SETTINGS.fontScale,
       highContrast: typeof s.highContrast === 'boolean' ? s.highContrast : DEFAULT_SETTINGS.highContrast,
+      aiLabelEnabled: typeof s.aiLabelEnabled === 'boolean' ? s.aiLabelEnabled : DEFAULT_SETTINGS.aiLabelEnabled,
       voiceEnabled: typeof s.voiceEnabled === 'boolean' ? s.voiceEnabled : DEFAULT_SETTINGS.voiceEnabled,
       voiceOverlayEnabled: typeof s.voiceOverlayEnabled === 'boolean' ? s.voiceOverlayEnabled : DEFAULT_SETTINGS.voiceOverlayEnabled,
       voiceSpeed: typeof s.voiceSpeed === 'number' && (s.voiceSpeed as number) >= 0.1 && (s.voiceSpeed as number) <= 3 ? s.voiceSpeed as number : DEFAULT_SETTINGS.voiceSpeed,

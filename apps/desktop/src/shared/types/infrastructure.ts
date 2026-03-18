@@ -4,6 +4,8 @@
  */
 
 // ??? Event Bus ??????????????????????????????????
+import type { StoredConversation } from './ipc'
+
 export interface UsanEvent {
   type: string
   payload: Record<string, unknown>
@@ -143,6 +145,7 @@ export interface PluginManifest {
   skills: string[]
   tools?: string[]
   permissions?: string[]
+  mcpServers?: PluginMcpServerDefinition[]
   integrity?: {
     algorithm: 'sha256'
     manifestDigest?: string
@@ -157,11 +160,23 @@ export interface PluginManifest {
   minAppVersion?: string
 }
 
+export interface PluginMcpServerDefinition {
+  id?: string
+  name: string
+  transport: McpTransport
+  command?: string
+  args?: string[]
+  url?: string
+  env?: Record<string, string>
+  autoConnect?: boolean
+}
+
 export interface InstalledPlugin {
   manifest: PluginManifest
   path: string
   enabled: boolean
   installedAt: number
+  managedMcpServerIds?: string[]
 }
 
 export interface MarketplaceEntry {
@@ -173,17 +188,89 @@ export interface MarketplaceEntry {
   downloads: number
   rating: number
   tags: string[]
+  mcpServerCount: number
+}
+
+export type CollaborationRole = 'host' | 'guest'
+export type CollaborationDraftKind = 'composer' | 'response'
+
+export interface CollaborationIdentity {
+  id: string
+  displayName: string
+  email?: string
+  avatarUrl?: string
+  color: string
+  authenticated: boolean
+}
+
+export interface CollaborationParticipant extends CollaborationIdentity {
+  presenceKey: string
+  role: CollaborationRole
+  isSelf: boolean
+  joinedAt: number
+  activeConversationId?: string
+}
+
+export interface CollaborationSessionStatus {
+  connected: boolean
+  topic: string | null
+  shareCode: string | null
+  role: CollaborationRole | null
+  conversationId: string | null
+  authenticated: boolean
+  self: CollaborationIdentity | null
+  participants: CollaborationParticipant[]
+  lastSyncedAt: number | null
+  lastError: string | null
+}
+
+export interface CollaborationStartRequest {
+  conversationId: string
+  title?: string
+}
+
+export interface CollaborationJoinRequest {
+  shareCode: string
+}
+
+export interface CollaborationDraftUpdate {
+  conversationId: string
+  text: string
+  kind: CollaborationDraftKind
+}
+
+export interface CollaborationRemoteConversation {
+  shareCode: string
+  conversation: StoredConversation
+  revision: number
+  author: CollaborationIdentity
+  receivedAt: number
+}
+
+export interface CollaborationRemoteDraft {
+  shareCode: string
+  conversationId: string
+  text: string
+  kind: CollaborationDraftKind
+  author: CollaborationIdentity
+  updatedAt: number
 }
 
 // ??? Proactive Suggestions ??????????????????????
 export type SuggestionType = 'warning' | 'info' | 'action' | 'error'
+
+export interface SuggestionAction {
+  label: string
+  action: string
+  params?: Record<string, unknown>
+}
 
 export interface Suggestion {
   id: string
   type: SuggestionType
   title: string
   description: string
-  actions: Array<{ label: string; action: string }>
+  actions: SuggestionAction[]
   priority: number
   timestamp: number
   dismissed?: boolean
@@ -252,6 +339,37 @@ export interface UiElement {
   confidence: number
 }
 
+export interface AccessibilityNode {
+  id: string
+  label: string
+  role: string
+  automationId?: string
+  helpText?: string
+  value?: string
+  bounds: Rect | null
+  isEnabled: boolean
+  isOffscreen: boolean
+  hasKeyboardFocus: boolean
+  children: AccessibilityNode[]
+}
+
+export interface AccessibilityTreeSummary {
+  scope: 'active-window' | 'focused-window' | 'unavailable'
+  nodeCount: number
+  maxDepth: number
+  truncated: boolean
+  rootLabel: string
+  rootRole: string
+}
+
+export interface UiAnalysisResult {
+  screenshot: string
+  elements: UiElement[]
+  ocr: OcrResult
+  accessibilityTree: AccessibilityNode | null
+  summary: AccessibilityTreeSummary
+}
+
 // ??? Macro ?????????????????????????????????????
 export interface MacroEntry {
   id: string
@@ -303,12 +421,14 @@ export interface EmailFull extends EmailEntry {
 export interface CalendarEvent {
   id: string
   title: string
-  start: string
-  end: string
+  start: string | number
+  end: string | number
   location?: string
   description?: string
   attendees?: string[]
   allDay?: boolean
+  provider?: 'caldav' | 'google' | 'microsoft'
+  calendarName?: string
 }
 
 // ??? Monitor (Multi-display) ???????????????????

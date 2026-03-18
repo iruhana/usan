@@ -18,6 +18,7 @@ import { useSafetyStore } from '../stores/safety.store'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
 import { useState } from 'react'
+import MarketplaceWorkspace from '../components/marketplace/MarketplaceWorkspace'
 
 interface ToolCardProps {
   icon: typeof Monitor
@@ -228,8 +229,10 @@ export default function ToolsPage() {
           <div className="rounded-[24px] border border-[var(--color-panel-border)] bg-[var(--color-panel-bg-strong)] px-5 py-6 text-[length:var(--text-sm)] text-[var(--color-text-muted)] shadow-[var(--shadow-xs)]">
             {t('tools.noMatches')}
           </div>
-        ) : (
-          <>
+        ) : null}
+
+        <>
+          {filteredSafe.length > 0 ? (
             <section className="space-y-3">
               <div className="space-y-1 px-1">
                 <p className="text-[13px] font-semibold text-[var(--color-text)]">
@@ -245,7 +248,9 @@ export default function ToolsPage() {
                 ))}
               </div>
             </section>
+          ) : null}
 
+          {filteredDangerous.length > 0 ? (
             <section className="space-y-3">
               <div className="space-y-1 px-1">
                 <p className="text-[13px] font-semibold text-[var(--color-text)]">
@@ -261,8 +266,20 @@ export default function ToolsPage() {
                 ))}
               </div>
             </section>
-          </>
-        )}
+          ) : null}
+
+          <section className="space-y-3">
+            <div className="space-y-1 px-1">
+              <p className="text-[13px] font-semibold text-[var(--color-text)]">
+                {t('marketplace.title')}
+              </p>
+              <p className="text-[12px] text-[var(--color-text-muted)]">
+                {t(beginnerMode ? 'marketplace.subtitleSimple' : 'marketplace.subtitle')}
+              </p>
+            </div>
+            <MarketplaceWorkspace embedded />
+          </section>
+        </>
       </div>
     </div>
   )

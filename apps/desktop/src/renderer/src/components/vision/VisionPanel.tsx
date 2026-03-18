@@ -1,19 +1,15 @@
 import { useState } from 'react'
-import type { OcrResult, UiElement } from '@shared/types/infrastructure'
+import type { OcrResult, UiAnalysisResult, UiElement } from '@shared/types/infrastructure'
 import { ScanEye, Search } from 'lucide-react'
 import { Button, Card, InlineNotice, Input, SectionHeader } from '../ui'
 import { t } from '../../i18n'
 import { toVisionErrorMessage } from '../../lib/user-facing-errors'
+import AccessibilityTree from './AccessibilityTree'
 import ScreenAnnotation from './ScreenAnnotation'
 import OCRResult from './OCRResult'
 
-interface VisionAnalysisState {
-  screenshot: string
-  elements: UiElement[]
-}
-
 export default function VisionPanel() {
-  const [analysis, setAnalysis] = useState<VisionAnalysisState | null>(null)
+  const [analysis, setAnalysis] = useState<UiAnalysisResult | null>(null)
   const [ocr, setOcr] = useState<OcrResult | null>(null)
   const [query, setQuery] = useState('')
   const [foundElement, setFoundElement] = useState<UiElement | null>(null)
@@ -26,15 +22,9 @@ export default function VisionPanel() {
     setLoadingAnalyze(true)
     setError(null)
     try {
-      const [ui, nextOcr] = await Promise.all([
-        window.usan?.vision.analyzeUI(),
-        window.usan?.vision.ocr(),
-      ])
-      setAnalysis({
-        screenshot: ui?.screenshot ?? '',
-        elements: ui?.elements ?? [],
-      })
-      setOcr(nextOcr ?? null)
+      const ui = await window.usan?.vision.analyzeUI()
+      setAnalysis(ui ?? null)
+      setOcr(ui?.ocr ?? null)
       setFoundElement(null)
     } catch (err) {
       setError(toVisionErrorMessage(err, 'analyze'))
@@ -67,10 +57,10 @@ export default function VisionPanel() {
       setFoundElement(result ?? null)
       if (!analysis?.screenshot) {
         const ui = await window.usan?.vision.analyzeUI()
-        setAnalysis({
-          screenshot: ui?.screenshot ?? '',
-          elements: ui?.elements ?? [],
-        })
+        setAnalysis(ui ?? null)
+        if (ui?.ocr) {
+          setOcr(ui.ocr)
+        }
       }
     } catch (err) {
       setError(toVisionErrorMessage(err, 'find'))
@@ -112,19 +102,27 @@ export default function VisionPanel() {
         </InlineNotice>
       ) : null}
 
-      {foundElement && (
+      {foundElement ? (
         <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-3 py-2 text-[length:var(--text-sm)] text-[var(--color-text)]">
           <strong>{t('vision.findElement')}:</strong> {foundElement.label}
         </div>
-      )}
+      ) : null}
 
-      {analysis?.screenshot && (
+      {analysis?.screenshot ? (
         <ScreenAnnotation
           screenshot={analysis.screenshot}
           annotations={analysis.elements}
           focusLabel={foundElement?.label}
         />
-      )}
+      ) : null}
+
+      {analysis ? (
+        <AccessibilityTree
+          tree={analysis.accessibilityTree}
+          summary={analysis.summary}
+          focusLabel={foundElement?.label}
+        />
+      ) : null}
 
       <OCRResult result={ocr} />
     </Card>

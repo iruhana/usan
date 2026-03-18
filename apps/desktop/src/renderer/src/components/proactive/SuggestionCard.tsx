@@ -1,4 +1,4 @@
-import type { Suggestion } from '@shared/types/infrastructure'
+import type { Suggestion, SuggestionAction } from '@shared/types/infrastructure'
 import { AlertTriangle, Bell, CircleAlert, Zap } from 'lucide-react'
 import { Button } from '../ui'
 import { t } from '../../i18n'
@@ -6,7 +6,7 @@ import { t } from '../../i18n'
 interface SuggestionCardProps {
   suggestion: Suggestion
   onDismiss?: (id: string) => void
-  onAction?: (id: string, action: string) => void
+  onAction?: (id: string, action: SuggestionAction) => void
 }
 
 function indicatorForType(type: Suggestion['type']): string {
@@ -27,7 +27,10 @@ export default function SuggestionCard({ suggestion, onDismiss, onAction }: Sugg
         : <Bell size={14} className="mt-0.5 shrink-0" style={{ color: iconColor }} />
 
   return (
-    <div className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3 transition-all hover:ring-[var(--color-border)]">
+    <div
+      className="rounded-[var(--radius-md)] ring-1 ring-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3 transition-all hover:ring-[var(--color-border)]"
+      data-testid={`suggestion-card-${suggestion.id}`}
+    >
       <div className="mb-2 flex items-start gap-2">
         {icon}
         <div className="min-w-0 flex-1">
@@ -42,12 +45,18 @@ export default function SuggestionCard({ suggestion, onDismiss, onAction }: Sugg
             key={`${suggestion.id}:${action.action}`}
             size="sm"
             variant="secondary"
-            onClick={() => onAction?.(suggestion.id, action.action)}
+            onClick={() => onAction?.(suggestion.id, action)}
+            data-testid={`suggestion-action-${suggestion.id}-${action.action}`}
           >
             {action.label}
           </Button>
         ))}
-        <Button size="sm" variant="ghost" onClick={() => onDismiss?.(suggestion.id)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => onDismiss?.(suggestion.id)}
+          data-testid={`suggestion-dismiss-${suggestion.id}`}
+        >
           {t('proactive.dismiss')}
         </Button>
       </div>

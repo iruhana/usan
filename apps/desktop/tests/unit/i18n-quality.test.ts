@@ -34,7 +34,7 @@ describe('i18n translation quality', () => {
 
   it('keeps core Japanese UI labels in Japanese for common actions', () => {
     setLocale('ja')
-    for (const key of ['nav.home', 'titlebar.title', 'tools.run', 'appLauncher.close', 'mcp.title'] as const) {
+    for (const key of ['nav.home', 'titlebar.close', 'tools.run', 'appLauncher.close', 'mcp.title'] as const) {
       expect(t(key)).toBe(ja[key])
       expect(t(key)).not.toBe(en[key])
     }

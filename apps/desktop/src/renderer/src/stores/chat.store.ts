@@ -32,6 +32,7 @@ interface ChatState {
   retryLastMessage: () => void
   stopStreaming: () => void
   handleChunk: (chunk: ChatChunk) => void
+  mergeRemoteConversation: (conversation: StoredConversation, options?: { activate?: boolean }) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => {
@@ -355,6 +356,25 @@ export const useChatStore = create<ChatState>((set, get) => {
           break
       }
     },
+
+    mergeRemoteConversation: (conversation, options) => {
+      const shouldActivate = options?.activate ?? false
+      set((state) => {
+        const existing = state.conversations.find((item) => item.id === conversation.id)
+        const merged = existing ? mergeConversations(existing, conversation) : conversation
+        const next = [merged, ...state.conversations.filter((item) => item.id !== conversation.id)]
+          .sort((left, right) => right.createdAt - left.createdAt)
+
+        return {
+          conversations: next,
+          activeConversationId:
+            shouldActivate || !state.activeConversationId
+              ? conversation.id
+              : state.activeConversationId,
+        }
+      })
+      persistToDisk()
+    },
   }
 })
 
@@ -445,4 +465,25 @@ function syncSkillRunnerFromStreamError(input: string): void {
 function formatToolResult(result: ToolResult): string {
   if (result.error) return `❌ ${getToolLabel(result.name)}: ${toToolExecutionErrorMessage(result.name, result.error)}`
   return `✅ ${getToolLabel(result.name)} ${t('tool.done')} (${result.duration}ms)`
+}
+function mergeConversations(current: StoredConversation, incoming: StoredConversation): StoredConversation {
+  const messages = new Map<string, ChatMessage>()
+
+  for (const message of current.messages) {
+    messages.set(message.id, message)
+  }
+
+  for (const message of incoming.messages) {
+    const existing = messages.get(message.id)
+    if (!existing || message.timestamp >= existing.timestamp) {
+      messages.set(message.id, message)
+    }
+  }
+
+  return {
+    id: incoming.id,
+    title: incoming.title.trim().length >= current.title.trim().length ? incoming.title : current.title,
+    createdAt: Math.min(current.createdAt, incoming.createdAt),
+    messages: Array.from(messages.values()).sort((left, right) => left.timestamp - right.timestamp),
+  }
 }

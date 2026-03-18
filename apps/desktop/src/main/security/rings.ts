@@ -106,6 +106,25 @@ const PROFILES: Record<string, ToolSecurityProfile> = {
   calendar_list_events: defineProfile('calendar_list_events', 1, 'calendar', 'List calendar events'),
   calendar_create_event: defineProfile('calendar_create_event', 2, 'calendar', 'Create calendar events'),
   calendar_find_free_time: defineProfile('calendar_find_free_time', 0, 'calendar', 'Find free time'),
+  finance_account_summary: defineProfile('finance_account_summary', 1, 'finance', 'Inspect linked finance account summary', {
+    scansUntrustedOutput: true,
+  }),
+  finance_transaction_list: defineProfile('finance_transaction_list', 1, 'finance', 'Read linked finance transaction history', {
+    scansUntrustedOutput: true,
+  }),
+  finance_transfer: defineProfile('finance_transfer', 3, 'finance', 'Send a finance transfer request'),
+  government_public_data_query: defineProfile('government_public_data_query', 1, 'government', 'Read from configured public-data APIs', {
+    scansUntrustedOutput: true,
+  }),
+  government_business_status: defineProfile('government_business_status', 1, 'government', 'Lookup public business registration status', {
+    scansUntrustedOutput: true,
+  }),
+  tax_business_status_lookup: defineProfile('tax_business_status_lookup', 1, 'tax', 'Lookup tax business status', {
+    scansUntrustedOutput: true,
+  }),
+  tax_hometax_evidence: defineProfile('tax_hometax_evidence', 1, 'tax', 'Read Hometax evidence history', {
+    scansUntrustedOutput: true,
+  }),
   naver_search: defineProfile('naver_search', 1, 'web', 'Search Naver content', {
     scansUntrustedOutput: true,
   }),

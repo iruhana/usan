@@ -4,6 +4,7 @@
  */
 import { clipboard } from 'electron'
 import type { ClipboardEntry, ClipboardTransformFormat } from '@shared/types/infrastructure'
+import { eventBus } from './event-bus'
 
 const MAX_HISTORY = 200
 const POLL_INTERVAL = 500
@@ -110,6 +111,7 @@ export class ClipboardManager {
       }
 
       this.history.unshift(entry)
+      eventBus.emit('clipboard.changed', { entry: entry as unknown }, 'clipboard-manager')
 
       // Trim non-pinned entries beyond limit
       const pinned = this.history.filter((e) => e.pinned)

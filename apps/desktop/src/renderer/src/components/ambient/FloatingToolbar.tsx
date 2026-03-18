@@ -8,9 +8,8 @@ import {
 } from 'lucide-react'
 import {
   useEffect,
-  useEffectEvent,
+  useCallback,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -74,17 +73,22 @@ export default function FloatingToolbar({
 }: FloatingToolbarProps) {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
+  const selectionRef = useRef<FloatingSelectionSnapshot | null>(null)
   const [selection, setSelection] = useState<FloatingSelectionSnapshot | null>(null)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
   const [placement, setPlacement] = useState<'above' | 'below'>('above')
   const isStreaming = useChatStore((state) => state.isStreaming)
 
-  const hideToolbar = useEffectEvent(() => {
+  useEffect(() => {
+    selectionRef.current = selection
+  }, [selection])
+
+  const hideToolbar = useCallback(() => {
     setSelection(null)
     setPosition(null)
-  })
+  }, [])
 
-  const refreshSelection = useEffectEvent(() => {
+  const refreshSelection = useCallback(() => {
     if (disabled) {
       hideToolbar()
       return
@@ -103,9 +107,9 @@ export default function FloatingToolbar({
     }
 
     setSelection(nextSelection)
-  })
+  }, [disabled, hideToolbar])
 
-  const scheduleRefresh = useEffectEvent(() => {
+  const scheduleRefresh = useCallback(() => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
     }
@@ -114,7 +118,7 @@ export default function FloatingToolbar({
       rafRef.current = null
       refreshSelection()
     })
-  })
+  }, [refreshSelection])
 
   useEffect(() => {
     if (disabled) {
@@ -133,7 +137,7 @@ export default function FloatingToolbar({
     }
     const handleWindowBlur = () => hideToolbar()
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || !selection) return
+      if (event.key !== 'Escape' || !selectionRef.current) return
       event.preventDefault()
       hideToolbar()
       window.getSelection()?.removeAllRanges()
@@ -165,7 +169,7 @@ export default function FloatingToolbar({
         rafRef.current = null
       }
     }
-  }, [disabled, hideToolbar, scheduleRefresh, selection])
+  }, [disabled, hideToolbar, scheduleRefresh])
 
   useLayoutEffect(() => {
     if (!selection || !toolbarRef.current) return
@@ -176,11 +180,21 @@ export default function FloatingToolbar({
       height: rect.height || 180,
     })
 
-    setPosition({ left: nextPosition.left, top: nextPosition.top })
-    setPlacement(nextPosition.placement)
+    setPosition((current) => {
+      if (
+        current &&
+        current.left === nextPosition.left &&
+        current.top === nextPosition.top
+      ) {
+        return current
+      }
+
+      return { left: nextPosition.left, top: nextPosition.top }
+    })
+    setPlacement((current) => (current === nextPosition.placement ? current : nextPosition.placement))
   }, [selection])
 
-  const runPromptAction = useEffectEvent(async (action: PromptAction) => {
+  const runPromptAction = useCallback(async (action: PromptAction) => {
     if (!selection?.text.trim() || isStreaming) return
 
     const { newConversation, sendMessage } = useChatStore.getState()
@@ -190,65 +204,60 @@ export default function FloatingToolbar({
     onNavigate('home')
     newConversation()
     await sendMessage(prompt)
-  })
+  }, [hideToolbar, isStreaming, onNavigate, selection])
 
-  const handleCompose = useEffectEvent(() => {
+  const handleCompose = useCallback(() => {
     if (!selection?.text.trim()) return
 
     queueFloatingToolbarComposerDraft({ text: selection.text })
     hideToolbar()
     onNavigate('home')
-  })
+  }, [hideToolbar, onNavigate, selection])
 
-  const actions = useMemo<ToolbarAction[]>(() => {
-    const contextualAction: ToolbarAction =
-      selection?.source === 'editable'
-        ? {
-            id: 'rewrite',
-            icon: WandSparkles,
-            label: t('floatingToolbar.action.rewrite'),
-            description: t('floatingToolbar.action.rewriteDesc'),
-            disabled: isStreaming,
-            onSelect: () => runPromptAction('rewrite'),
-          }
-        : {
-            id: 'explain',
-            icon: CircleHelp,
-            label: t('floatingToolbar.action.explain'),
-            description: t('floatingToolbar.action.explainDesc'),
-            disabled: isStreaming,
-            onSelect: () => runPromptAction('explain'),
-          }
+  const actions: ToolbarAction[] = [
+    {
+      id: 'ask',
+      icon: Sparkles,
+      label: t('floatingToolbar.action.ask'),
+      description: t('floatingToolbar.action.askDesc'),
+      disabled: isStreaming,
+      onSelect: () => runPromptAction('ask'),
+    },
+    {
+      id: 'summarize',
+      icon: AlignLeft,
+      label: t('floatingToolbar.action.summarize'),
+      description: t('floatingToolbar.action.summarizeDesc'),
+      disabled: isStreaming,
+      onSelect: () => runPromptAction('summarize'),
+    },
+    selection?.source === 'editable'
+      ? {
+          id: 'rewrite',
+          icon: WandSparkles,
+          label: t('floatingToolbar.action.rewrite'),
+          description: t('floatingToolbar.action.rewriteDesc'),
+          disabled: isStreaming,
+          onSelect: () => runPromptAction('rewrite'),
+        }
+      : {
+          id: 'explain',
+          icon: CircleHelp,
+          label: t('floatingToolbar.action.explain'),
+          description: t('floatingToolbar.action.explainDesc'),
+          disabled: isStreaming,
+          onSelect: () => runPromptAction('explain'),
+        },
+    {
+      id: 'compose',
+      icon: Quote,
+      label: t('floatingToolbar.action.compose'),
+      description: t('floatingToolbar.action.composeDesc'),
+      onSelect: handleCompose,
+    },
+  ]
 
-    return [
-      {
-        id: 'ask',
-        icon: Sparkles,
-        label: t('floatingToolbar.action.ask'),
-        description: t('floatingToolbar.action.askDesc'),
-        disabled: isStreaming,
-        onSelect: () => runPromptAction('ask'),
-      },
-      {
-        id: 'summarize',
-        icon: AlignLeft,
-        label: t('floatingToolbar.action.summarize'),
-        description: t('floatingToolbar.action.summarizeDesc'),
-        disabled: isStreaming,
-        onSelect: () => runPromptAction('summarize'),
-      },
-      contextualAction,
-      {
-        id: 'compose',
-        icon: Quote,
-        label: t('floatingToolbar.action.compose'),
-        description: t('floatingToolbar.action.composeDesc'),
-        onSelect: handleCompose,
-      },
-    ]
-  }, [handleCompose, isStreaming, runPromptAction, selection?.source])
-
-  if (disabled || !selection || !position) return null
+  if (disabled || !selection) return null
 
   return (
     <div
@@ -258,7 +267,11 @@ export default function FloatingToolbar({
       data-placement={placement}
       data-testid="floating-toolbar"
       role="toolbar"
-      style={{ left: position.left, top: position.top }}
+      style={
+        position
+          ? { left: position.left, top: position.top }
+          : { left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }
+      }
     >
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(124,58,237,0.14))] text-[var(--color-primary)]">

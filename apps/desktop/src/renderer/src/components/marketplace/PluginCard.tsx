@@ -45,6 +45,9 @@ export default function PluginCard({ entry, installed, loading, onInstall, onUpd
             <span className="rounded-full bg-[var(--color-surface-soft)] px-3 py-1">{entry.author}</span>
             <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-soft)] px-3 py-1"><Star size={12} /> {entry.rating.toFixed(1)}</span>
             <span className="rounded-full bg-[var(--color-surface-soft)] px-3 py-1">{entry.downloads.toLocaleString()} {t('marketplace.downloads')}</span>
+            {entry.mcpServerCount > 0 ? (
+              <span className="rounded-full bg-[var(--color-primary-light)] px-3 py-1 text-[var(--color-primary)]">MCP {entry.mcpServerCount}</span>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-1">

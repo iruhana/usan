@@ -39,7 +39,7 @@ export default function CalendarView() {
   const [eventEnd, setEventEnd] = useState(toDateTimeInput(new Date(now.getTime() + 60 * 60 * 1000)))
   const [freeDate, setFreeDate] = useState(toDateInput(now))
   const [durationMinutes, setDurationMinutes] = useState(30)
-  const [freeSlots, setFreeSlots] = useState<Array<{ start: string; end: string }>>([])
+  const [freeSlots, setFreeSlots] = useState<Array<{ start: number; end: number }>>([])
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState<NoticeState | null>(null)
 

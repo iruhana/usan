@@ -9,9 +9,19 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type {
+  CalendarAccountConfigInput,
+  CalendarAccountStatus,
   CredentialVaultSummary,
+  EmailAccountConfigInput,
+  EmailAccountStatus,
   ExternalOAuthStatus,
+  FinanceAccountConfigInput,
+  FinanceAccountStatus,
   ModelInfo,
+  PublicDataAccountConfigInput,
+  PublicDataAccountStatus,
+  TaxAccountConfigInput,
+  TaxAccountStatus,
   UpdaterStatus,
 } from '@shared/types/ipc'
 import { useSettingsStore } from '../stores/settings.store'
@@ -73,10 +83,40 @@ export default function SettingsPage({
   const [credentialBusy, setCredentialBusy] = useState<'idle' | 'importing' | 'clearing'>('idle')
   const [naverStatus, setNaverStatus] = useState<ExternalOAuthStatus | null>(null)
   const [kakaoStatus, setKakaoStatus] = useState<ExternalOAuthStatus | null>(null)
+  const [calendarStatus, setCalendarStatus] = useState<CalendarAccountStatus | null>(null)
+  const [emailStatus, setEmailStatus] = useState<EmailAccountStatus | null>(null)
+  const [financeStatus, setFinanceStatus] = useState<FinanceAccountStatus | null>(null)
+  const [publicDataStatus, setPublicDataStatus] = useState<PublicDataAccountStatus | null>(null)
+  const [taxStatus, setTaxStatus] = useState<TaxAccountStatus | null>(null)
   const [connectorBusy, setConnectorBusy] = useState<
     'idle' | 'naver-connect' | 'naver-disconnect' | 'kakao-connect' | 'kakao-disconnect'
   >('idle')
+  const [calendarBusy, setCalendarBusy] = useState<'idle' | 'saving' | 'clearing'>('idle')
+  const [emailBusy, setEmailBusy] = useState<'idle' | 'saving' | 'clearing'>('idle')
+  const [financeBusy, setFinanceBusy] = useState<'idle' | 'saving' | 'clearing'>('idle')
+  const [publicDataBusy, setPublicDataBusy] = useState<'idle' | 'saving' | 'clearing'>('idle')
+  const [taxBusy, setTaxBusy] = useState<'idle' | 'saving' | 'clearing'>('idle')
   const [connectorNotice, setConnectorNotice] = useState<{
+    tone: 'idle' | 'success' | 'error'
+    text: string
+  }>({ tone: 'idle', text: '' })
+  const [emailNotice, setEmailNotice] = useState<{
+    tone: 'idle' | 'success' | 'error'
+    text: string
+  }>({ tone: 'idle', text: '' })
+  const [calendarNotice, setCalendarNotice] = useState<{
+    tone: 'idle' | 'success' | 'error'
+    text: string
+  }>({ tone: 'idle', text: '' })
+  const [financeNotice, setFinanceNotice] = useState<{
+    tone: 'idle' | 'success' | 'error'
+    text: string
+  }>({ tone: 'idle', text: '' })
+  const [publicDataNotice, setPublicDataNotice] = useState<{
+    tone: 'idle' | 'success' | 'error'
+    text: string
+  }>({ tone: 'idle', text: '' })
+  const [taxNotice, setTaxNotice] = useState<{
     tone: 'idle' | 'success' | 'error'
     text: string
   }>({ tone: 'idle', text: '' })
@@ -142,6 +182,51 @@ export default function SettingsPage({
     } catch {
       setNaverStatus(null)
       setKakaoStatus(null)
+    }
+  }, [])
+
+  const refreshEmailStatus = useCallback(async () => {
+    try {
+      const next = await window.usan?.email.status()
+      setEmailStatus(next ?? null)
+    } catch {
+      setEmailStatus(null)
+    }
+  }, [])
+
+  const refreshCalendarStatus = useCallback(async () => {
+    try {
+      const next = await window.usan?.calendar.status()
+      setCalendarStatus(next ?? null)
+    } catch {
+      setCalendarStatus(null)
+    }
+  }, [])
+
+  const refreshFinanceStatus = useCallback(async () => {
+    try {
+      const next = await window.usan?.finance.status()
+      setFinanceStatus(next ?? null)
+    } catch {
+      setFinanceStatus(null)
+    }
+  }, [])
+
+  const refreshPublicDataStatus = useCallback(async () => {
+    try {
+      const next = await window.usan?.publicData.status()
+      setPublicDataStatus(next ?? null)
+    } catch {
+      setPublicDataStatus(null)
+    }
+  }, [])
+
+  const refreshTaxStatus = useCallback(async () => {
+    try {
+      const next = await window.usan?.tax.status()
+      setTaxStatus(next ?? null)
+    } catch {
+      setTaxStatus(null)
     }
   }, [])
 
@@ -277,12 +362,237 @@ export default function SettingsPage({
     [refreshConnectorStatuses],
   )
 
+  const handleSaveEmailConfig = useCallback(async (config: EmailAccountConfigInput) => {
+    setEmailBusy('saving')
+    setEmailNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.email.saveConfig(config)
+      if (next) {
+        setEmailStatus(next)
+      }
+      setEmailNotice({
+        tone: 'success',
+        text: t('settings.email.noticeSaved'),
+      })
+    } catch {
+      setEmailNotice({
+        tone: 'error',
+        text: t('settings.email.noticeSaveFailed'),
+      })
+    } finally {
+      setEmailBusy('idle')
+    }
+  }, [])
+
+  const handleClearEmailConfig = useCallback(async () => {
+    setEmailBusy('clearing')
+    setEmailNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.email.clearConfig()
+      if (next) {
+        setEmailStatus(next)
+      }
+      setEmailNotice({
+        tone: 'success',
+        text: t('settings.email.noticeCleared'),
+      })
+    } catch {
+      setEmailNotice({
+        tone: 'error',
+        text: t('settings.email.noticeClearFailed'),
+      })
+    } finally {
+      setEmailBusy('idle')
+    }
+  }, [])
+
+  const handleSaveCalendarConfig = useCallback(async (config: CalendarAccountConfigInput) => {
+    setCalendarBusy('saving')
+    setCalendarNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.calendar.saveConfig(config)
+      if (next) {
+        setCalendarStatus(next)
+      }
+      setCalendarNotice({
+        tone: 'success',
+        text: t('settings.calendar.noticeSaved'),
+      })
+    } catch {
+      setCalendarNotice({
+        tone: 'error',
+        text: t('settings.calendar.noticeSaveFailed'),
+      })
+    } finally {
+      setCalendarBusy('idle')
+    }
+  }, [])
+
+  const handleClearCalendarConfig = useCallback(async () => {
+    setCalendarBusy('clearing')
+    setCalendarNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.calendar.clearConfig()
+      if (next) {
+        setCalendarStatus(next)
+      }
+      setCalendarNotice({
+        tone: 'success',
+        text: t('settings.calendar.noticeCleared'),
+      })
+    } catch {
+      setCalendarNotice({
+        tone: 'error',
+        text: t('settings.calendar.noticeClearFailed'),
+      })
+    } finally {
+      setCalendarBusy('idle')
+    }
+  }, [])
+
+  const handleSaveFinanceConfig = useCallback(async (config: FinanceAccountConfigInput) => {
+    setFinanceBusy('saving')
+    setFinanceNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.finance.saveConfig(config)
+      if (next) {
+        setFinanceStatus(next)
+      }
+      setFinanceNotice({
+        tone: 'success',
+        text: t('settings.finance.noticeSaved'),
+      })
+    } catch {
+      setFinanceNotice({
+        tone: 'error',
+        text: t('settings.finance.noticeSaveFailed'),
+      })
+    } finally {
+      setFinanceBusy('idle')
+    }
+  }, [])
+
+  const handleClearFinanceConfig = useCallback(async () => {
+    setFinanceBusy('clearing')
+    setFinanceNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.finance.clearConfig()
+      if (next) {
+        setFinanceStatus(next)
+      }
+      setFinanceNotice({
+        tone: 'success',
+        text: t('settings.finance.noticeCleared'),
+      })
+    } catch {
+      setFinanceNotice({
+        tone: 'error',
+        text: t('settings.finance.noticeClearFailed'),
+      })
+    } finally {
+      setFinanceBusy('idle')
+    }
+  }, [])
+
+  const handleSavePublicDataConfig = useCallback(async (config: PublicDataAccountConfigInput) => {
+    setPublicDataBusy('saving')
+    setPublicDataNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.publicData.saveConfig(config)
+      if (next) {
+        setPublicDataStatus(next)
+      }
+      setPublicDataNotice({
+        tone: 'success',
+        text: t('settings.publicData.noticeSaved'),
+      })
+    } catch {
+      setPublicDataNotice({
+        tone: 'error',
+        text: t('settings.publicData.noticeSaveFailed'),
+      })
+    } finally {
+      setPublicDataBusy('idle')
+    }
+  }, [])
+
+  const handleClearPublicDataConfig = useCallback(async () => {
+    setPublicDataBusy('clearing')
+    setPublicDataNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.publicData.clearConfig()
+      if (next) {
+        setPublicDataStatus(next)
+      }
+      setPublicDataNotice({
+        tone: 'success',
+        text: t('settings.publicData.noticeCleared'),
+      })
+    } catch {
+      setPublicDataNotice({
+        tone: 'error',
+        text: t('settings.publicData.noticeClearFailed'),
+      })
+    } finally {
+      setPublicDataBusy('idle')
+    }
+  }, [])
+
+  const handleSaveTaxConfig = useCallback(async (config: TaxAccountConfigInput) => {
+    setTaxBusy('saving')
+    setTaxNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.tax.saveConfig(config)
+      if (next) {
+        setTaxStatus(next)
+      }
+      setTaxNotice({
+        tone: 'success',
+        text: t('settings.tax.noticeSaved'),
+      })
+    } catch {
+      setTaxNotice({
+        tone: 'error',
+        text: t('settings.tax.noticeSaveFailed'),
+      })
+    } finally {
+      setTaxBusy('idle')
+    }
+  }, [])
+
+  const handleClearTaxConfig = useCallback(async () => {
+    setTaxBusy('clearing')
+    setTaxNotice({ tone: 'idle', text: '' })
+    try {
+      const next = await window.usan?.tax.clearConfig()
+      if (next) {
+        setTaxStatus(next)
+      }
+      setTaxNotice({
+        tone: 'success',
+        text: t('settings.tax.noticeCleared'),
+      })
+    } catch {
+      setTaxNotice({
+        tone: 'error',
+        text: t('settings.tax.noticeClearFailed'),
+      })
+    } finally {
+      setTaxBusy('idle')
+    }
+  }, [])
+
   useEffect(() => {
     void loadModels()
     void refreshUpdaterStatus()
     void refreshCredentialSummary()
     void refreshConnectorStatuses()
-  }, [loadModels, refreshUpdaterStatus, refreshCredentialSummary, refreshConnectorStatuses])
+    void refreshCalendarStatus()
+    void refreshEmailStatus()
+    void refreshFinanceStatus()
+    void refreshPublicDataStatus()
+    void refreshTaxStatus()
+  }, [loadModels, refreshUpdaterStatus, refreshCredentialSummary, refreshConnectorStatuses, refreshCalendarStatus, refreshEmailStatus, refreshFinanceStatus, refreshPublicDataStatus, refreshTaxStatus])
 
   useEffect(() => {
     setActiveSection(normalizeSettingsTab(requestedTab))
@@ -387,6 +697,21 @@ export default function SettingsPage({
             kakaoStatus={kakaoStatus}
             connectorBusy={connectorBusy}
             connectorNotice={connectorNotice}
+            calendarStatus={calendarStatus}
+            calendarBusy={calendarBusy}
+            calendarNotice={calendarNotice}
+            emailStatus={emailStatus}
+            emailBusy={emailBusy}
+            emailNotice={emailNotice}
+            financeStatus={financeStatus}
+            financeBusy={financeBusy}
+            financeNotice={financeNotice}
+            publicDataStatus={publicDataStatus}
+            publicDataBusy={publicDataBusy}
+            publicDataNotice={publicDataNotice}
+            taxStatus={taxStatus}
+            taxBusy={taxBusy}
+            taxNotice={taxNotice}
             onRefreshModels={() => {
               void loadModels()
             }}
@@ -401,6 +726,36 @@ export default function SettingsPage({
             }}
             onDisconnectProvider={(provider) => {
               void handleConnectorAction(provider, 'disconnect')
+            }}
+            onSaveEmailConfig={(config) => {
+              void handleSaveEmailConfig(config)
+            }}
+            onClearEmailConfig={() => {
+              void handleClearEmailConfig()
+            }}
+            onSaveCalendarConfig={(config) => {
+              void handleSaveCalendarConfig(config)
+            }}
+            onClearCalendarConfig={() => {
+              void handleClearCalendarConfig()
+            }}
+            onSaveFinanceConfig={(config) => {
+              void handleSaveFinanceConfig(config)
+            }}
+            onClearFinanceConfig={() => {
+              void handleClearFinanceConfig()
+            }}
+            onSavePublicDataConfig={(config) => {
+              void handleSavePublicDataConfig(config)
+            }}
+            onClearPublicDataConfig={() => {
+              void handleClearPublicDataConfig()
+            }}
+            onSaveTaxConfig={(config) => {
+              void handleSaveTaxConfig(config)
+            }}
+            onClearTaxConfig={() => {
+              void handleClearTaxConfig()
             }}
           />
         )

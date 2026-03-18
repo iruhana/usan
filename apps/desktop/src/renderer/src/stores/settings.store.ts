@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   schemaVersion: 7,
   fontScale: 1.0,
   highContrast: false,
+  aiLabelEnabled: true,
   voiceEnabled: false,
   voiceOverlayEnabled: false,
   voiceSpeed: 1.0,

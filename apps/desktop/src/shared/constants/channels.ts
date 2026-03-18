@@ -81,6 +81,17 @@ export const IPC = {
   SYNC_PULL: 'sync:pull',
   SYNC_STATUS: 'sync:status',
 
+  // Collaboration
+  COLLABORATION_STATUS: 'collaboration:status',
+  COLLABORATION_START: 'collaboration:start',
+  COLLABORATION_JOIN: 'collaboration:join',
+  COLLABORATION_LEAVE: 'collaboration:leave',
+  COLLABORATION_SYNC_CONVERSATION: 'collaboration:sync-conversation',
+  COLLABORATION_SYNC_DRAFT: 'collaboration:sync-draft',
+  COLLABORATION_STATUS_CHANGED: 'collaboration:status-changed',
+  COLLABORATION_REMOTE_CONVERSATION: 'collaboration:remote-conversation',
+  COLLABORATION_REMOTE_DRAFT: 'collaboration:remote-draft',
+
   // System optimization
   SYSTEM_CLEAN_TEMP: 'system:clean-temp',
   SYSTEM_STARTUP_LIST: 'system:startup-list',
@@ -192,12 +203,36 @@ export const IPC = {
   EMAIL_READ: 'email:read',
   EMAIL_SEND: 'email:send',
   EMAIL_CONFIGURED: 'email:configured',
+  EMAIL_STATUS: 'email:status',
+  EMAIL_SAVE_CONFIG: 'email:save-config',
+  EMAIL_CLEAR_CONFIG: 'email:clear-config',
 
   // Calendar (F12)
   CALENDAR_LIST_EVENTS: 'calendar:list-events',
   CALENDAR_CREATE_EVENT: 'calendar:create-event',
   CALENDAR_DELETE_EVENT: 'calendar:delete-event',
   CALENDAR_FIND_FREE_TIME: 'calendar:find-free-time',
+  CALENDAR_STATUS: 'calendar:status',
+  CALENDAR_SAVE_CONFIG: 'calendar:save-config',
+  CALENDAR_CLEAR_CONFIG: 'calendar:clear-config',
+
+  // Finance (F12.5)
+  FINANCE_STATUS: 'finance:status',
+  FINANCE_SAVE_CONFIG: 'finance:save-config',
+  FINANCE_CLEAR_CONFIG: 'finance:clear-config',
+  FINANCE_ACCOUNT_SUMMARY: 'finance:account-summary',
+  FINANCE_TRANSACTIONS: 'finance:transactions',
+  FINANCE_TRANSFER: 'finance:transfer',
+  PUBLIC_DATA_STATUS: 'public-data:status',
+  PUBLIC_DATA_SAVE_CONFIG: 'public-data:save-config',
+  PUBLIC_DATA_CLEAR_CONFIG: 'public-data:clear-config',
+  PUBLIC_DATA_QUERY: 'public-data:query',
+  PUBLIC_DATA_BUSINESS_STATUS: 'public-data:business-status',
+  TAX_STATUS: 'tax:status',
+  TAX_SAVE_CONFIG: 'tax:save-config',
+  TAX_CLEAR_CONFIG: 'tax:clear-config',
+  TAX_BUSINESS_STATUS: 'tax:business-status',
+  TAX_HOMETAX_EVIDENCE: 'tax:hometax-evidence',
 
   // Macro (F13)
   MACRO_LIST: 'macro:list',
