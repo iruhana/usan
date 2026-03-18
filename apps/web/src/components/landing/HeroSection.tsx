@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 import { motion } from 'motion/react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { Umbrella, ArrowDown } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
+import Image from 'next/image';
 
 const spring = { type: 'spring' as const, stiffness: 100, damping: 18, mass: 1 };
 const stagger = { staggerChildren: 0.12, delayChildren: 0.3 };
@@ -42,9 +43,7 @@ export function HeroSection() {
             transition={{ ...spring, delay: 0.1 }}
             className="flex items-center gap-2.5"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-[0_0_24px_rgba(37,99,235,0.35)]">
-              <Umbrella className="h-[18px] w-[18px] text-white" />
-            </div>
+            <Image src="/logo-sm.png" alt="Usan" width={36} height={36} className="rounded-xl shadow-[0_0_24px_rgba(37,99,235,0.35)]" />
             <span className="text-[15px] font-semibold tracking-tight text-white/90">{t('common.appName')}</span>
           </motion.div>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
