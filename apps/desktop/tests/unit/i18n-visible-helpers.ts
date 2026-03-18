@@ -33,6 +33,7 @@ export const VISIBLE_UI_FILES = [
   'src/renderer/src/components/files/ListView.tsx',
   'src/renderer/src/components/files/file-metadata.ts',
   'src/renderer/src/components/ambient/MiniLauncher.tsx',
+  'src/renderer/src/components/ambient/FloatingToolbar.tsx',
   'src/renderer/src/components/chat/ConversationList.tsx',
   'src/renderer/src/pages/HomePage.tsx',
   'src/renderer/src/pages/TasksPage.tsx',

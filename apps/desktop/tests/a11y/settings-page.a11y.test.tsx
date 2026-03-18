@@ -74,6 +74,28 @@ function createUsanMock() {
       get: vi.fn().mockResolvedValue(null),
       set: vi.fn().mockResolvedValue(undefined),
     },
+    naverOAuth: {
+      status: vi.fn().mockResolvedValue({
+        provider: 'naver',
+        configured: true,
+        authenticated: false,
+        expiresAt: null,
+        scopes: [],
+      }),
+      start: vi.fn().mockResolvedValue({ success: true }),
+      logout: vi.fn().mockResolvedValue({ success: true }),
+    },
+    kakaoOAuth: {
+      status: vi.fn().mockResolvedValue({
+        provider: 'kakao',
+        configured: false,
+        authenticated: false,
+        expiresAt: null,
+        scopes: [],
+      }),
+      start: vi.fn().mockResolvedValue({ success: true }),
+      logout: vi.fn().mockResolvedValue({ success: true }),
+    },
   }
 }
 

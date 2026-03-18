@@ -1,7 +1,7 @@
 {
   "name": "usan",
   "version": "0.1.0",
-  "description": "Usan - AI Personal Secretary Desktop App",
+  "description": "Usan - Agentic Workspace for Desktop",
   "main": "./bootstrap.cjs",
   "scripts": {
     "dev": "node scripts/dev-electron-vite.mjs",

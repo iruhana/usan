@@ -1,53 +1,53 @@
 {
   "common": {
     "appName": "Usan",
-    "tagline": "AI assistant that makes digital life easy"
+    "tagline": "Agentic workspace that runs your work end to end"
   },
   "hero": {
-    "badge": "AI Personal Assistant",
-    "title": "Digital life is hard?\nLeave it to Usan.",
-    "subtitle": "If computers feel overwhelming, just speak. Usan handles it for you. File search, font sizing, schedule management — your reliable AI assistant.",
+    "badge": "Agentic Workspace",
+    "title": "One input.\nFull execution.",
+    "subtitle": "Research, documents, browser automation, file management — start from one input and the agent runs it end to end.",
     "cta": "Get notified at launch",
     "ctaSub": "Free to start",
     "stats": {
-      "target": "60+",
-      "targetLabel": "Target age group",
-      "voice": "Voice first",
-      "voiceLabel": "No menus needed",
-      "languages": "Korean",
-      "languagesLabel": "Natural language"
+      "target": "44",
+      "targetLabel": "Built-in skills",
+      "voice": "Voice + Text",
+      "voiceLabel": "Multimodal input",
+      "languages": "KO/EN/JA",
+      "languagesLabel": "Multi-language"
     }
   },
   "trust": {
-    "label": "People waiting for Usan",
-    "items": ["Seniors 60+", "Those unfamiliar with tech", "Children worried about parents"]
+    "label": "Who's waiting for Usan",
+    "items": ["Office workers tired of repetitive tasks", "Power users juggling multiple apps", "Developers seeking agent automation"]
   },
   "features": {
-    "title": "How Usan helps you",
-    "subtitle": "Complex technology is hidden inside Usan. You just need to speak.",
+    "title": "What Usan executes",
+    "subtitle": "Not a chatbot — an execution engine. Plan, execute, approve, and deliver from a single composer.",
     "smartAssistant": {
-      "title": "Smart AI assistant",
-      "description": "File organization, schedule checking, document writing — just ask, and Usan handles it. The more you use it, the better it helps.",
+      "title": "Agent Runtime",
+      "description": "From planning to step-by-step execution, approval requests, and artifact generation — one agent handles it all. Every step is shown transparently in the timeline.",
       "badge": "Core Feature"
     },
     "easyToUse": {
-      "title": "Just say the word",
-      "description": "\"Find my file\", \"Make the text bigger\" — no menus to navigate. Just ask, and Usan handles it."
+      "title": "Universal Composer",
+      "description": "Text, files, screenshots, voice — input anything and the right tool gets selected. Switch between search, research, browser, and document modes with chips."
     },
     "familyProtect": {
-      "title": "Your family, at ease",
-      "description": "Install Usan on your parents' computer. Check their usage status and help them remotely from anywhere."
+      "title": "Connector Hub",
+      "description": "File system, browser, web services, email, calendar, messenger — all connected. MCP-based extensions let you automate any app."
     },
     "accessibility": {
-      "title": "Large text, simple screens",
-      "description": "Font scaling, high contrast mode, text-to-speech — designed for comfortable use even with poor eyesight."
+      "title": "Artifact Layer",
+      "description": "Reports, summaries, tables, code, checklists — review and edit agent outputs instantly. Version control and export included."
     }
   },
   "howItWorks": {
-    "title": "It's this simple",
-    "step1": { "title": "Install", "description": "Download and run — Usan guides you through setup" },
-    "step2": { "title": "Speak", "description": "Say \"Usan, help me\" and it listens" },
-    "step3": { "title": "Relax", "description": "Usan takes care of the rest" }
+    "title": "How it works",
+    "step1": { "title": "Install & Connect", "description": "Download and run — local AI and cloud models connect automatically" },
+    "step2": { "title": "Input & Execute", "description": "Describe your goal in the Composer — the agent plans and runs it" },
+    "step3": { "title": "Approve & Deliver", "description": "High-risk actions require approval, completed outputs are stored as artifacts" }
   },
   "waitlist": {
     "title": "Be the first to know",
@@ -61,6 +61,6 @@
   "footer": {
     "copyright": "usan.ai",
     "contact": "Contact us",
-    "description": "AI personal assistant for seniors and the digitally vulnerable"
+    "description": "Agentic workspace that runs your work end to end"
   }
 }

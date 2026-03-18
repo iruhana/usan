@@ -53,6 +53,28 @@ function createUsanMock() {
       get: vi.fn().mockResolvedValue(null),
       set: vi.fn().mockResolvedValue(undefined),
     },
+    naverOAuth: {
+      status: vi.fn().mockResolvedValue({
+        provider: 'naver',
+        configured: true,
+        authenticated: false,
+        expiresAt: null,
+        scopes: [],
+      }),
+      start: vi.fn().mockResolvedValue({ success: true }),
+      logout: vi.fn().mockResolvedValue({ success: true }),
+    },
+    kakaoOAuth: {
+      status: vi.fn().mockResolvedValue({
+        provider: 'kakao',
+        configured: false,
+        authenticated: false,
+        expiresAt: null,
+        scopes: [],
+      }),
+      start: vi.fn().mockResolvedValue({ success: true }),
+      logout: vi.fn().mockResolvedValue({ success: true }),
+    },
   }
 }
 
@@ -113,5 +135,13 @@ describe('SettingsPage', () => {
     fireEvent.click(await screen.findByRole('tab', { name: /About & Legal/i }))
     expect(await screen.findByText('App updates')).toBeInTheDocument()
     expect(screen.getByText('About Usan')).toBeInTheDocument()
+  })
+
+  it('shows Naver and Kakao connector cards', async () => {
+    render(<SettingsPage requestedTab="connectors" />)
+
+    expect(await screen.findByText('Naver')).toBeInTheDocument()
+    expect(screen.getByText('Kakao')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Connect' }).length).toBeGreaterThan(0)
   })
 })

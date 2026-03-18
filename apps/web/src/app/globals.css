@@ -4,18 +4,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ─── Usan Landing Animations ────────────────────── */
-/* Inspired by Linear (spring entrance) + Notion (subtle) */
+/* ─── Usan Landing — Linear-grade polish ─────────── */
 
-@keyframes fadeSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 /* Near-invisible scrollbar (Notion pattern) */
@@ -26,6 +18,12 @@
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.06);
   border-radius: 3px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(37, 99, 235, 0.3);
+  color: white;
 }
 
 /* Antialiased text globally */

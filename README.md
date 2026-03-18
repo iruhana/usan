@@ -1,6 +1,6 @@
-# 우산 (Usan) — AI Personal Secretary
+# 우산 (Usan) — Agentic Workspace
 
-> 컴퓨터 초보를 위한 AI 개인 비서
+> 하나의 입력창에서 계획, 실행, 승인, 결과물 생성을 이어주는 에이전트 워크스페이스
 
 ## 구조
 

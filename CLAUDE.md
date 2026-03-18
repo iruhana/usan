@@ -14,7 +14,7 @@
 
 ## Project Essentials
 
-- Product: AI personal secretary focused on elderly and low-computer-literacy users.
+- Product: Agentic workspace — a unified execution container for work automation (not a chatbot, not targeting elderly/low-literacy users).
 - Naming:
 - Project name: `우산` / `Usan`
 - IPC bridge: `window.usan`

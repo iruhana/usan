@@ -45,7 +45,7 @@ export interface ChatChunk {
 export interface ModelInfo {
   id: string
   name: string
-  provider: 'openrouter'
+  provider: 'openrouter' | 'ollama' | 'node-llama-cpp'
   isLocal: boolean
   size?: number
 }

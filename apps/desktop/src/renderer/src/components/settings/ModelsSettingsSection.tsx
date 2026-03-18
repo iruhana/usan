@@ -8,6 +8,7 @@ interface ModelsSettingsSectionProps {
   models: ModelInfo[]
   loadingModels: boolean
   providerCount: number
+  localModelCount: number
   onRefreshModels: () => void
 }
 
@@ -15,6 +16,7 @@ export default function ModelsSettingsSection({
   models,
   loadingModels,
   providerCount,
+  localModelCount,
   onRefreshModels,
 }: ModelsSettingsSectionProps) {
   return (
@@ -50,8 +52,9 @@ export default function ModelsSettingsSection({
                     {model.id}
                   </div>
                 </div>
-                <div className="shrink-0 text-[11px] text-[var(--color-text-muted)]">
-                  {model.provider}
+                <div className="shrink-0 text-right text-[11px] text-[var(--color-text-muted)]">
+                  <div>{model.provider}</div>
+                  <div className="mt-1">{model.isLocal ? t('settings.modelSourceLocal') : t('settings.modelSourceCloud')}</div>
                 </div>
               </div>
             ))}
@@ -76,7 +79,7 @@ export default function ModelsSettingsSection({
         title={t('settings.card.modelRouting')}
         description={t('settings.card.modelRoutingDesc')}
       >
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-[16px] bg-[var(--color-panel-muted)] px-4 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
               {t('settings.card.modelRoutingConnected')}
@@ -91,6 +94,14 @@ export default function ModelsSettingsSection({
             </p>
             <p className="mt-2 text-[20px] font-semibold text-[var(--color-text)]">
               {providerCount}
+            </p>
+          </div>
+          <div className="rounded-[16px] bg-[var(--color-panel-muted)] px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+              {t('settings.card.modelRoutingLocal')}
+            </p>
+            <p className="mt-2 text-[20px] font-semibold text-[var(--color-text)]">
+              {localModelCount}
             </p>
           </div>
         </div>

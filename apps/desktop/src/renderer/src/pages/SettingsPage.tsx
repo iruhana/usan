@@ -8,7 +8,12 @@ import {
   User,
   type LucideIcon,
 } from 'lucide-react'
-import type { CredentialVaultSummary, ModelInfo, UpdaterStatus } from '@shared/types/ipc'
+import type {
+  CredentialVaultSummary,
+  ExternalOAuthStatus,
+  ModelInfo,
+  UpdaterStatus,
+} from '@shared/types/ipc'
 import { useSettingsStore } from '../stores/settings.store'
 import { useSafetyStore } from '../stores/safety.store'
 import { t } from '../i18n'
@@ -66,6 +71,15 @@ export default function SettingsPage({
   const [credentialSummary, setCredentialSummary] =
     useState<CredentialVaultSummary | null>(null)
   const [credentialBusy, setCredentialBusy] = useState<'idle' | 'importing' | 'clearing'>('idle')
+  const [naverStatus, setNaverStatus] = useState<ExternalOAuthStatus | null>(null)
+  const [kakaoStatus, setKakaoStatus] = useState<ExternalOAuthStatus | null>(null)
+  const [connectorBusy, setConnectorBusy] = useState<
+    'idle' | 'naver-connect' | 'naver-disconnect' | 'kakao-connect' | 'kakao-disconnect'
+  >('idle')
+  const [connectorNotice, setConnectorNotice] = useState<{
+    tone: 'idle' | 'success' | 'error'
+    text: string
+  }>({ tone: 'idle', text: '' })
   const [credentialNotice, setCredentialNotice] = useState<{
     tone: 'idle' | 'success' | 'error'
     text: string
@@ -114,6 +128,20 @@ export default function SettingsPage({
       }
     } catch {
       // ignore
+    }
+  }, [])
+
+  const refreshConnectorStatuses = useCallback(async () => {
+    try {
+      const [nextNaver, nextKakao] = await Promise.all([
+        window.usan?.naverOAuth?.status?.(),
+        window.usan?.kakaoOAuth?.status?.(),
+      ])
+      setNaverStatus(nextNaver ?? null)
+      setKakaoStatus(nextKakao ?? null)
+    } catch {
+      setNaverStatus(null)
+      setKakaoStatus(null)
     }
   }, [])
 
@@ -202,11 +230,59 @@ export default function SettingsPage({
     }
   }, [refreshCredentialSummary, requestConfirmation])
 
+  const handleConnectorAction = useCallback(
+    async (provider: 'naver' | 'kakao', action: 'connect' | 'disconnect') => {
+      const busyKey = `${provider}-${action}` as typeof connectorBusy
+      setConnectorBusy(busyKey)
+      setConnectorNotice({ tone: 'idle', text: '' })
+
+      try {
+        const result = action === 'connect'
+          ? await (provider === 'naver'
+              ? window.usan?.naverOAuth?.start?.()
+              : window.usan?.kakaoOAuth?.start?.())
+          : await (provider === 'naver'
+              ? window.usan?.naverOAuth?.logout?.()
+              : window.usan?.kakaoOAuth?.logout?.())
+        const errorMessage =
+          result && 'error' in result && typeof result.error === 'string'
+            ? result.error
+            : t('settings.connector.actionFailed')
+
+        if (!result?.success) {
+          setConnectorNotice({
+            tone: 'error',
+            text: errorMessage,
+          })
+          return
+        }
+
+        setConnectorNotice({
+          tone: 'success',
+          text:
+            action === 'connect'
+              ? `${provider === 'naver' ? 'Naver' : 'Kakao'} ${t('settings.connector.noticeConnected')}`
+              : `${provider === 'naver' ? 'Naver' : 'Kakao'} ${t('settings.connector.noticeDisconnected')}`,
+        })
+        await refreshConnectorStatuses()
+      } catch {
+        setConnectorNotice({
+          tone: 'error',
+          text: t('settings.connector.actionFailed'),
+        })
+      } finally {
+        setConnectorBusy('idle')
+      }
+    },
+    [refreshConnectorStatuses],
+  )
+
   useEffect(() => {
     void loadModels()
     void refreshUpdaterStatus()
     void refreshCredentialSummary()
-  }, [loadModels, refreshUpdaterStatus, refreshCredentialSummary])
+    void refreshConnectorStatuses()
+  }, [loadModels, refreshUpdaterStatus, refreshCredentialSummary, refreshConnectorStatuses])
 
   useEffect(() => {
     setActiveSection(normalizeSettingsTab(requestedTab))
@@ -237,6 +313,7 @@ export default function SettingsPage({
     providerCounts[model.provider] = (providerCounts[model.provider] ?? 0) + 1
   }
   const providerEntries = Object.entries(providerCounts).sort((a, b) => a[0].localeCompare(b[0]))
+  const localModelCount = models.filter((model) => model.isLocal).length
   const activeSectionMeta = SECTIONS.find((section) => section.id === activeSection) ?? SECTIONS[0]
 
   function focusNavTab(nextSectionId: SettingsSectionId): void {
@@ -306,6 +383,10 @@ export default function SettingsPage({
             loadingModels={loadingModels}
             providerEntries={providerEntries}
             browserCredentialAutoImportEnabled={settings.browserCredentialAutoImportEnabled}
+            naverStatus={naverStatus}
+            kakaoStatus={kakaoStatus}
+            connectorBusy={connectorBusy}
+            connectorNotice={connectorNotice}
             onRefreshModels={() => {
               void loadModels()
             }}
@@ -314,6 +395,12 @@ export default function SettingsPage({
                 browserCredentialAutoImportEnabled:
                   !settings.browserCredentialAutoImportEnabled,
               })
+            }}
+            onConnectProvider={(provider) => {
+              void handleConnectorAction(provider, 'connect')
+            }}
+            onDisconnectProvider={(provider) => {
+              void handleConnectorAction(provider, 'disconnect')
             }}
           />
         )
@@ -344,6 +431,7 @@ export default function SettingsPage({
             models={models}
             loadingModels={loadingModels}
             providerCount={providerEntries.length}
+            localModelCount={localModelCount}
             onRefreshModels={() => {
               void loadModels()
             }}

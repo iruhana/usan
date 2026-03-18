@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import '@testing-library/jest-dom/vitest'
 import React from 'react'
 import HomePage from '../../src/renderer/src/pages/HomePage'
+import { queueFloatingToolbarComposerDraft } from '../../src/renderer/src/components/ambient/floating-toolbar-events'
 import { useChatStore } from '../../src/renderer/src/stores/chat.store'
 import { useSettingsStore } from '../../src/renderer/src/stores/settings.store'
 import { setLocale, t } from '../../src/renderer/src/i18n'
@@ -128,6 +129,16 @@ describe('HomePage', () => {
 
     await waitFor(() => {
       expect((window as any).usan.voice.listenStart).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('accepts pending floating toolbar text into the composer', async () => {
+    queueFloatingToolbarComposerDraft({ text: 'Selected sentence from toolbar' })
+
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-textarea')).toHaveValue('Selected sentence from toolbar')
     })
   })
 })

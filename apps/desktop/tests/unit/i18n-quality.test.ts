@@ -63,7 +63,7 @@ describe('i18n translation quality', () => {
   it('keeps simplified developer and marketplace terms readable in Korean', () => {
     setLocale('ko')
     expect(t('settings.developerGroupDiagnostics')).toBe('\uc571 \ud655\uc778')
-    expect(t('settings.aiModels')).toBe('\uc5f0\uacb0\ub41c \uc628\ub77c\uc778 AI')
+    expect(t('settings.aiModels')).toBe('\uc0ac\uc6a9 \uac00\ub2a5\ud55c AI \ubaa8\ub378')
     expect(t('settings.permissionProfile')).toBe('Usan\uc774 \uc4f8 \uc218 \uc788\ub294 \uc870\uc791 \ubc94\uc704')
     expect(t('marketplace.title')).toBe('\ucd94\uac00 \ub3c4\uad6c')
     expect(t('marketplace.author')).toBe('\ub9cc\ub4e0 \uacf3')
@@ -73,7 +73,7 @@ describe('i18n translation quality', () => {
   it('keeps simplified developer and marketplace terms readable in Japanese', () => {
     setLocale('ja')
     expect(t('settings.developerGroupDiagnostics')).toBe('\u30a2\u30d7\u30ea\u78ba\u8a8d')
-    expect(t('settings.aiModels')).toBe('\u3064\u306a\u304c\u3063\u3066\u3044\u308b\u30aa\u30f3\u30e9\u30a4\u30f3AI')
+    expect(t('settings.aiModels')).toBe('\u5229\u7528\u3067\u304d\u308b AI \u30e2\u30c7\u30eb')
     expect(t('settings.permissionProfile')).toBe('Usan\u306b\u8a31\u3059\u64cd\u4f5c\u306e\u5e83\u3055')
     expect(t('marketplace.title')).toBe('\u8ffd\u52a0\u30c4\u30fc\u30eb')
     expect(t('marketplace.author')).toBe('\u4f5c\u3063\u305f\u4eba')

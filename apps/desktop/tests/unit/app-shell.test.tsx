@@ -59,6 +59,10 @@ vi.mock('../../src/renderer/src/components/ambient/MiniLauncher', () => ({
     open ? <div data-testid="mini-launcher">launcher</div> : null,
 }))
 
+vi.mock('../../src/renderer/src/components/ambient/FloatingToolbar', () => ({
+  default: () => null,
+}))
+
 vi.mock('../../src/renderer/src/components/NotificationToast', () => ({
   default: () => <div data-testid="notification-toast">toast</div>,
 }))

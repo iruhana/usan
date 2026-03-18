@@ -2,7 +2,7 @@
   "name": "usan-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Usan (우산) — AI Personal Secretary",
+  "description": "Usan (우산) — Agentic Workspace",
   "scripts": {
     "dev:desktop": "cd apps/desktop && npm run dev",
     "dev:web": "cd apps/web && npm run dev",

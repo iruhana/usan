@@ -1,10 +1,15 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo, useEffectEvent } from 'react'
 import { CloudSun, FileSearch, Plus, ScanSearch, Volume2 } from 'lucide-react'
 import { useChatStore } from '../stores/chat.store'
 import { useSettingsStore } from '../stores/settings.store'
 import { useAnnouncer } from '../components/accessibility'
 import { t, getSpeechLang } from '../i18n'
 import { useVoiceStore } from '../stores/voice.store'
+import {
+  FLOATING_TOOLBAR_COMPOSER_DRAFT_EVENT,
+  consumeFloatingToolbarComposerDraft,
+  type FloatingToolbarComposerDraft,
+} from '../components/ambient/floating-toolbar-events'
 import { Composer, buildComposerPrompt, type ComposerSubmitPayload } from '../components/composer'
 import { Timeline } from '../components/agent'
 import { ArtifactShelf, ArtifactView, deriveArtifactsFromMessages } from '../components/artifact'
@@ -125,6 +130,44 @@ export default function HomePage() {
   useEffect(() => {
     loadFromDisk()
   }, [loadFromDisk])
+
+  const applyFloatingToolbarDraft = useEffectEvent(
+    (draft?: FloatingToolbarComposerDraft | null) => {
+      const normalizedText = draft?.text?.trim()
+      if (!normalizedText) return
+
+      setInput((prev) => (prev.trim() ? `${prev}\n\n${normalizedText}` : normalizedText))
+      announce(t('floatingToolbar.composeReady'))
+
+      requestAnimationFrame(() => {
+        document
+          .querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+          ?.focus()
+      })
+    },
+  )
+
+  useEffect(() => {
+    applyFloatingToolbarDraft(consumeFloatingToolbarComposerDraft())
+
+    const listener = (event: Event) => {
+      const queuedDraft = consumeFloatingToolbarComposerDraft()
+      const detail = (event as CustomEvent<FloatingToolbarComposerDraft>).detail
+      applyFloatingToolbarDraft(queuedDraft ?? detail)
+    }
+
+    window.addEventListener(
+      FLOATING_TOOLBAR_COMPOSER_DRAFT_EVENT,
+      listener as EventListener,
+    )
+
+    return () => {
+      window.removeEventListener(
+        FLOATING_TOOLBAR_COMPOSER_DRAFT_EVENT,
+        listener as EventListener,
+      )
+    }
+  }, [applyFloatingToolbarDraft])
 
   useEffect(() => {
     return () => {

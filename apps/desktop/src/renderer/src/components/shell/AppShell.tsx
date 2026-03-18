@@ -31,6 +31,7 @@ const FilesPage = lazy(() => import('../../pages/FilesPage'))
 const SettingsPage = lazy(() => import('../../pages/SettingsPage'))
 const CommandPalette = lazy(() => import('../layout/CommandPalette'))
 const MiniLauncher = lazy(() => import('../ambient/MiniLauncher'))
+const FloatingToolbar = lazy(() => import('../ambient/FloatingToolbar'))
 const NotificationToast = lazy(() => import('../NotificationToast'))
 const UndoToast = lazy(() => import('../UndoToast'))
 const SkillRunner = lazy(() => import('../skill/SkillRunner'))
@@ -259,6 +260,10 @@ export default function AppShell() {
               onOpenChange={setMiniLauncherOpen}
             />
           )}
+          <FloatingToolbar
+            disabled={commandOpen || miniLauncherOpen || safetyOpen || showVoiceOverlay}
+            onNavigate={navigate}
+          />
           {(currentSkillRun || forceSkillRunner) && <SkillRunner />}
           {showVoiceOverlay && <VoiceOverlay />}
           {safetyOpen && <SafetyConfirmationModal />}

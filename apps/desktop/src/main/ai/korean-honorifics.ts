@@ -37,7 +37,7 @@ export function getHonorificInstruction(level: HonorificLevel): string {
       return `## 존댓말 규칙
 - 해요체로 답변하세요. (예: ~해요, ~이에요, ~하세요)
 - 부드럽고 친절한 톤을 유지하세요.
-- 어르신도 편하게 느낄 수 있도록 쉬운 단어를 사용하세요.
+- 전문 용어는 필요할 때만, 평소에는 명확한 일상 표현을 사용하세요.
 - 반말을 사용하지 마세요.`
   }
 }

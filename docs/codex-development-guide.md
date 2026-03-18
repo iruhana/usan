@@ -938,13 +938,13 @@ Tasks are labeled for routing between agents:
 | 2.6 | **[x] [Codex]** MCP routing (app-detector + router + provider adapters completed on 2026-03-19) | [Codex] | P1 |
 | 2.7 | **[x]** Port: proactive-agent, swarm, agent-orchestrator, causal-inference | [Claude] | P1 |
 | 2.8 | **[x]** Port: Office suite + thinking + automation + translate + summarize (28 skills) | [Claude] | P1 |
-| 2.9 | Naver/Kakao API integration | [Codex] | P1 |
+| 2.9 | **[x] [Codex]** Naver/Kakao API integration (Naver Search + Naver/Kakao OAuth + KakaoTalk send-to-me completed on 2026-03-19) | [Codex] | P1 |
 
 ### Phase 3: Intelligence (Local AI + Ambient + Polish)
 
 | # | Task | Label | Priority |
 |---|------|-------|----------|
-| 3.1 | Local AI (Ollama + node-llama-cpp) | [Codex] | P2 |
+| 3.1 | **[x] [Codex]** Local AI (implemented on 2026-03-19; Ollama auto-detect + optional `node-llama-cpp` GGUF fallback + settings model surface update) | [Codex] | P2 |
 | 3.2 | **[x] [Codex-L]** MiniLauncher (implemented on 2026-03-18; Ctrl+Space / Alt+U ambient overlay, quick actions, recent tasks, accessibility + tests) | [Codex] | P2 |
 | 3.3 | FloatingToolbar (context-aware) | [Codex] | P2 |
 | 3.4 | Screen understanding (accessibility tree) | [Codex] | P2 |
@@ -1225,7 +1225,9 @@ npx eslint apps/desktop/src/main/mcp/  # Lint specific directory
 | PRD | `usan-superapp-prd-2026-03-18.md` | Product requirements |
 | UI Design Plan | `docs/ui-design-plan-2026-03-18.md` | Visual design spec |
 | Codex Guide | `docs/codex-development-guide.md` | This file ??technical implementation spec |
+| Local AI Status | `docs/local-ai-implementation-status-2026-03-19.md` | OpenRouter-first local fallback, Ollama detection, and GGUF runtime state |
 | MCP Routing Status | `docs/mcp-routing-implementation-status-2026-03-19.md` | Implementation & validation state |
+| Naver/Kakao Integration Status | `docs/naver-kakao-integration-status-2026-03-19.md` | OAuth, Naver Search, and KakaoTalk integration state |
 | Qt Bridge Status | `docs/qt-bridge-implementation-status-2026-03-18.md` | Implementation & validation state |
 | HWPX Parser Status | `docs/hwpx-parser-implementation-status-2026-03-18.md` | Implementation & validation state |
 | UBridge-Qt Guide | `Desktop/UBridge-Qt-嶺뚯솘??곸굹維곮땻?md` | Qt automation bridge spec |

@@ -1,119 +1,129 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { motion } from 'motion/react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { Umbrella, ArrowDown, Sparkles, Zap, Shield } from 'lucide-react';
+import { Umbrella, ArrowDown } from 'lucide-react';
+
+const spring = { type: 'spring' as const, stiffness: 100, damping: 18, mass: 1 };
+const stagger = { staggerChildren: 0.12, delayChildren: 0.3 };
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: spring },
+};
 
 export function HeroSection() {
   const t = useTranslations();
 
   return (
-    <section className="relative min-h-[100vh] flex flex-col overflow-hidden bg-[#090909]">
-      {/* Ambient gradient orbs (Doubao-inspired) */}
+    <section className="relative flex min-h-[100vh] flex-col overflow-hidden bg-[#08080a]">
+      {/* Gradient mesh background */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-[-15%] right-[-8%] h-[600px] w-[600px] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.15)_0%,transparent_70%)] blur-[1px]" />
-        <div className="absolute bottom-[-10%] left-[-5%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle,rgba(124,58,237,0.12)_0%,transparent_70%)] blur-[1px]" />
-        <div className="absolute top-[40%] left-[50%] h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.08)_0%,transparent_70%)]" />
+        <div className="absolute left-[10%] top-[-20%] h-[800px] w-[800px] rounded-full bg-[radial-gradient(ellipse,rgba(37,99,235,0.12)_0%,transparent_60%)]" />
+        <div className="absolute bottom-[-15%] right-[5%] h-[600px] w-[600px] rounded-full bg-[radial-gradient(ellipse,rgba(124,58,237,0.10)_0%,transparent_60%)]" />
+        <div className="absolute left-[45%] top-[50%] h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgba(59,130,246,0.06)_0%,transparent_60%)]" />
       </div>
 
-      {/* Subtle grid pattern overlay */}
+      {/* Dot grid */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        className="pointer-events-none absolute inset-0 opacity-[0.025]"
         style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-          backgroundSize: '64px 64px',
+          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
         }}
       />
 
-      {/* Navigation */}
+      {/* Nav */}
       <nav className="relative z-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+          <motion.div
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ ...spring, delay: 0.1 }}
+            className="flex items-center gap-2.5"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-[0_0_24px_rgba(37,99,235,0.35)]">
               <Umbrella className="h-[18px] w-[18px] text-white" />
             </div>
-            <span className="text-lg font-semibold text-white/90">
-              {t('common.appName')}
-            </span>
-          </div>
-          <LanguageSwitcher />
+            <span className="text-[15px] font-semibold tracking-tight text-white/90">{t('common.appName')}</span>
+          </motion.div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+            <LanguageSwitcher />
+          </motion.div>
         </div>
       </nav>
 
       {/* Content */}
-      <div className="relative z-10 mx-auto flex max-w-4xl flex-1 flex-col justify-center px-6 pb-24 text-center">
-        {/* Badge — glassmorphism (Yuanbao LaunchBox style) */}
-        <div
-          className="mb-8 flex justify-center opacity-0 animate-[fadeSlideUp_0.8s_ease-out_0.2s_forwards]"
-        >
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.05] px-4 py-2 text-sm font-medium text-blue-300 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5" />
+      <motion.div
+        variants={{ visible: { transition: stagger } }}
+        initial="hidden"
+        animate="visible"
+        className="relative z-10 mx-auto flex max-w-3xl flex-1 flex-col justify-center px-6 pb-28 text-center"
+      >
+        {/* Badge */}
+        <motion.div variants={fadeUp} className="mb-6 flex justify-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-4 py-1.5 text-[13px] font-medium tracking-wide text-blue-300/90 backdrop-blur-md">
             {t('hero.badge')}
           </span>
-        </div>
+        </motion.div>
 
-        {/* Title — AI gradient text */}
-        <h1
-          className="bg-gradient-to-b from-white via-white/90 to-white/60 bg-clip-text text-4xl font-bold tracking-tight text-transparent opacity-0 sm:text-5xl lg:text-6xl animate-[fadeSlideUp_0.8s_ease-out_0.4s_forwards]"
-          style={{ lineHeight: 1.15, fontWeight: 700 }}
+        {/* Title */}
+        <motion.h1
+          variants={fadeUp}
+          className="whitespace-pre-line bg-gradient-to-b from-white via-white/90 to-white/50 bg-clip-text text-[clamp(2.5rem,6vw,4rem)] font-bold leading-[1.1] tracking-[-0.03em] text-transparent"
         >
           {t('hero.title')}
-        </h1>
+        </motion.h1>
 
         {/* Subtitle */}
-        <p
-          className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-white/50 opacity-0 sm:text-xl animate-[fadeSlideUp_0.8s_ease-out_0.6s_forwards]"
+        <motion.p
+          variants={fadeUp}
+          className="mx-auto mt-5 max-w-xl text-[17px] leading-relaxed text-white/40"
         >
           {t('hero.subtitle')}
-        </p>
+        </motion.p>
 
-        {/* CTA — glass button with AI glow */}
-        <div
-          className="mt-10 flex flex-col items-center gap-3 opacity-0 animate-[fadeSlideUp_0.8s_ease-out_0.8s_forwards]"
-        >
+        {/* CTA */}
+        <motion.div variants={fadeUp} className="mt-10 flex flex-col items-center gap-3">
           <a
             href="#waitlist"
-            className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-semibold text-white shadow-[0_0_40px_rgba(37,99,235,0.3)] transition-all duration-300 hover:shadow-[0_0_60px_rgba(37,99,235,0.4)] hover:-translate-y-0.5"
+            className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-white px-7 py-3 text-[15px] font-semibold text-[#08080a] shadow-[0_0_40px_rgba(255,255,255,0.08)] transition-all duration-300 hover:shadow-[0_0_60px_rgba(255,255,255,0.15)] hover:-translate-y-px"
           >
-            {/* Shimmer sweep on hover */}
-            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-blue-100/40 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
             <span className="relative">{t('hero.cta')}</span>
           </a>
-          <span className="text-sm text-white/30">
-            {t('hero.ctaSub')}
-          </span>
-        </div>
+          <span className="text-[13px] text-white/25">{t('hero.ctaSub')}</span>
+        </motion.div>
 
-        {/* Stats bar — glass cards */}
-        <div
-          className="mt-16 flex flex-wrap justify-center gap-4 opacity-0 sm:gap-6 animate-[fadeSlideUp_0.8s_ease-out_1s_forwards]"
-        >
+        {/* Stats */}
+        <motion.div variants={fadeUp} className="mt-16 flex flex-wrap justify-center gap-8">
           {[
-            { icon: Zap, value: t('hero.stats.target'), label: t('hero.stats.targetLabel') },
-            { icon: Shield, value: t('hero.stats.voice'), label: t('hero.stats.voiceLabel') },
-            { icon: Umbrella, value: t('hero.stats.languages'), label: t('hero.stats.languagesLabel') },
-          ].map(({ icon: Icon, value, label }, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-5 py-3 backdrop-blur-sm transition-colors duration-200 hover:bg-white/[0.06]"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.06]">
-                <Icon className="h-4 w-4 text-blue-400" />
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-semibold text-white/90">{value}</div>
-                <div className="text-xs text-white/40">{label}</div>
-              </div>
+            { value: t('hero.stats.target'), label: t('hero.stats.targetLabel') },
+            { value: t('hero.stats.voice'), label: t('hero.stats.voiceLabel') },
+            { value: t('hero.stats.languages'), label: t('hero.stats.languagesLabel') },
+          ].map(({ value, label }, i) => (
+            <div key={i} className="text-center">
+              <div className="text-[22px] font-bold tracking-tight text-white/90">{value}</div>
+              <div className="mt-0.5 text-[12px] tracking-wide text-white/30">{label}</div>
             </div>
           ))}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
-      {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-        <ArrowDown className="h-5 w-5 text-white/20" />
-      </div>
+      {/* Scroll hint */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.8 }}
+        className="absolute bottom-8 left-1/2 -translate-x-1/2"
+      >
+        <motion.div
+          animate={{ y: [0, 6, 0] }}
+          transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+        >
+          <ArrowDown className="h-4 w-4 text-white/15" />
+        </motion.div>
+      </motion.div>
     </section>
   );
 }

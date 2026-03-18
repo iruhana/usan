@@ -1,10 +1,12 @@
 /**
- * Model Router - OpenRouter-only multi-model routing and failover.
+ * Model Router - OpenRouter-first routing with local AI fallback.
  */
 
 import type { AppSettings, ModelInfo } from '@shared/types/ipc'
 import { CLOUD_MODELS } from '@shared/constants/models'
 import type { AIProvider } from './providers/base'
+import { NodeLlamaCppProvider } from './providers/node-llama'
+import { OllamaProvider } from './providers/ollama'
 import { OpenRouterProvider } from './providers/openrouter'
 
 export type ModelRouteKind =
@@ -37,10 +39,18 @@ interface RoutePolicy {
 }
 
 interface ModelRouterOptions {
-  providerFactory?: (apiKey: string) => AIProvider
+  cloudProviderFactory?: (apiKey: string) => AIProvider
+  localProviders?: AIProvider[]
+}
+
+interface LocalModelEntry {
+  provider: AIProvider
+  model: ModelInfo
 }
 
 const SUPPORTED_MODEL_IDS = new Set(CLOUD_MODELS.map((model) => model.id))
+const LOCAL_PROVIDER_PREFIXES = ['ollama/', 'node-llama-cpp/'] as const
+const LOCAL_MODEL_CACHE_TTL_MS = 5000
 
 const ROUTE_PRIORITY: ModelRouteKind[] = [
   'workflow',
@@ -90,48 +100,61 @@ const ROUTING_TABLE: Record<ModelRouteKind, RoutePolicy> = {
   },
 }
 
+const LOCAL_PROVIDER_ORDER: Record<ModelRouteKind, Array<'ollama' | 'node-llama-cpp'>> = {
+  'complex-reasoning': ['ollama', 'node-llama-cpp'],
+  'code-generation': ['ollama', 'node-llama-cpp'],
+  'quick-chat': ['ollama', 'node-llama-cpp'],
+  summarization: ['ollama', 'node-llama-cpp'],
+  vision: [],
+  'tool-use': ['ollama'],
+  workflow: ['ollama'],
+}
+
+const LOCAL_MODEL_PREFERENCES: Record<ModelRouteKind, RegExp[]> = {
+  'complex-reasoning': [/qwen3/i, /qwen2\.5/i, /phi-?4/i, /gemma3/i, /llama3/i],
+  'code-generation': [/qwen.*coder/i, /deepseek.*coder/i, /codellama/i, /starcoder/i, /qwen/i],
+  'quick-chat': [/qwen3/i, /phi-?4/i, /gemma3/i, /llama3/i],
+  summarization: [/qwen3/i, /gemma3/i, /phi-?4/i, /llama3/i],
+  vision: [],
+  'tool-use': [/qwen3/i, /llama3/i, /gemma3/i],
+  workflow: [/qwen3/i, /phi-?4/i, /llama3/i],
+}
+
 const WORKFLOW_KEYWORDS = [
   'workflow', 'pipeline', 'approval', 'decision engine', 'decide whether', 'proceed or stop',
   'automation plan', 'multi-step', 'scheduler', 'runbook',
-  '워크플로', '자동화 계획', '단계별', '승인 흐름', '진행 여부', '멈출지', '계속할지',
-  'ワークフロー', '自動化', '承認フロー', '進めるか',
+  '워크플로', '자동화 계획', '승인 흐름', '진행 여부', '결정 엔진', '다단계',
 ]
 
 const TOOL_USE_KEYWORDS = [
   'click', 'open the app', 'open app', 'take a screenshot', 'screenshot', 'browser', 'chrome',
   'find file', 'read file', 'write file', 'run command', 'terminal', 'shell', 'automation',
   'ui test', 'inspect window', 'desktop app', 'mcp',
-  '클릭', '앱 열기', '화면 캡처', '스크린샷', '브라우저', '파일 찾아', '파일 읽', '파일 써',
-  '명령 실행', '터미널', '쉘', '자동화', 'UI 테스트', '창 검사',
-  'クリック', 'アプリを開', 'スクリーンショット', 'ブラウザ', 'ファイルを読', 'ファイルを書',
-  'コマンド実行', 'ターミナル', '自動化',
+  '클릭', '앱 열기', '화면 캡처', '스크린샷', '브라우저', '파일 찾기', '파일 읽기',
+  '파일 쓰기', '명령 실행', '터미널', '자동화', 'UI 테스트', '창 검사',
 ]
 
 const VISION_KEYWORDS = [
   'image', 'photo', 'picture', 'visual', 'vision', 'ocr', 'screenshot', 'screen', 'ui layout',
-  '이미지', '사진', '화면', '스크린샷', '시각', 'OCR', '레이아웃',
-  '画像', '写真', '画面', 'スクリーンショット', '視覚',
+  '이미지', '사진', '화면', '스크린샷', '시각', 'ocr', '레이아웃',
 ]
 
 const CODE_KEYWORDS = [
   'code', 'typescript', 'javascript', 'python', 'cpp', 'c++', 'rust', 'go', 'sql', 'bug',
   'debug', 'refactor', 'compile', 'build', 'test', 'lint', 'implementation', 'api', 'sdk',
-  '코드', '타입스크립트', '자바스크립트', '파이썬', '버그', '디버그', '리팩터링', '빌드', '테스트',
-  '구현', '컴파일', '함수', '모듈', '패치',
-  'コード', 'デバッグ', 'リファクタ', '実装', 'ビルド', 'テスト', '関数', 'モジュール',
+  '코드', '타입스크립트', '자바스크립트', '파이썬', '버그', '디버그', '리팩터링',
+  '빌드', '테스트', '구현', 'api', 'sdk',
 ]
 
 const SUMMARY_KEYWORDS = [
   'summarize', 'summary', 'tl;dr', 'condense', 'rewrite', 'rewrite this', 'shorten', 'recap',
-  '요약', '정리', '짧게', '축약', '다듬어', '재작성', '한 줄로',
-  '要約', 'まとめ', '短く', '言い換え', '書き直し',
+  '요약', '정리', '짧게', '축약', '다시 써줘', '줄여줘',
 ]
 
 const COMPLEX_REASONING_KEYWORDS = [
   'analyze', 'analysis', 'reason through', 'tradeoff', 'architecture', 'design', 'strategy',
   'migration', 'root cause', 'why does', 'compare', 'decision matrix', 'deep dive',
-  '분석', '아키텍처', '설계', '전략', '원인', '비교', '깊게', '깊이', '장단점', '트레이드오프',
-  '分析', '設計', '戦略', '原因', '比較', '深掘り', 'トレードオフ',
+  '분석', '아키텍처', '설계', '전략', '원인', '비교', '깊게', '트레이드오프',
 ]
 
 function getUniqueFallbacks(primary: string, fallbackIds: string[]): string[] {
@@ -151,10 +174,14 @@ function isSupportedModel(modelId: string | undefined): modelId is string {
   return !!modelId && SUPPORTED_MODEL_IDS.has(modelId)
 }
 
+function isLocalModelId(modelId: string | undefined): modelId is string {
+  return !!modelId && LOCAL_PROVIDER_PREFIXES.some((prefix) => modelId.startsWith(prefix))
+}
+
 function countKeywordMatches(input: string, keywords: string[]): string[] {
   const matches: string[] = []
   for (const keyword of keywords) {
-    if (input.includes(keyword)) {
+    if (input.includes(keyword.toLowerCase())) {
       matches.push(keyword)
     }
   }
@@ -226,77 +253,221 @@ function inferRoute(input: string, routeHint?: ModelRouteKind): { routeKind: Mod
   return { routeKind: selected, signals: signals.get(selected) ?? [] }
 }
 
+function scoreLocalModel(modelId: string, patterns: RegExp[]): number {
+  return patterns.reduce((score, pattern, index) => (
+    pattern.test(modelId) ? score + (patterns.length - index) * 10 : score
+  ), 0)
+}
+
+function orderLocalModelsByPreference(models: ModelInfo[], routeKind: ModelRouteKind): ModelInfo[] {
+  const patterns = LOCAL_MODEL_PREFERENCES[routeKind]
+  return [...models].sort((left, right) => {
+    const leftScore = scoreLocalModel(left.id, patterns)
+    const rightScore = scoreLocalModel(right.id, patterns)
+    if (leftScore !== rightScore) {
+      return rightScore - leftScore
+    }
+    return left.name.localeCompare(right.name)
+  })
+}
+
+function selectPreferredLocalModel(models: ModelInfo[], routeKind: ModelRouteKind): ModelInfo {
+  return orderLocalModelsByPreference(models, routeKind)[0] ?? models[0]
+}
+
 export class ModelRouter {
-  private provider: AIProvider | null = null
-  private readonly providerFactory: (apiKey: string) => AIProvider
+  private cloudProvider: AIProvider | null = null
+  private readonly cloudProviderFactory: (apiKey: string) => AIProvider
+  private readonly localProviders: AIProvider[]
+  private localModelCache: { expiresAt: number; entries: LocalModelEntry[] } | null = null
 
   constructor(options: ModelRouterOptions = {}) {
-    this.providerFactory = options.providerFactory ?? ((apiKey) => new OpenRouterProvider(apiKey))
+    this.cloudProviderFactory = options.cloudProviderFactory ?? ((apiKey) => new OpenRouterProvider(apiKey))
+    this.localProviders = options.localProviders ?? [new OllamaProvider(), new NodeLlamaCppProvider()]
   }
 
-  /** Update provider based on user settings */
   updateSettings(settings: AppSettings): void {
-    if (settings.cloudApiKey) {
-      this.provider = this.providerFactory(settings.cloudApiKey)
-      return
-    }
-    this.provider = null
+    this.cloudProvider = settings.cloudApiKey
+      ? this.cloudProviderFactory(settings.cloudApiKey)
+      : null
   }
 
-  /** Get the provider for a model ID */
   getProvider(modelId: string): AIProvider | null {
-    if (!isSupportedModel(modelId)) {
-      return null
+    if (SUPPORTED_MODEL_IDS.has(modelId)) {
+      return this.cloudProvider ?? null
     }
-    return this.provider ?? null
+
+    if (modelId.startsWith('ollama/')) {
+      return this.localProviders.find((provider) => provider.name === 'ollama') ?? null
+    }
+
+    if (modelId.startsWith('node-llama-cpp/')) {
+      return this.localProviders.find((provider) => provider.name === 'node-llama-cpp') ?? null
+    }
+
+    return null
   }
 
-  /** Resolve the best route for the current request */
   async resolveRoute(options: RouteSelectionOptions = {}): Promise<ModelRouteSelection | null> {
-    if (!this.provider || !(await this.provider.isAvailable())) {
-      return null
-    }
-
     const requestedModelId = options.requestedModelId?.trim()
     const input = (options.userMessage ?? '').toLowerCase()
     const inferredRoute = inferRoute(input, options.routeHint)
-    if (isSupportedModel(requestedModelId)) {
+    const explicitRoute = await this.resolveExplicitModelRoute(requestedModelId, inferredRoute.routeKind)
+
+    if (explicitRoute) {
+      return explicitRoute
+    }
+
+    if (this.cloudProvider && (await this.cloudProvider.isAvailable())) {
+      const policy = ROUTING_TABLE[inferredRoute.routeKind]
+      const fallbackModelIds = getUniqueFallbacks(policy.primary, policy.fallbacks)
+      const unsupportedModelReason = requestedModelId && !isSupportedModel(requestedModelId) && !isLocalModelId(requestedModelId)
+        ? `Requested model "${requestedModelId}" is not in the supported OpenRouter list. `
+        : ''
+
       return {
-        provider: this.provider,
-        modelId: requestedModelId,
-        fallbackModelIds: [],
+        provider: this.cloudProvider,
+        modelId: policy.primary,
+        fallbackModelIds,
         routeKind: inferredRoute.routeKind,
-        reason: `explicit model selection "${requestedModelId}" was requested by the caller`,
+        reason: unsupportedModelReason + buildReason(inferredRoute.routeKind, policy, inferredRoute.signals),
       }
     }
 
-    const { routeKind, signals } = inferredRoute
-    const policy = ROUTING_TABLE[routeKind]
-    const fallbackModelIds = getUniqueFallbacks(policy.primary, policy.fallbacks)
-    const unsupportedModelReason = requestedModelId && !isSupportedModel(requestedModelId)
-      ? `Requested model "${requestedModelId}" is not in the supported OpenRouter list. `
-      : ''
-
-    return {
-      provider: this.provider,
-      modelId: policy.primary,
-      fallbackModelIds,
-      routeKind,
-      reason: unsupportedModelReason + buildReason(routeKind, policy, signals),
-    }
+    return this.resolveLocalRoute(inferredRoute)
   }
 
-  /** Auto-select the best available model */
   async autoSelect(options: Omit<RouteSelectionOptions, 'requestedModelId'> = {}): Promise<ModelRouteSelection | null> {
     return this.resolveRoute(options)
   }
 
-  /** List all available models */
   async listModels(): Promise<ModelInfo[]> {
-    if (this.provider && (await this.provider.isAvailable())) {
-      return CLOUD_MODELS.map((model) => ({ ...model }))
+    const models: ModelInfo[] = []
+    if (this.cloudProvider && (await this.cloudProvider.isAvailable())) {
+      models.push(...CLOUD_MODELS.map((model) => ({ ...model })))
     }
-    return []
+
+    const localModels = await this.collectLocalModels(true)
+    models.push(...localModels.map(({ model }) => ({ ...model })))
+    return models
+  }
+
+  private async resolveExplicitModelRoute(
+    requestedModelId: string | undefined,
+    routeKind: ModelRouteKind,
+  ): Promise<ModelRouteSelection | null> {
+    if (isSupportedModel(requestedModelId)) {
+      if (!this.cloudProvider || !(await this.cloudProvider.isAvailable())) {
+        return null
+      }
+
+      return {
+        provider: this.cloudProvider,
+        modelId: requestedModelId,
+        fallbackModelIds: [],
+        routeKind,
+        reason: `explicit model selection "${requestedModelId}" was requested by the caller`,
+      }
+    }
+
+    if (!isLocalModelId(requestedModelId)) {
+      return null
+    }
+
+    const localModels = await this.collectLocalModels()
+    const selected = localModels.find(({ model }) => model.id === requestedModelId)
+    if (!selected) {
+      return null
+    }
+
+    return {
+      provider: selected.provider,
+      modelId: selected.model.id,
+      fallbackModelIds: this.buildLocalFallbackIds(selected.provider.name, localModels, routeKind, selected.model.id),
+      routeKind,
+      reason: `explicit local model selection "${requestedModelId}" was requested by the caller`,
+    }
+  }
+
+  private async resolveLocalRoute(
+    inferredRoute: { routeKind: ModelRouteKind; signals: string[] },
+  ): Promise<ModelRouteSelection | null> {
+    const localModels = await this.collectLocalModels()
+    if (localModels.length === 0) {
+      return null
+    }
+
+    for (const providerName of LOCAL_PROVIDER_ORDER[inferredRoute.routeKind]) {
+      const candidateModels = localModels.filter(({ provider }) => provider.name === providerName)
+      if (candidateModels.length === 0) {
+        continue
+      }
+
+      const selectedModel = selectPreferredLocalModel(
+        candidateModels.map(({ model }) => model),
+        inferredRoute.routeKind,
+      )
+
+      return {
+        provider: candidateModels[0].provider,
+        modelId: selectedModel.id,
+        fallbackModelIds: this.buildLocalFallbackIds(providerName, localModels, inferredRoute.routeKind, selectedModel.id),
+        routeKind: inferredRoute.routeKind,
+        reason: `local ${providerName} route selected because no cloud model is available. Preferred for ${inferredRoute.routeKind}.`,
+      }
+    }
+
+    return null
+  }
+
+  private async collectLocalModels(forceRefresh = false): Promise<LocalModelEntry[]> {
+    if (!forceRefresh && this.localModelCache && this.localModelCache.expiresAt > Date.now()) {
+      return this.localModelCache.entries
+    }
+
+    const entries: LocalModelEntry[] = []
+    for (const provider of this.localProviders) {
+      try {
+        const models = await provider.listModels()
+        for (const model of models) {
+          entries.push({
+            provider,
+            model: {
+              id: model.id,
+              name: model.name,
+              provider: provider.name as ModelInfo['provider'],
+              isLocal: true,
+              size: model.size,
+            },
+          })
+        }
+      } catch {
+        continue
+      }
+    }
+
+    this.localModelCache = {
+      expiresAt: Date.now() + LOCAL_MODEL_CACHE_TTL_MS,
+      entries,
+    }
+
+    return entries
+  }
+
+  private buildLocalFallbackIds(
+    providerName: string,
+    localModels: LocalModelEntry[],
+    routeKind: ModelRouteKind,
+    selectedModelId: string,
+  ): string[] {
+    const sameProviderModels = localModels
+      .filter(({ provider }) => provider.name === providerName)
+      .map(({ model }) => model)
+
+    return orderLocalModelsByPreference(sameProviderModels, routeKind)
+      .map((model) => model.id)
+      .filter((modelId) => modelId !== selectedModelId)
+      .slice(0, 2)
   }
 }
 
