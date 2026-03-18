@@ -3,6 +3,7 @@ import { ArrowUpRight, ListTodo, Plus, RotateCcw, Search, Trash2 } from 'lucide-
 import { Timeline } from '../components/agent'
 import { ArtifactShelf, ArtifactView, deriveArtifactsFromMessages } from '../components/artifact'
 import { Badge, Button, Card, InlineNotice, Input, PageIntro, ProgressSummary } from '../components/ui'
+import { SkeletonTaskList } from '../components/ui/Skeleton'
 import { t } from '../i18n'
 import { dispatchNavigate } from '../lib/navigation-events'
 import { useChatStore } from '../stores/chat.store'
@@ -54,6 +55,7 @@ export default function TasksPage() {
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
 
   const conversations = useChatStore((state) => state.conversations)
+  const loaded = useChatStore((state) => state.loaded)
   const activeConversationId = useChatStore((state) => state.activeConversationId)
   const streamingConversationId = useChatStore((state) => state.streamingConversationId)
   const isStreaming = useChatStore((state) => state.isStreaming)
@@ -266,7 +268,9 @@ export default function TasksPage() {
               </div>
 
               <div className="mt-4 min-h-0 flex-1 overflow-auto pr-1" data-testid="tasks-list">
-                {visibleEntries.length === 0 ? (
+                {!loaded ? (
+                  <SkeletonTaskList />
+                ) : visibleEntries.length === 0 ? (
                   <InlineNotice
                     tone={allEntries.length === 0 ? 'info' : 'warning'}
                     title={allEntries.length === 0 ? t('tasks.emptyTitle') : t('tasks.noMatchesTitle')}

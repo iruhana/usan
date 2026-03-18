@@ -6,11 +6,11 @@ import {
   FolderOpen,
   Home,
   LayoutGrid,
-  Loader2,
   List,
 } from 'lucide-react'
 import type { FileEntry } from '@shared/types/ipc'
 import { Button, Card, InlineNotice, Input } from '../ui'
+import { SkeletonFileList } from '../ui/Skeleton'
 import { t } from '../../i18n'
 import { ActionBar } from './ActionBar'
 import { ListView, type FilesVisualMode } from './ListView'
@@ -460,10 +460,7 @@ export function FileExplorer({
 
       <Card variant="default" padding="md" className="min-h-0 flex-1 overflow-hidden" data-testid="files-browser-panel">
         {loading ? (
-          <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
-            <Loader2 size={18} className="mr-2 animate-spin" />
-            <span>{t('files.loading')}</span>
-          </div>
+          <SkeletonFileList />
         ) : filteredEntries.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <FolderOpen size={42} className="mb-4 text-[var(--color-text-muted)] opacity-40" />
