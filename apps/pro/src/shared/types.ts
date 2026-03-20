@@ -156,6 +156,12 @@ export const AI_MODELS: AIModel[] = [
 
 export interface ChatPayload {
   requestId: string
+  sessionId: string
+  userMessage: {
+    id: string
+    content: string
+    ts: number
+  }
   messages: Array<{ role: 'user' | 'assistant'; content: string }>
   model: string
   systemPrompt?: string
@@ -186,10 +192,23 @@ export interface ShellSession {
   status: SessionStatus
   model: string
   updatedAt: string
+  archivedAt?: string | null
+  branchedFromSessionId?: string | null
+  branchedFromMessageId?: string | null
   pinned: boolean
   messageCount: number
   artifactCount: number
   preview?: string
+}
+
+export interface CreateShellSessionSeed {
+  title?: string
+  model?: string
+  pinned?: boolean
+}
+
+export interface BranchShellSessionSeed extends CreateShellSessionSeed {
+  sourceMessageId?: string
 }
 
 export interface ShellRunStep {
@@ -318,6 +337,18 @@ export interface IpcChannels {
 
   // Phase 0 shell snapshot + settings
   'shell:get-snapshot': () => ShellSnapshot
+  'shell:set-active-session': (sessionId: string) => ShellSnapshot
+  'shell:create-session': (seed?: CreateShellSessionSeed) => ShellSnapshot
+  'shell:branch-session': (sessionId: string, seed?: BranchShellSessionSeed) => ShellSnapshot
+  'shell:promote-session': (sessionId: string) => ShellSnapshot
+  'shell:archive-session': (sessionId: string) => ShellSnapshot
+  'shell:restore-session': (sessionId: string) => ShellSnapshot
+  'shell:append-message': (sessionId: string, message: ShellChatMessage) => ShellSnapshot
+  'shell:update-session': (sessionId: string, patch: Partial<ShellSession>) => ShellSnapshot
+  'shell:append-run-step': (step: ShellRunStep) => ShellSnapshot
+  'shell:update-run-step': (stepId: string, patch: Partial<ShellRunStep>) => ShellSnapshot
+  'shell:append-log': (log: ShellLog) => ShellSnapshot
+  'shell:append-artifact': (artifact: ShellArtifact) => ShellSnapshot
   'settings:get': () => AppSettings
   'settings:update': (patch: Partial<AppSettings>) => AppSettings
 }

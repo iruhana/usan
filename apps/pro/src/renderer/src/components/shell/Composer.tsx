@@ -1,5 +1,5 @@
 /**
- * Z7 — Composer
+ * Z7 ??Composer
  * Task input, attachments, model picker, send/stop.
  */
 import { useRef, useState, useCallback } from 'react'
@@ -10,26 +10,16 @@ import type { ChatPayload, ShellChatMessage } from '@shared/types'
 import { reqId, uid, useChatStore } from '../../stores/chat.store'
 import { useSettingsStore } from '../../stores/settings.store'
 import { useShellStore } from '../../stores/shell.store'
-import { useUiStore } from '../../stores/ui.store'
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message
   }
-  return 'AI 요청을 시작하지 못했습니다.'
-}
-
-function createTimeLabel(): string {
-  return new Intl.DateTimeFormat('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(new Date())
+  return 'AI ?붿껌???쒖옉?섏? 紐삵뻽?듬땲??'
 }
 
 export default function Composer() {
-  const activeSessionId = useUiStore((state) => state.activeSessionId)
+  const activeSessionId = useShellStore((state) => state.activeSessionId)
   const toolUseEnabled = useSettingsStore((state) => state.settings.toolUseEnabled)
   const {
     models,
@@ -38,7 +28,6 @@ export default function Composer() {
     streaming,
     streamingId,
     startStreaming,
-    finishStreaming,
     stopStreamingState,
     setError,
   } = useChatStore()
@@ -74,51 +63,25 @@ export default function Composer() {
       },
     ]
 
-    shellStore.appendMessage(activeSessionId, userMessage)
-    shellStore.updateSession(activeSessionId, {
-      status: 'running',
-      model: selectedModel,
-    })
-    shellStore.appendRunStep({
-      id: `step-${requestId}`,
-      sessionId: activeSessionId,
-      label: 'AI 응답 생성',
-      status: 'running',
-      detail: `${selectedModel} · 응답 생성 시작`,
-    })
-    shellStore.appendLog({
-      id: `log-${requestId}-start`,
-      sessionId: activeSessionId,
-      ts: createTimeLabel(),
-      level: 'info',
-      message: `요청 전송 — ${selectedModel}`,
-    })
     startStreaming(requestId, activeSessionId)
-
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
     try {
       await window.usan.ai.chat({
         requestId,
+        sessionId: activeSessionId,
+        userMessage: {
+          id: userMessage.id,
+          content: userMessage.content,
+          ts: userMessage.ts,
+        },
         messages: history,
         model: selectedModel,
         useTools: toolUseEnabled,
       })
     } catch (error) {
       stopStreamingState()
-      shellStore.updateRunStep(`step-${requestId}`, {
-        status: 'failed',
-        detail: '응답 생성 시작 실패',
-      })
-      shellStore.appendLog({
-        id: `log-${requestId}-error`,
-        sessionId: activeSessionId,
-        ts: createTimeLabel(),
-        level: 'error',
-        message: getErrorMessage(error),
-      })
-      shellStore.updateSession(activeSessionId, { status: 'failed' })
       setError(getErrorMessage(error))
     }
   }, [
@@ -135,43 +98,12 @@ export default function Composer() {
   const handleStop = useCallback(async () => {
     if (!streamingId) return
 
-    const requestId = streamingId
-    const shellStore = useShellStore.getState()
-    const { sessionId, content } = finishStreaming()
-
-    if (sessionId) {
-      if (content.trim()) {
-        shellStore.appendMessage(sessionId, {
-          id: uid(),
-          sessionId,
-          role: 'assistant',
-          content,
-          ts: Date.now(),
-        })
-      }
-      shellStore.updateRunStep(`step-${requestId}`, {
-        status: content.trim() ? 'skipped' : 'skipped',
-        detail: '사용자가 응답 생성을 중지했습니다',
-      })
-      shellStore.appendLog({
-        id: `log-${requestId}-stopped`,
-        sessionId,
-        ts: createTimeLabel(),
-        level: 'warn',
-        message: '사용자가 응답 생성을 중지했습니다.',
-      })
-      shellStore.updateSession(sessionId, { status: 'active' })
-    }
-
     try {
-      await window.usan.ai.stop(requestId)
+      await window.usan.ai.stop(streamingId)
     } catch (error) {
-      if (sessionId) {
-        shellStore.updateSession(sessionId, { status: 'failed' })
-      }
-      setError(getErrorMessage(error))
+      console.error('Failed to stop AI stream', error)
     }
-  }, [finishStreaming, setError, streamingId])
+  }, [streamingId])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -210,8 +142,8 @@ export default function Composer() {
       >
         {/* Attachment buttons */}
         <div style={{ display: 'flex', gap: 2, paddingBottom: 2 }}>
-          <ComposerButton icon={Paperclip} label="파일 첨부" onClick={() => {}} />
-          <ComposerButton icon={Image} label="이미지 첨부" onClick={() => {}} />
+          <ComposerButton icon={Paperclip} label="?뚯씪 泥⑤?" onClick={() => {}} />
+          <ComposerButton icon={Image} label="?대?吏 泥⑤?" onClick={() => {}} />
         </div>
 
         {/* Textarea */}
@@ -220,9 +152,9 @@ export default function Composer() {
           value={input}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder="무엇을 만들어볼까요?"
+          placeholder="臾댁뾿??留뚮뱾?대낵源뚯슂?"
           rows={1}
-          aria-label="메시지 입력"
+          aria-label="硫붿떆吏 ?낅젰"
           style={{
             flex: 1,
             background: 'transparent',
@@ -242,7 +174,7 @@ export default function Composer() {
         <div style={{ position: 'relative', paddingBottom: 2 }}>
           <button
             onClick={() => setShowModelPicker(!showModelPicker)}
-            aria-label="모델 선택"
+            aria-label="紐⑤뜽 ?좏깮"
             aria-expanded={showModelPicker}
             className="focus-ring"
             style={{
@@ -326,7 +258,7 @@ export default function Composer() {
         {/* Send / Stop */}
         <button
           onClick={streaming ? () => { void handleStop() } : () => { void handleSend() }}
-          aria-label={streaming ? '중지' : '전송'}
+          aria-label={streaming ? '以묒?' : '?꾩넚'}
           className="focus-ring"
           style={{
             width: 32,
@@ -355,8 +287,7 @@ export default function Composer() {
         padding: 'var(--sp-1) var(--sp-1) 0',
       }}>
         <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
-          Enter 전송 · Shift+Enter 줄바꿈 · Ctrl+K 명령 팔레트
-        </span>
+          Enter ?꾩넚 쨌 Shift+Enter 以꾨컮轅?쨌 Ctrl+K 紐낅졊 ?붾젅??        </span>
       </div>
     </div>
   )

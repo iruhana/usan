@@ -17,7 +17,8 @@ const TYPE_CONFIG: Record<ReferenceType, { icon: typeof File; label: string; col
 }
 
 export default function ContextPanel() {
-  const { contextPanelOpen, toggleContextPanel, activeSessionId } = useUiStore()
+  const { contextPanelOpen, toggleContextPanel } = useUiStore()
+  const activeSessionId = useShellStore((state) => state.activeSessionId)
   const references = useShellStore((state) => state.references)
   const { models, selectedModel } = useChatStore()
   const toolUseEnabled = useSettingsStore((state) => state.settings.toolUseEnabled)

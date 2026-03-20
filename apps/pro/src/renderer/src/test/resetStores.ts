@@ -8,7 +8,7 @@ export function resetStores(): void {
   useUiStore.setState({
     view: 'chat',
     navExpanded: true,
-    activeSessionId: null,
+    sessionHistoryOpen: false,
     contextPanelOpen: false,
     utilityPanelOpen: false,
     utilityTab: 'steps',

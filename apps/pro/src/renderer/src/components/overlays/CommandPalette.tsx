@@ -8,6 +8,8 @@ import {
   Zap, FileText, TerminalSquare, PanelRight, PanelBottom,
   Command, Sparkles,
 } from 'lucide-react'
+import { useSettingsStore } from '../../stores/settings.store'
+import { useShellStore } from '../../stores/shell.store'
 import { useUiStore } from '../../stores/ui.store'
 
 interface CommandItem {
@@ -23,14 +25,27 @@ export default function CommandPalette() {
   const {
     commandPaletteOpen, setCommandPaletteOpen,
     setView, toggleContextPanel, toggleUtilityPanel,
-    setUtilityTab,
+    setUtilityTab, toggleSessionHistory,
   } = useUiStore()
+  const defaultModel = useSettingsStore((state) => state.settings.defaultModel)
+  const createSession = useShellStore((state) => state.createSession)
 
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const close = useCallback(() => {
+    setCommandPaletteOpen(false)
+    setQuery('')
+  }, [setCommandPaletteOpen])
+
+  const handleNewSession = useCallback(() => {
+    setView('chat')
+    void createSession({ model: defaultModel })
+    close()
+  }, [close, createSession, defaultModel, setView])
+
   const commands: CommandItem[] = [
-    { id: 'new-session', icon: Plus, label: '새 세션', shortcut: 'Ctrl+N', section: '세션', action: () => {} },
+    { id: 'new-session', icon: Plus, label: '새 세션', shortcut: 'Ctrl+N', section: '세션', action: handleNewSession },
     { id: 'search-sessions', icon: Search, label: '세션 검색', section: '세션', action: () => {} },
     { id: 'builder', icon: Sparkles, label: '빌더 시작', section: '빌더', action: () => {} },
     { id: 'toggle-context', icon: PanelRight, label: '컨텍스트 패널 토글', shortcut: 'Ctrl+.', section: '패널', action: () => { toggleContextPanel(); close() } },
@@ -39,7 +54,7 @@ export default function CommandPalette() {
     { id: 'show-approvals', icon: Zap, label: '승인 보기', section: '패널', action: () => { setUtilityTab('approvals'); close() } },
     { id: 'show-steps', icon: FileText, label: '실행 단계 보기', section: '패널', action: () => { setUtilityTab('steps'); close() } },
     { id: 'settings', icon: Settings, label: '설정 열기', shortcut: 'Ctrl+,', section: '일반', action: () => { setView('settings'); close() } },
-    { id: 'history', icon: History, label: '히스토리', section: '일반', action: () => {} },
+    { id: 'history', icon: History, label: '히스토리', section: '일반', action: () => { toggleSessionHistory(); close() } },
   ]
 
   const filtered = query
@@ -47,11 +62,6 @@ export default function CommandPalette() {
     : commands
 
   const sections = [...new Set(filtered.map((c) => c.section))]
-
-  const close = useCallback(() => {
-    setCommandPaletteOpen(false)
-    setQuery('')
-  }, [setCommandPaletteOpen])
 
   // Global keyboard shortcut
   useEffect(() => {

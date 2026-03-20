@@ -4,6 +4,7 @@
  */
 import { useState } from 'react'
 import {
+  Archive, GitBranch, RotateCcw,
   Search, Pin, X, AlertTriangle,
   Loader2, Clock, ShieldAlert,
 } from 'lucide-react'
@@ -20,8 +21,14 @@ const STATUS_CONFIG: Record<SessionStatus, { icon: typeof Clock; color: string; 
 }
 
 export default function WorkList() {
-  const { activeSessionId, setActiveSession, navExpanded } = useUiStore()
+  const navExpanded = useUiStore((state) => state.navExpanded)
+  const sessionHistoryOpen = useUiStore((state) => state.sessionHistoryOpen)
+  const activeSessionId = useShellStore((state) => state.activeSessionId)
   const sessions = useShellStore((state) => state.sessions)
+  const setActiveSession = useShellStore((state) => state.setActiveSession)
+  const branchSession = useShellStore((state) => state.branchSession)
+  const archiveSession = useShellStore((state) => state.archiveSession)
+  const restoreSession = useShellStore((state) => state.restoreSession)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
 
@@ -30,8 +37,10 @@ export default function WorkList() {
   const filtered = sessions.filter((s) =>
     !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
-  const pinned = filtered.filter((s) => s.pinned)
-  const recent = filtered.filter((s) => !s.pinned)
+  const visibleSessions = filtered.filter((session) => !session.archivedAt)
+  const archivedSessions = filtered.filter((session) => Boolean(session.archivedAt))
+  const pinned = visibleSessions.filter((s) => s.pinned)
+  const recent = visibleSessions.filter((s) => !s.pinned)
 
   return (
     <div style={{
@@ -55,6 +64,17 @@ export default function WorkList() {
         <span style={{ flex: 1, fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           작업 목록
         </span>
+        {sessionHistoryOpen && (
+          <span style={{
+            fontSize: 'var(--fs-xs)',
+            color: 'var(--accent)',
+            background: 'var(--accent-soft)',
+            padding: '1px 8px',
+            borderRadius: 10,
+          }}>
+            히스토리
+          </span>
+        )}
         <button
           onClick={() => { setSearchOpen(!searchOpen); setSearchQuery('') }}
           aria-label="검색 토글"
@@ -107,7 +127,19 @@ export default function WorkList() {
                 key={s.id}
                 session={s}
                 active={s.id === activeSessionId}
-                onClick={() => setActiveSession(s.id)}
+                onClick={() => { void setActiveSession(s.id) }}
+                actions={[
+                  {
+                    icon: GitBranch,
+                    label: `${s.title} 분기`,
+                    onClick: () => { void branchSession(s.id) },
+                  },
+                  {
+                    icon: Archive,
+                    label: `${s.title} 보관`,
+                    onClick: () => { void archiveSession(s.id) },
+                  },
+                ]}
               />
             ))}
           </>
@@ -120,15 +152,51 @@ export default function WorkList() {
                 key={s.id}
                 session={s}
                 active={s.id === activeSessionId}
-                onClick={() => setActiveSession(s.id)}
+                onClick={() => { void setActiveSession(s.id) }}
+                actions={[
+                  {
+                    icon: GitBranch,
+                    label: `${s.title} 분기`,
+                    onClick: () => { void branchSession(s.id) },
+                  },
+                  {
+                    icon: Archive,
+                    label: `${s.title} 보관`,
+                    onClick: () => { void archiveSession(s.id) },
+                  },
+                ]}
               />
             ))}
           </>
         )}
-        {filtered.length === 0 && (
+        {sessionHistoryOpen && archivedSessions.length > 0 && (
+          <>
+            <SectionLabel icon={Archive} label="보관됨" />
+            {archivedSessions.map((s) => (
+              <SessionRow
+                key={s.id}
+                session={s}
+                active={false}
+                actions={[
+                  {
+                    icon: GitBranch,
+                    label: `${s.title} 분기`,
+                    onClick: () => { void branchSession(s.id) },
+                  },
+                  {
+                    icon: RotateCcw,
+                    label: `${s.title} 복원`,
+                    onClick: () => { void restoreSession(s.id) },
+                  },
+                ]}
+              />
+            ))}
+          </>
+        )}
+        {visibleSessions.length === 0 && (!sessionHistoryOpen || archivedSessions.length === 0) && (
           <div style={{ padding: 'var(--sp-6) var(--sp-4)', textAlign: 'center' }}>
             <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)' }}>
-              {searchQuery ? '검색 결과 없음' : '세션 없음'}
+              {searchQuery ? '검색 결과 없음' : sessionHistoryOpen ? '보관된 세션이 없습니다' : '세션 없음'}
             </p>
           </div>
         )}
@@ -153,68 +221,119 @@ function SectionLabel({ icon: Icon, label }: { icon: typeof Pin; label: string }
   )
 }
 
-function SessionRow({ session, active, onClick }: {
-  session: ShellSession; active: boolean; onClick: () => void
+interface SessionRowAction {
+  icon: typeof Archive
+  label: string
+  onClick: () => void
+}
+
+function SessionRow({ session, active, onClick, actions = [] }: {
+  session: ShellSession
+  active: boolean
+  onClick?: () => void
+  actions?: SessionRowAction[]
 }) {
   const status = STATUS_CONFIG[session.status]
   const StatusIcon = status.icon
   const isRunning = session.status === 'running'
+  const archived = Boolean(session.archivedAt)
 
   return (
-    <button
-      onClick={onClick}
-      aria-current={active ? 'true' : undefined}
-      className="focus-ring"
+    <div
       style={{
         width: '100%',
         display: 'flex',
-        flexDirection: 'column',
-        gap: 3,
-        padding: 'var(--sp-2) var(--sp-3)',
-        background: active ? 'var(--bg-active)' : 'transparent',
-        border: 'none',
-        borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
-        cursor: 'pointer',
-        textAlign: 'left',
-        transition: `background var(--dur-micro)`,
+        alignItems: 'stretch',
       }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--bg-hover)' }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? 'var(--bg-active)' : 'transparent' }}
     >
-      {/* Title row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 }}>
-        <StatusIcon
-          size={12}
+      <button
+        onClick={onClick}
+        disabled={!onClick}
+        aria-current={active ? 'true' : undefined}
+        className="focus-ring"
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+          padding: 'var(--sp-2) var(--sp-3)',
+          background: active ? 'var(--bg-active)' : 'transparent',
+          border: 'none',
+          borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
+          cursor: onClick ? 'pointer' : 'default',
+          textAlign: 'left',
+          opacity: archived ? 0.72 : 1,
+          transition: `background var(--dur-micro), opacity var(--dur-micro)`,
+        }}
+        onMouseEnter={(e) => { if (!active && onClick) e.currentTarget.style.background = 'var(--bg-hover)' }}
+        onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? 'var(--bg-active)' : 'transparent' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 }}>
+          <StatusIcon
+            size={12}
+            style={{
+              color: status.color,
+              flexShrink: 0,
+              ...(isRunning ? { animation: 'spin 1.5s linear infinite' } : {}),
+            }}
+          />
+          <span
+            className="truncate"
+            style={{
+              flex: 1,
+              fontSize: 'var(--fs-sm)',
+              fontWeight: active ? 500 : 400,
+              color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
+          >
+            {session.title}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', paddingLeft: 20 }}>
+          <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+            {archived ? `보관됨 ${session.archivedAt}` : session.updatedAt}
+          </span>
+          {session.branchedFromMessageId && (
+            <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+              · 메시지 분기
+            </span>
+          )}
+          {!session.branchedFromMessageId && session.branchedFromSessionId && (
+            <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+              · 세션 분기
+            </span>
+          )}
+          {session.artifactCount > 0 && (
+            <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+              · 아티팩트 {session.artifactCount}개
+            </span>
+          )}
+        </div>
+      </button>
+
+      {actions.map(({ icon: ActionIcon, label, onClick }) => (
+        <button
+          key={label}
+          onClick={onClick}
+          aria-label={label}
+          title={label}
+          className="focus-ring"
           style={{
-            color: status.color,
+            width: 28,
             flexShrink: 0,
-            ...(isRunning ? { animation: 'spin 1.5s linear infinite' } : {}),
-          }}
-        />
-        <span
-          className="truncate"
-          style={{
-            flex: 1,
-            fontSize: 'var(--fs-sm)',
-            fontWeight: active ? 500 : 400,
-            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
           }}
         >
-          {session.title}
-        </span>
-      </div>
-
-      {/* Meta row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', paddingLeft: 20 }}>
-        <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
-          {session.updatedAt}
-        </span>
-        {session.artifactCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
-            · {session.artifactCount} artifact{session.artifactCount > 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
-    </button>
+          <ActionIcon size={14} strokeWidth={1.5} />
+        </button>
+      ))}
+    </div>
   )
 }

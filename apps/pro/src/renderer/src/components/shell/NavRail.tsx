@@ -6,6 +6,8 @@ import {
   MessageSquare,
   Settings, Plus, Sparkles,
 } from 'lucide-react'
+import { useSettingsStore } from '../../stores/settings.store'
+import { useShellStore } from '../../stores/shell.store'
 import { useUiStore, type ShellView } from '../../stores/ui.store'
 
 interface NavEntry {
@@ -19,6 +21,8 @@ interface NavEntry {
 
 export default function NavRail() {
   const { view, setView, navExpanded } = useUiStore()
+  const defaultModel = useSettingsStore((state) => state.settings.defaultModel)
+  const createSession = useShellStore((state) => state.createSession)
 
   const topItems: NavEntry[] = [
     { id: 'chat', icon: MessageSquare, label: '채팅', view: 'chat' },
@@ -30,6 +34,10 @@ export default function NavRail() {
   ]
 
   const width = navExpanded ? 'var(--sidebar-width)' : 'var(--nav-rail-width)'
+  const handleNewSession = () => {
+    setView('chat')
+    void createSession({ model: defaultModel })
+  }
 
   return (
     <nav
@@ -51,6 +59,7 @@ export default function NavRail() {
         <button
           aria-label="새 세션"
           title="새 세션 (Ctrl+N)"
+          onClick={handleNewSession}
           className="focus-ring"
           style={{
             width: '100%',

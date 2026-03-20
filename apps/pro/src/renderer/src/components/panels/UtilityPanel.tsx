@@ -19,7 +19,8 @@ const TABS: { id: UtilityTab; label: string }[] = [
 ]
 
 export default function UtilityPanel() {
-  const { utilityPanelOpen, toggleUtilityPanel, utilityTab, setUtilityTab, activeSessionId } = useUiStore()
+  const { utilityPanelOpen, toggleUtilityPanel, utilityTab, setUtilityTab } = useUiStore()
+  const activeSessionId = useShellStore((state) => state.activeSessionId)
   const runSteps = useShellStore((state) => state.runSteps)
   const logs = useShellStore((state) => state.logs)
   const approvals = useShellStore((state) => state.approvals)

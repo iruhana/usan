@@ -48,7 +48,10 @@ export default function App() {
       // Ctrl+N → new session
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault()
-        // Placeholder: will be wired by Codex
+        useUiStore.getState().setView('chat')
+        void useShellStore.getState().createSession({
+          model: useSettingsStore.getState().settings.defaultModel,
+        })
       }
       // Ctrl+, → settings
       if ((e.ctrlKey || e.metaKey) && e.key === ',') {

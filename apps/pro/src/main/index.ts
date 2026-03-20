@@ -11,9 +11,35 @@ import { AITabManager } from './ai-tabs'
 import { indexSkills, querySkills, readSkillContent } from './skills/indexer'
 import { handleChat, stopStream } from './ai-chat'
 import { AI_PROVIDERS } from '@shared/types'
-import type { AppSettings, ChatPayload } from '@shared/types'
-import { createShellSnapshot } from './platform/shell-snapshot'
+import type {
+  AppSettings,
+  BranchShellSessionSeed,
+  ChatPayload,
+  CreateShellSessionSeed,
+  ShellArtifact,
+  ShellChatMessage,
+  ShellLog,
+  ShellRunStep,
+  ShellSession,
+  ShellSnapshot,
+} from '@shared/types'
 import { getSettings, updateSettings } from './platform/settings'
+import {
+  appendShellArtifact,
+  appendShellLog,
+  appendShellMessage,
+  appendShellRunStep,
+  archiveShellSession,
+  branchShellSession,
+  createShellSession,
+  getShellSnapshot,
+  initializeShellState,
+  promoteShellSession,
+  restoreShellSession,
+  setActiveShellSession,
+  updateShellRunStep,
+  updateShellSession,
+} from './platform/shell-state'
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 
@@ -21,6 +47,7 @@ const SKILLS_ROOT = 'D:/AI-Apps/_extracted/Skills/openclaw/Skill'
 const DATA_DIR = join(app.getPath('userData'), 'usan-pro')
 const SKILLS_DB = join(DATA_DIR, 'skills.db')
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json')
+const SHELL_STATE_FILE = join(DATA_DIR, 'shell-state.json')
 
 // ─── Window ──────────────────────────────────────────────────────────────────
 
@@ -84,18 +111,27 @@ function initTabManager(): void {
   tabManager = new AITabManager(mainWindow, getContentBounds())
 }
 
+function broadcastShellSnapshot(snapshot: ShellSnapshot): void {
+  BrowserWindow
+    .getAllWindows()
+    .map((window) => window.webContents)
+    .filter((contents) => !contents.isDestroyed())
+    .forEach((contents) => contents.send('shell:snapshot', snapshot))
+}
+
 // ─── App lifecycle ───────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.usan.pro')
   app.on('browser-window-created', (_, win) => optimizer.watchWindowShortcuts(win))
+  mkdirSync(DATA_DIR, { recursive: true })
+  initializeShellState(SHELL_STATE_FILE)
 
   createWindow()
 
   // Background-index skills (non-blocking)
   setImmediate(() => {
     try {
-      mkdirSync(DATA_DIR, { recursive: true })
       const count = indexSkills(SKILLS_ROOT, SKILLS_DB)
       console.log(`[skills] indexed ${count} skills`)
     } catch (e) {
@@ -141,7 +177,79 @@ ipcMain.handle('skills:reindex', () => {
 
 // Shell snapshot + settings
 ipcMain.handle('shell:get-snapshot', () => {
-  return createShellSnapshot()
+  return getShellSnapshot()
+})
+
+ipcMain.handle('shell:set-active-session', (_e, sessionId: string) => {
+  const snapshot = setActiveShellSession(sessionId)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:create-session', (_e, seed?: CreateShellSessionSeed) => {
+  const snapshot = createShellSession(seed)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:branch-session', (_e, sessionId: string, seed?: BranchShellSessionSeed) => {
+  const snapshot = branchShellSession(sessionId, seed)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:promote-session', (_e, sessionId: string) => {
+  const snapshot = promoteShellSession(sessionId)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:archive-session', (_e, sessionId: string) => {
+  const snapshot = archiveShellSession(sessionId)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:restore-session', (_e, sessionId: string) => {
+  const snapshot = restoreShellSession(sessionId)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:append-message', (_e, sessionId: string, message: ShellChatMessage) => {
+  const snapshot = appendShellMessage(sessionId, message)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:update-session', (_e, sessionId: string, patch: Partial<ShellSession>) => {
+  const snapshot = updateShellSession(sessionId, patch)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:append-run-step', (_e, step: ShellRunStep) => {
+  const snapshot = appendShellRunStep(step)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:update-run-step', (_e, stepId: string, patch: Partial<ShellRunStep>) => {
+  const snapshot = updateShellRunStep(stepId, patch)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:append-log', (_e, log: ShellLog) => {
+  const snapshot = appendShellLog(log)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:append-artifact', (_e, artifact: ShellArtifact) => {
+  const snapshot = appendShellArtifact(artifact)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
 })
 
 ipcMain.handle('settings:get', () => {
@@ -154,7 +262,7 @@ ipcMain.handle('settings:update', (_e, patch: Partial<AppSettings>) => {
 
 // AI Chat (streaming)
 ipcMain.handle('ai:chat', (event, payload: ChatPayload) => {
-  handleChat(event.sender, payload)
+  void handleChat(event.sender, payload, broadcastShellSnapshot)
   return null // streaming is via 'ai:chunk' events
 })
 

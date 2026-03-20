@@ -16,9 +16,10 @@ interface UiState {
   navExpanded: boolean
   toggleNav: () => void
 
-  /* Z3: work list */
-  activeSessionId: string | null
-  setActiveSession: (id: string | null) => void
+  /* Session history */
+  sessionHistoryOpen: boolean
+  toggleSessionHistory: () => void
+  setSessionHistoryOpen: (open: boolean) => void
 
   /* Z5: context panel */
   contextPanelOpen: boolean
@@ -42,8 +43,9 @@ export const useUiStore = create<UiState>((set) => ({
   navExpanded: true,
   toggleNav: () => set((s) => ({ navExpanded: !s.navExpanded })),
 
-  activeSessionId: 'sess-001',
-  setActiveSession: (activeSessionId) => set({ activeSessionId }),
+  sessionHistoryOpen: false,
+  toggleSessionHistory: () => set((s) => ({ sessionHistoryOpen: !s.sessionHistoryOpen })),
+  setSessionHistoryOpen: (sessionHistoryOpen) => set({ sessionHistoryOpen }),
 
   contextPanelOpen: false,
   toggleContextPanel: () => set((s) => ({ contextPanelOpen: !s.contextPanelOpen })),

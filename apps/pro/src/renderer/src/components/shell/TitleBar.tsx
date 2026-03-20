@@ -13,9 +13,11 @@ import { useShellStore } from '../../stores/shell.store'
 export default function TitleBar() {
   const [maximized, setMaximized] = useState(false)
   const {
-    activeSessionId, navExpanded, toggleNav,
+    navExpanded, toggleNav,
+    sessionHistoryOpen, toggleSessionHistory,
     setCommandPaletteOpen, setView, view,
   } = useUiStore()
+  const activeSessionId = useShellStore((state) => state.activeSessionId)
   const sessions = useShellStore((state) => state.sessions)
 
   const activeSession = sessions.find((session) => session.id === activeSessionId)
@@ -95,7 +97,8 @@ export default function TitleBar() {
         <TitleBarButton
           icon={History}
           label="히스토리"
-          onClick={() => {}}
+          onClick={toggleSessionHistory}
+          active={sessionHistoryOpen}
         />
         <TitleBarButton
           icon={Settings}
@@ -124,8 +127,8 @@ export default function TitleBar() {
   )
 }
 
-function TitleBarButton({ icon: Icon, label, onClick }: {
-  icon: typeof Search; label: string; onClick: () => void
+function TitleBarButton({ icon: Icon, label, onClick, active = false }: {
+  icon: typeof Search; label: string; onClick: () => void; active?: boolean
 }) {
   return (
     <button
@@ -139,10 +142,10 @@ function TitleBarButton({ icon: Icon, label, onClick }: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'transparent',
+        background: active ? 'var(--bg-active)' : 'transparent',
         border: 'none',
         borderRadius: 'var(--radius-sm)',
-        color: 'var(--text-muted)',
+        color: active ? 'var(--text-primary)' : 'var(--text-muted)',
         cursor: 'pointer',
         transition: `background var(--dur-micro), color var(--dur-micro)`,
       }}
@@ -151,8 +154,8 @@ function TitleBarButton({ icon: Icon, label, onClick }: {
         e.currentTarget.style.color = 'var(--text-primary)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent'
-        e.currentTarget.style.color = 'var(--text-muted)'
+        e.currentTarget.style.background = active ? 'var(--bg-active)' : 'transparent'
+        e.currentTarget.style.color = active ? 'var(--text-primary)' : 'var(--text-muted)'
       }}
     >
       <Icon size={14} strokeWidth={1.5} />

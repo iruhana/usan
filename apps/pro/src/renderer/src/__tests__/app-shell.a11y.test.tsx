@@ -14,7 +14,7 @@ describe('App shell accessibility', () => {
     const { container } = render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByText('우리 카페 랜딩 페이지를 만들어줘.')).toBeInTheDocument()
+      expect(screen.getByText('Build a landing page for our cafe.')).toBeInTheDocument()
     })
 
     const results = await axe.run(container)

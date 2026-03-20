@@ -231,6 +231,12 @@ export default function ClaudeWorkspace() {
 
     await window.usan.ai.chat({
       requestId: id,
+      sessionId: 'claude-workspace',
+      userMessage: {
+        id: userMsg.id,
+        content: userMsg.content,
+        ts: userMsg.ts,
+      },
       messages: history,
       model: selectedModel,
       systemPrompt: activatedContent || undefined,
