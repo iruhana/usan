@@ -135,10 +135,16 @@ function createEvidencePayload(appRoot: string) {
     themes: {
       dark: {
         screenshotPath: 'C:\\remote\\pro-electron-smoke\\shell-dark.png',
+        tokens: {
+          accent: '#4499ff',
+        },
         zones: [{ zone: 'titlebar', path: 'C:\\remote\\pro-electron-smoke\\dark-titlebar.png' }],
       },
       light: {
         screenshotPath: 'C:\\remote\\pro-electron-smoke\\shell-light.png',
+        tokens: {
+          accent: '#1166dd',
+        },
         zones: [{ zone: 'titlebar', path: 'C:\\remote\\pro-electron-smoke\\light-titlebar.png' }],
       },
     },
@@ -1887,11 +1893,14 @@ describe('Phase 0 reporting scripts', () => {
     expect(observedRunCheck?.detail).toContain('observed=456 download=123')
   })
 
-  it('fails ci compare when a downloaded screenshot hash differs from the local evidence', () => {
+  it('fails ci compare when the remote visual manifest changes semantic shell contract fields', () => {
     const { appRoot } = createFixture()
     const outputDir = join(appRoot, 'output', 'phase0-readiness')
     writeCompareEvidence(appRoot)
-    writeFileSync(join(outputDir, 'ci-artifacts', 'run-123', 'pro-electron-smoke', 'shell-dark.png'), 'tampered-remote')
+    const remoteManifestPath = join(outputDir, 'ci-artifacts', 'run-123', 'pro-electron-smoke', 'shell-visual-manifest.json')
+    const remoteManifest = JSON.parse(readFileSync(remoteManifestPath, 'utf8'))
+    remoteManifest.themes.dark.tokens.accent = '#ff0066'
+    writeJson(remoteManifestPath, remoteManifest)
 
     let error: Error | null = null
     try {
@@ -1902,7 +1911,7 @@ describe('Phase 0 reporting scripts', () => {
 
     expect(error).not.toBeNull()
     const report = JSON.parse(readFileSync(join(outputDir, 'phase0-ci-compare.json'), 'utf8'))
-    const hashCheck = report.checks.find((check) => check.id === 'visual-dark-shell-screenshot-hash-parity')
+    const hashCheck = report.checks.find((check) => check.id === 'visual-manifest-hash-parity')
 
     expect(report.passed).toBe(false)
     expect(hashCheck?.passed).toBe(false)

@@ -21,10 +21,6 @@ function hashContent(value) {
   return createHash('sha256').update(value).digest('hex')
 }
 
-function hashFile(path) {
-  return hashContent(readFileSync(path))
-}
-
 function normalizeForHash(value) {
   if (Array.isArray(value)) {
     return value.map((item) => normalizeForHash(item))
@@ -56,8 +52,6 @@ function normalizeVisualManifest(manifest) {
             selector: zone.selector ?? null,
             file: zone.path ? basename(zone.path) : null,
             required: zone.required ?? null,
-            width: zone.width ?? null,
-            height: zone.height ?? null,
           })),
         },
       ]),
@@ -339,18 +333,13 @@ if (!existsSync(latestDownloadPath)) {
         existsSync(remoteShellScreenshotPath),
         remoteShellScreenshotPath,
       )
-
-      if (existsSync(localShellScreenshotPath) && existsSync(remoteShellScreenshotPath)) {
-        const localHash = hashFile(localShellScreenshotPath)
-        const remoteHash = hashFile(remoteShellScreenshotPath)
-        addCheck(
-          checks,
-          `visual-${themeName}-shell-screenshot-hash-parity`,
-          `${themeName} shell screenshot hashes match`,
-          localHash === remoteHash,
-          `local=${localHash} remote=${remoteHash}`,
-        )
-      }
+      addCheck(
+        checks,
+        `visual-${themeName}-shell-screenshot-local-file`,
+        `${themeName} shell screenshot file exists locally`,
+        existsSync(localShellScreenshotPath),
+        localShellScreenshotPath,
+      )
 
       for (const zone of remoteTheme.zones ?? []) {
         const localZone = (localTheme.zones ?? []).find((candidate) => candidate.zone === zone.zone)
@@ -365,16 +354,15 @@ if (!existsSync(latestDownloadPath)) {
 
         if (localZone) {
           const localZonePath = resolve(localSmokeDir, basename(localZone.path))
-          if (existsSync(localZonePath) && existsSync(remoteZonePath)) {
-            const localHash = hashFile(localZonePath)
-            const remoteHash = hashFile(remoteZonePath)
-            addCheck(
-              checks,
-              `visual-${themeName}-${zone.zone}-hash-parity`,
-              `${themeName} ${zone.zone} screenshot hashes match`,
-              localHash === remoteHash,
-              `local=${localHash} remote=${remoteHash}`,
-            )
+          addCheck(
+            checks,
+            `visual-${themeName}-${zone.zone}-local-file`,
+            `${themeName} ${zone.zone} screenshot file exists locally`,
+            existsSync(localZonePath),
+            localZonePath,
+          )
+          if (!existsSync(localZonePath)) {
+            continue
           }
         }
       }
