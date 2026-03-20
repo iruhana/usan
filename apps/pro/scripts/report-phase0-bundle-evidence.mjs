@@ -26,8 +26,6 @@ const localEvidenceEntries = [
   'phase0-publish-status.md',
   'phase0-simulate-publish.json',
   'phase0-simulate-publish.md',
-  'phase0-stage-scope.json',
-  'phase0-stage-scope.md',
   'phase0-push-handoff.json',
   'phase0-push-handoff.md',
   'phase0-push-script.json',
@@ -36,10 +34,14 @@ const localEvidenceEntries = [
   'phase0-push-script-whatif.json',
   'phase0-push-script-whatif.md',
   'phase0-push-script-whatif.log',
-  'phase0-publish-readiness.json',
-  'phase0-publish-readiness.md',
   'phase0-evidence-manifest.json',
   'phase0-evidence-manifest.md',
+]
+const optionalLocalEvidenceEntries = [
+  'phase0-stage-scope.json',
+  'phase0-stage-scope.md',
+  'phase0-publish-readiness.json',
+  'phase0-publish-readiness.md',
 ]
 const remoteObservationEvidenceEntries = [
   'phase0-ci-status.json',
@@ -169,6 +171,20 @@ for (const relativePath of localEvidenceEntries) {
   const sourcePath = resolve(outputDir, relativePath)
   if (!existsSync(sourcePath)) {
     report.missingFiles.push(relativePath)
+    continue
+  }
+
+  const destinationPath = resolve(bundlePayloadRoot, relativePath)
+  copyEntry(sourcePath, destinationPath)
+  report.includedFiles.push({
+    relativePath,
+    bundlePath: destinationPath,
+  })
+}
+
+for (const relativePath of optionalLocalEvidenceEntries) {
+  const sourcePath = resolve(outputDir, relativePath)
+  if (!existsSync(sourcePath)) {
     continue
   }
 

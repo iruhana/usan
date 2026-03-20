@@ -762,6 +762,94 @@ describe('Phase 0 reporting scripts', () => {
     expect(markdown).toContain('phase0-ci-observed-run.json')
   })
 
+  it('treats stage-scope and publish-readiness files as optional during early evidence-manifest generation', () => {
+    const { appRoot } = createFixture()
+    const outputDir = join(appRoot, 'output', 'phase0-readiness')
+    const visualDir = join(appRoot, 'output', 'playwright', 'electron-smoke')
+
+    writeJson(join(outputDir, 'phase0-readiness.json'), { passed: true })
+    writeFileSync(join(outputDir, 'phase0-readiness.md'), '# readiness\n')
+    writeJson(join(outputDir, 'verify-strict-receipt.json'), { passed: true })
+    writeFileSync(join(outputDir, 'verify-strict-receipt.md'), '# receipt\n')
+    writeJson(join(outputDir, 'phase0-closeout.json'), {
+      status: 'phase0-local-complete-remote-pending',
+      remoteConfirmationReady: false,
+    })
+    writeFileSync(join(outputDir, 'phase0-closeout.md'), '# closeout\n')
+    writeJson(join(outputDir, 'phase0-commit-handoff.json'), { status: 'phase0-commit-ready' })
+    writeFileSync(join(outputDir, 'phase0-commit-handoff.md'), '# commit handoff\n')
+    writeFileSync(join(outputDir, 'phase0-commit-message.txt'), 'feat(pro): close out phase 0 hardening\n')
+    writeJson(join(outputDir, 'phase0-commit-dry-run.json'), { status: 'phase0-commit-not-ready' })
+    writeFileSync(join(outputDir, 'phase0-commit-dry-run.md'), '# commit dry run\n')
+    writeJson(join(outputDir, 'phase0-publish-status.json'), { status: 'phase0-publish-not-ready' })
+    writeFileSync(join(outputDir, 'phase0-publish-status.md'), '# publish status\n')
+    writeJson(join(outputDir, 'phase0-simulate-publish.json'), { status: 'phase0-simulate-publish-clean-tree', simulatedReady: true })
+    writeFileSync(join(outputDir, 'phase0-simulate-publish.md'), '# simulate publish\n')
+    writeJson(join(outputDir, 'phase0-push-handoff.json'), { status: 'phase0-push-handoff-ready' })
+    writeFileSync(join(outputDir, 'phase0-push-handoff.md'), '# push handoff\n')
+    writeJson(join(outputDir, 'phase0-push-script.json'), { status: 'phase0-push-script-ready' })
+    writeFileSync(join(outputDir, 'phase0-push-script.md'), '# push script\n')
+    writeFileSync(join(outputDir, 'phase0-push-sequence.ps1'), 'Write-Host "phase0"\n')
+    writePushScriptWhatIfEvidence(outputDir)
+    mkdirSync(visualDir, { recursive: true })
+    writeJson(join(visualDir, 'shell-visual-manifest.json'), { themes: { dark: {}, light: {} } })
+    writeFileSync(join(visualDir, 'shell-dark.png'), 'dark')
+
+    runNode(reportEvidenceManifestScriptPath, appRoot)
+
+    const report = JSON.parse(readFileSync(join(outputDir, 'phase0-evidence-manifest.json'), 'utf8'))
+    expect(report.status).toBe('phase0-evidence-manifest-local-ready-remote-pending')
+    expect(report.missingRequiredFiles).toEqual([])
+    expect(report.pendingFiles).toEqual(remoteObservationEvidenceFiles)
+    expect(report.evidenceFiles.some((entry) => entry.relativePath === 'output/phase0-readiness/phase0-stage-scope.json')).toBe(false)
+    expect(report.evidenceFiles.some((entry) => entry.relativePath === 'output/phase0-readiness/phase0-publish-readiness.json')).toBe(false)
+  })
+
+  it('treats stage-scope and publish-readiness files as optional during early bundle generation', () => {
+    const { appRoot } = createFixture()
+    const outputDir = join(appRoot, 'output', 'phase0-readiness')
+    const visualDir = join(appRoot, 'output', 'playwright', 'electron-smoke')
+
+    writeJson(join(outputDir, 'phase0-readiness.json'), { passed: true })
+    writeFileSync(join(outputDir, 'phase0-readiness.md'), '# readiness\n')
+    writeJson(join(outputDir, 'verify-strict-receipt.json'), { passed: true })
+    writeFileSync(join(outputDir, 'verify-strict-receipt.md'), '# receipt\n')
+    writeJson(join(outputDir, 'phase0-closeout.json'), {
+      status: 'phase0-local-complete-remote-pending',
+      remoteConfirmationReady: false,
+    })
+    writeFileSync(join(outputDir, 'phase0-closeout.md'), '# closeout\n')
+    writeJson(join(outputDir, 'phase0-commit-handoff.json'), { status: 'phase0-commit-ready' })
+    writeFileSync(join(outputDir, 'phase0-commit-handoff.md'), '# commit handoff\n')
+    writeFileSync(join(outputDir, 'phase0-commit-message.txt'), 'feat(pro): close out phase 0 hardening\n')
+    writeJson(join(outputDir, 'phase0-commit-dry-run.json'), { status: 'phase0-commit-not-ready' })
+    writeFileSync(join(outputDir, 'phase0-commit-dry-run.md'), '# commit dry run\n')
+    writeJson(join(outputDir, 'phase0-publish-status.json'), { status: 'phase0-publish-not-ready' })
+    writeFileSync(join(outputDir, 'phase0-publish-status.md'), '# publish status\n')
+    writeJson(join(outputDir, 'phase0-simulate-publish.json'), { status: 'phase0-simulate-publish-clean-tree', simulatedReady: true })
+    writeFileSync(join(outputDir, 'phase0-simulate-publish.md'), '# simulate publish\n')
+    writeJson(join(outputDir, 'phase0-push-handoff.json'), { status: 'phase0-push-handoff-ready' })
+    writeFileSync(join(outputDir, 'phase0-push-handoff.md'), '# push handoff\n')
+    writeJson(join(outputDir, 'phase0-push-script.json'), { status: 'phase0-push-script-ready' })
+    writeFileSync(join(outputDir, 'phase0-push-script.md'), '# push script\n')
+    writeFileSync(join(outputDir, 'phase0-push-sequence.ps1'), 'Write-Host "phase0"\n')
+    writePushScriptWhatIfEvidence(outputDir)
+    writeJson(join(outputDir, 'phase0-evidence-manifest.json'), { status: 'phase0-evidence-manifest-local-ready-remote-pending' })
+    writeFileSync(join(outputDir, 'phase0-evidence-manifest.md'), '# evidence manifest\n')
+    mkdirSync(visualDir, { recursive: true })
+    writeJson(join(visualDir, 'shell-visual-manifest.json'), { themes: { dark: {}, light: {} } })
+    writeFileSync(join(visualDir, 'shell-dark.png'), 'dark')
+
+    runNode(reportBundleEvidenceScriptPath, appRoot)
+
+    const report = JSON.parse(readFileSync(join(outputDir, 'phase0-bundle-evidence.json'), 'utf8'))
+    expect(report.status).toBe('phase0-bundle-local-ready-remote-pending')
+    expect(report.missingFiles).toEqual([])
+    expect(report.pendingFiles).toEqual(remoteObservationEvidenceFiles)
+    expect(report.includedFiles.some((entry) => entry.relativePath === 'phase0-stage-scope.json')).toBe(false)
+    expect(report.includedFiles.some((entry) => entry.relativePath === 'phase0-publish-readiness.json')).toBe(false)
+  })
+
   it('generates an evidence manifest with hashes for readiness and visual outputs', () => {
     const { appRoot } = createFixture()
     const outputDir = join(appRoot, 'output', 'phase0-readiness')

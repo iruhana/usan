@@ -26,8 +26,6 @@ const localEvidenceFiles = [
   'phase0-publish-status.md',
   'phase0-simulate-publish.json',
   'phase0-simulate-publish.md',
-  'phase0-stage-scope.json',
-  'phase0-stage-scope.md',
   'phase0-push-handoff.json',
   'phase0-push-handoff.md',
   'phase0-push-script.json',
@@ -36,6 +34,10 @@ const localEvidenceFiles = [
   'phase0-push-script-whatif.json',
   'phase0-push-script-whatif.md',
   'phase0-push-script-whatif.log',
+]
+const optionalLocalEvidenceFiles = [
+  'phase0-stage-scope.json',
+  'phase0-stage-scope.md',
   'phase0-publish-readiness.json',
   'phase0-publish-readiness.md',
 ]
@@ -155,6 +157,15 @@ for (const relativePath of localEvidenceFiles) {
   const absolutePath = resolve(outputDir, relativePath)
   if (!existsSync(absolutePath)) {
     report.missingRequiredFiles.push(relativePath)
+    continue
+  }
+
+  report.evidenceFiles.push(buildRecord(absolutePath, 'phase0-readiness'))
+}
+
+for (const relativePath of optionalLocalEvidenceFiles) {
+  const absolutePath = resolve(outputDir, relativePath)
+  if (!existsSync(absolutePath)) {
     continue
   }
 

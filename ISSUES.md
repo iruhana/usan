@@ -27,3 +27,9 @@
 **Symptom:** The first observed GitHub Actions run for `pro-quality.yml` failed inside `phase0:push-script-whatif` even though local `verify:strict` was green.
 **Cause:** `report-phase0-simulate-publish.mjs` treated a clean committed tree as blocked because the temporary-index add staged zero entries and the commit dry run had nothing to commit. The generated PowerShell runbook only accepted `phase0-simulate-publish-ready`, so CI clean checkouts aborted before the rest of the WhatIf evidence path ran.
 **Resolution:** Added a `phase0-simulate-publish-clean-tree` no-op status with `simulatedReady=true`, updated the PowerShell runbook to accept that status, and added regression coverage for both the clean-tree simulation and the runbook status contract.
+
+### [Phase 0 Evidence Packaging Clean CI Gap]
+**Date:** 2026-03-21
+**Symptom:** The second observed GitHub Actions run still failed inside `phase0:push-script-whatif`, this time after `phase0:evidence-manifest` even though the clean-tree simulate-publish fix was already in place.
+**Cause:** `report-phase0-evidence-manifest.mjs` and `report-phase0-bundle-evidence.mjs` treated `phase0-stage-scope.*` and `phase0-publish-readiness.*` as required files. On a clean CI runner, `stage-scope` is optional and `publish-readiness` has not been generated yet when the WhatIf runbook validates evidence packaging.
+**Resolution:** Split evidence inputs into required vs optional local files, so clean CI runs can stay `local-ready-remote-pending` during early evidence-packaging steps, and added regression tests for early manifest/bundle generation without `stage-scope` or `publish-readiness`.
