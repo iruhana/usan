@@ -142,7 +142,7 @@ function buildPowerShellScript(report) {
     '  Invoke-NativeCommand -WorkingDirectory $AppRoot -FilePath $NpmCommand -ArgumentList @(',
     '    \'run\', \'phase0:simulate-publish\'',
     '  ) -DisplayCommand "$NpmCommand run phase0:simulate-publish"',
-    '  Assert-Phase0ReportStatus -ReportPath $SimulatePublishReportPath -Context \'phase0:simulate-publish\' -AllowedStatuses @(\'phase0-simulate-publish-ready\') -TrueProperties @(\'simulatedReady\')',
+    '  Assert-Phase0ReportStatus -ReportPath $SimulatePublishReportPath -Context \'phase0:simulate-publish\' -AllowedStatuses @(\'phase0-simulate-publish-ready\', \'phase0-simulate-publish-clean-tree\') -TrueProperties @(\'simulatedReady\')',
     '}',
     '',
     'if (-not $SkipStage) {',

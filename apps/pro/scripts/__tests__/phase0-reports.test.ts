@@ -556,6 +556,35 @@ describe('Phase 0 reporting scripts', () => {
     expect(log).toContain('phase0:publish-readiness')
   })
 
+  it('generates a push script that accepts clean-tree simulate publish status', () => {
+    const { appRoot } = createFixture()
+    const outputDir = join(appRoot, 'output', 'phase0-readiness')
+
+    writeJson(join(outputDir, 'phase0-closeout.json'), {
+      status: 'phase0-local-complete-remote-pending',
+      gitSummary: { branchName: 'main' },
+      gitIdentitySummary: {
+        userName: 'Codex Test',
+        userEmail: 'codex@example.com',
+        remoteMatchesExpectation: true,
+      },
+    })
+    writeJson(join(outputDir, 'phase0-push-handoff.json'), {
+      branchName: 'main',
+    })
+    writeJson(join(outputDir, 'phase0-commit-handoff.json'), {
+      stageCommand: 'git -C "C:\\Users\\admin\\Projects\\usan" add -- "ISSUES.md" ".github/workflows/pro-quality.yml" "apps/pro"',
+      commitCommand: 'git -C "C:\\Users\\admin\\Projects\\usan" commit -F "C:\\Users\\admin\\Projects\\usan\\apps\\pro\\output\\phase0-readiness\\phase0-commit-message.txt"',
+      commitMessagePath: join(outputDir, 'phase0-commit-message.txt'),
+    })
+    writeFileSync(join(outputDir, 'phase0-commit-message.txt'), 'feat(pro): close out phase 0 hardening\n')
+
+    runNode(reportPushScriptScriptPath, appRoot)
+
+    const powerShellScript = readFileSync(join(outputDir, 'phase0-push-sequence.ps1'), 'utf8')
+    expect(powerShellScript).toContain("'phase0-simulate-publish-ready', 'phase0-simulate-publish-clean-tree'")
+  })
+
   it('bundles local phase0 evidence into a single payload directory', () => {
     const { appRoot } = createFixture()
     const outputDir = join(appRoot, 'output', 'phase0-readiness')
@@ -1472,6 +1501,41 @@ describe('Phase 0 reporting scripts', () => {
     expect(report.realStagedOutsideScopeEntries).toEqual([])
     expect(report.simulatedStagedEntries.some((entry) => entry.path === 'ISSUES.md')).toBe(true)
     expect(staged).toBe('')
+  })
+
+  it('simulate publish treats a clean committed tree as a ready no-op', () => {
+    const { repoRoot, appRoot } = createFixture()
+    const outputDir = join(appRoot, 'output', 'phase0-readiness')
+    materializeCriticalPublishTargets(repoRoot)
+    writeFileSync(join(repoRoot, 'ISSUES.md'), 'fixture issue log\n')
+    initCleanRepoWithUpstream(repoRoot)
+
+    writeJson(join(outputDir, 'phase0-closeout.json'), {
+      status: 'phase0-local-complete-remote-pending',
+      gitSummary: {
+        branchName: 'main',
+        changedEntries: [],
+      },
+      gitIdentitySummary: {
+        userName: 'Codex Test',
+        userEmail: 'codex@example.com',
+        remoteMatchesExpectation: true,
+      },
+      publishTargets: [
+        { path: '.github/workflows/pro-quality.yml', status: 'tracked-clean' },
+      ],
+    })
+    runNode(reportCommitHandoffScriptPath, appRoot)
+    runNode(reportSimulatePublishScriptPath, appRoot)
+
+    const report = JSON.parse(readFileSync(join(outputDir, 'phase0-simulate-publish.json'), 'utf8'))
+
+    expect(report.status).toBe('phase0-simulate-publish-clean-tree')
+    expect(report.simulatedReady).toBe(true)
+    expect(report.simulationMode).toBe('clean-tree-noop')
+    expect(report.realScopedWorktreeEntries).toEqual([])
+    expect(report.simulatedStagedEntries).toEqual([])
+    expect(report.blockers).toEqual([])
   })
 
   it('simulate publish blocks when real staged outside-scope entries already exist', () => {

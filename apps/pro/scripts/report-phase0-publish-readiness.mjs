@@ -281,8 +281,10 @@ const report = {
       'Simulated publish path',
       Boolean(simulatePublish.simulatedReady),
       simulatePublish.status,
-      simulatePublish.simulatedReady
-        ? `Temporary-index simulation is clean with ${simulatePublish.simulatedStagedEntries?.length ?? 0} staged entries.`
+      simulatePublish.status === 'phase0-simulate-publish-clean-tree'
+        ? 'Temporary-index simulation confirms the committed tree is already clean for the standard Phase 0 publish scope.'
+        : simulatePublish.simulatedReady
+          ? `Temporary-index simulation is clean with ${simulatePublish.simulatedStagedEntries?.length ?? 0} staged entries.`
         : 'Temporary-index simulation is blocked.',
       simulatePublish.simulatedReady ? null : 'Inspect phase0-simulate-publish.md and clear the simulated publish blockers.',
     ),

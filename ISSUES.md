@@ -21,3 +21,9 @@
 **Symptom:** The new `run-phase0-ci-observe.mjs` integration test failed even after fixture mode was added, first because child scripts were resolved from the temporary app root, then because `ci-status` inferred git branch state from a non-repo fixture, and finally because the observe and status fixtures used different workflow shapes.
 **Cause:** The orchestration script mixed `cwd`-relative child script paths with fixture-mode execution, did not always pass `--ref` through to downstream status refreshes, and the shared fixture contract between observe/status evolved independently.
 **Resolution:** Resolved child scripts relative to the script file, passed the target branch explicitly into `report-phase0-ci-status.mjs`, and taught the status fixture loader to accept both `workflow` and `workflows` shapes so a single shared fixture can drive the full observe flow.
+
+### [Phase 0 CI Simulate Publish Clean Tree Block]
+**Date:** 2026-03-21
+**Symptom:** The first observed GitHub Actions run for `pro-quality.yml` failed inside `phase0:push-script-whatif` even though local `verify:strict` was green.
+**Cause:** `report-phase0-simulate-publish.mjs` treated a clean committed tree as blocked because the temporary-index add staged zero entries and the commit dry run had nothing to commit. The generated PowerShell runbook only accepted `phase0-simulate-publish-ready`, so CI clean checkouts aborted before the rest of the WhatIf evidence path ran.
+**Resolution:** Added a `phase0-simulate-publish-clean-tree` no-op status with `simulatedReady=true`, updated the PowerShell runbook to accept that status, and added regression coverage for both the clean-tree simulation and the runbook status contract.

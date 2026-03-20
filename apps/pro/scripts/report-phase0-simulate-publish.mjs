@@ -73,6 +73,48 @@ function parseNameStatus(output) {
     })
 }
 
+function parsePorcelain(output) {
+  if (!output) {
+    return []
+  }
+
+  return output
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .flatMap((line) => {
+      if (line.startsWith('## ')) {
+        return []
+      }
+
+      if (line.startsWith('?? ')) {
+        return [{
+          code: '??',
+          category: 'untracked',
+          path: normalizePath(line.slice(3)),
+        }]
+      }
+
+      const code = line.slice(0, 2)
+      const rawPath = line.slice(3)
+      const path = rawPath.includes(' -> ') ? rawPath.split(' -> ').at(-1) : rawPath
+      let category = 'modified'
+
+      if (code.includes('D')) {
+        category = 'deleted'
+      } else if (code.includes('R')) {
+        category = 'renamed'
+      } else if (code.includes('A')) {
+        category = 'added'
+      }
+
+      return [{
+        code,
+        category,
+        path: normalizePath(path),
+      }]
+    })
+}
+
 function buildMarkdown(report) {
   const lines = [
     '# Phase 0 Simulate Publish',
@@ -81,7 +123,9 @@ function buildMarkdown(report) {
     `- Repo root: ${report.repoRoot}`,
     `- Status: ${report.status}`,
     `- Simulated ready: ${report.simulatedReady ? 'yes' : 'no'}`,
+    `- Simulation mode: ${report.simulationMode}`,
     `- Real staged outside-scope entries: ${report.realStagedOutsideScopeEntries.length}`,
+    `- Real scoped worktree entries: ${report.realScopedWorktreeEntries.length}`,
     `- Simulated staged entries: ${report.simulatedStagedEntries.length}`,
     `- Commit message file: ${report.commitMessagePath}`,
     '',
@@ -106,6 +150,13 @@ function buildMarkdown(report) {
   if (report.realStagedOutsideScopeEntries.length > 0) {
     lines.push('', '## Real Staged Outside Scope Entries')
     for (const entry of report.realStagedOutsideScopeEntries) {
+      lines.push(`- [${entry.category}] ${entry.path}`)
+    }
+  }
+
+  if (report.realScopedWorktreeEntries.length > 0) {
+    lines.push('', '## Real Scoped Worktree Entries')
+    for (const entry of report.realScopedWorktreeEntries) {
       lines.push(`- [${entry.category}] ${entry.path}`)
     }
   }
@@ -157,6 +208,9 @@ const isWithinPublishScope = (path) =>
 
 const realStagedEntries = parseNameStatus(runGit(['diff', '--cached', '--name-status', '--find-renames']).stdout)
 const realStagedOutsideScopeEntries = realStagedEntries.filter((entry) => !isWithinPublishScope(entry.path))
+const realScopedWorktreeEntries = parsePorcelain(
+  runGit(['status', '--porcelain', '--', ...publishScopeRoots]).stdout,
+).filter((entry) => isWithinPublishScope(entry.path))
 
 const tempDir = mkdtempSync(join(tmpdir(), 'usan-pro-phase0-sim-'))
 const tempIndexPath = join(tempDir, 'index')
@@ -193,14 +247,18 @@ const report = {
   repoRoot,
   status: 'phase0-simulate-publish-ready',
   simulatedReady: Boolean(simulatedCommitDryRun?.ok),
+  simulationMode: 'staged-scope',
   publishScopeRoots,
   commitMessagePath,
   realStagedOutsideScopeEntries,
+  realScopedWorktreeEntries,
   simulatedStagedEntries,
   simulatedCommitDryRun,
   blockers: [],
   nextSteps: [],
 }
+
+const cleanTreeNoOp = realScopedWorktreeEntries.length === 0 && simulatedStagedEntries.length === 0
 
 if (realStagedOutsideScopeEntries.length > 0) {
   report.status = 'phase0-simulate-publish-blocked'
@@ -208,12 +266,19 @@ if (realStagedOutsideScopeEntries.length > 0) {
   report.nextSteps.push(`Unstage or isolate the outside-scope staged files before following the push handoff: ${realStagedOutsideScopeEntries.map((entry) => entry.path).join(', ')}`)
 }
 
-if (!simulatedCommitDryRun?.ok) {
+if (realStagedOutsideScopeEntries.length === 0 && cleanTreeNoOp) {
+  report.status = 'phase0-simulate-publish-clean-tree'
+  report.simulatedReady = true
+  report.simulationMode = 'clean-tree-noop'
+  report.nextSteps.push('No local Phase 0 publish-scope changes are pending. You can move directly to remote observation or rerun the publish flow only after new scope changes appear.')
+}
+
+if (report.status === 'phase0-simulate-publish-ready' && !simulatedCommitDryRun?.ok) {
   report.status = 'phase0-simulate-publish-blocked'
   report.blockers.push('Temporary-index commit dry run did not succeed for the standard Phase 0 scope.')
 }
 
-if (simulatedStagedEntries.length === 0) {
+if (report.status === 'phase0-simulate-publish-ready' && simulatedStagedEntries.length === 0) {
   report.status = 'phase0-simulate-publish-blocked'
   report.blockers.push('Simulation staged no entries for the standard Phase 0 scope.')
 }
