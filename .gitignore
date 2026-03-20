@@ -13,3 +13,4 @@ apps/desktop/logs/
 apps/desktop/output/
 apps/desktop/native/qt-bridge/build-manual/
 *.tgz
+apps/pro/.env

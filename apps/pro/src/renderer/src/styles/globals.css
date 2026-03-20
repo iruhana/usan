@@ -1,0 +1,241 @@
+@import "tailwindcss";
+
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  /* Background layers */
+  --bg-base:      #0f1117;
+  --bg-surface:   #161b27;
+  --bg-elevated:  #1e2535;
+  --bg-overlay:   rgba(15, 17, 23, 0.80);
+  --bg-hover:     #252d3d;
+  --bg-active:    #2a3348;
+
+  /* Text */
+  --text-primary:   #e8ecf4;
+  --text-secondary: #8892a4;
+  --text-tertiary:  #6b7588;
+  --text-muted:     #4e5868;
+  --text-inverse:   #0f1117;
+
+  /* Borders */
+  --border-subtle:  rgba(255,255,255,0.05);
+  --border-default: rgba(255,255,255,0.07);
+  --border-strong:  rgba(255,255,255,0.12);
+  --border-focus:   rgba(255,255,255,0.18);
+  --border-danger:  rgba(239,68,68,0.40);
+
+  /* Legacy aliases */
+  --border: var(--border-default);
+
+  /* Action / accent */
+  --accent:        #5b8af5;
+  --accent-soft:   rgba(91,138,245,0.12);
+  --accent-glow:   rgba(91,138,245,0.25);
+  --success:       #34d399;
+  --success-soft:  rgba(52,211,153,0.12);
+  --warning:       #fbbf24;
+  --warning-soft:  rgba(251,191,36,0.12);
+  --danger:        #ef4444;
+  --danger-soft:   rgba(239,68,68,0.12);
+  --focus-ring:    var(--accent);
+
+  /* Shape */
+  --radius-xs:  2px;
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl:  12px;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.24);
+  --shadow-2: 0 2px 8px rgba(0,0,0,0.32);
+  --shadow-3: 0 4px 16px rgba(0,0,0,0.40);
+  --shadow-4: 0 8px 32px rgba(0,0,0,0.48);
+
+  /* Layout */
+  --titlebar-height:      40px;
+  --nav-rail-width:       56px;
+  --sidebar-width:        240px;
+  --worklist-width:       280px;
+  --context-panel-width:  320px;
+  --utility-panel-height: 260px;
+  --composer-min-height:  76px;
+  --composer-max-height:  220px;
+
+  /* Spacing scale */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+
+  /* Motion */
+  --ease-standard:    cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-swift-enter: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-symmetric:   cubic-bezier(0.45, 0, 0.55, 1);
+  --dur-micro:  100ms;
+  --dur-panel:  180ms;
+  --dur-overlay: 220ms;
+
+  /* Legacy aliases */
+  --ease-spring: var(--ease-swift-enter);
+  --ease-smooth: var(--ease-standard);
+  --dur-fast:  150ms;
+  --dur-base:  220ms;
+  --dur-slow:  380ms;
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  --fs-xs:   11px;
+  --fs-sm:   12px;
+  --fs-base: 13px;
+  --fs-md:   14px;
+  --fs-lg:   16px;
+  --fs-xl:   18px;
+  --lh-tight:  1.3;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.6;
+}
+
+/* ─── Light theme ─────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg-base:      #f8f9fb;
+  --bg-surface:   #ffffff;
+  --bg-elevated:  #f0f1f4;
+  --bg-overlay:   rgba(255,255,255,0.85);
+  --bg-hover:     #e8eaef;
+  --bg-active:    #dfe1e8;
+
+  --text-primary:   #1a1d26;
+  --text-secondary: #5a6274;
+  --text-tertiary:  #7c8494;
+  --text-muted:     #a0a8b8;
+  --text-inverse:   #f8f9fb;
+
+  --border-subtle:  rgba(0,0,0,0.04);
+  --border-default: rgba(0,0,0,0.08);
+  --border-strong:  rgba(0,0,0,0.14);
+  --border-focus:   rgba(0,0,0,0.22);
+  --border-danger:  rgba(239,68,68,0.30);
+
+  --accent:       #4a7ae8;
+  --accent-soft:  rgba(74,122,232,0.10);
+  --accent-glow:  rgba(74,122,232,0.20);
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-2: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-3: 0 4px 16px rgba(0,0,0,0.10);
+  --shadow-4: 0 8px 32px rgba(0,0,0,0.14);
+}
+
+/* ─── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Scrollbars ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: var(--radius-xs); }
+::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+
+/* ─── Selection ───────────────────────────────────────────────────────────── */
+::selection { background: var(--accent-soft); color: var(--text-primary); }
+
+/* ─── Drag region ─────────────────────────────────────────────────────────── */
+.drag-region { -webkit-app-region: drag; }
+.no-drag     { -webkit-app-region: no-drag; }
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeIn   { from { opacity: 0; }           to { opacity: 1; } }
+@keyframes slideUp  { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slideDown { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes scaleIn  { from { transform: scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes shimmer  {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.anim-fade-in   { animation: fadeIn   var(--dur-panel) var(--ease-standard) both; }
+.anim-slide-up  { animation: slideUp  var(--dur-panel) var(--ease-standard) both; }
+.anim-slide-down { animation: slideDown var(--dur-panel) var(--ease-standard) both; }
+.anim-scale-in  { animation: scaleIn  var(--dur-micro) var(--ease-swift-enter) both; }
+.anim-pulse     { animation: pulse 2s var(--ease-standard) infinite; }
+.anim-spin      { animation: spin 1s linear infinite; }
+
+/* ─── Reduced motion ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Skeleton loader ─────────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 25%,
+    var(--bg-elevated) 50%,
+    var(--bg-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ─── Glass surface ───────────────────────────────────────────────────────── */
+.glass {
+  background: var(--bg-overlay);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--border-default);
+}
+
+/* ─── Focus ring ──────────────────────────────────────────────────────────── */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ─── Utility classes ─────────────────────────────────────────────────────── */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
