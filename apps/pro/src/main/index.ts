@@ -9,13 +9,17 @@ config({ path: join(app.getAppPath(), '.env') })
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { AITabManager } from './ai-tabs'
 import { indexSkills, querySkills, readSkillContent } from './skills/indexer'
-import { handleChat, stopStream } from './ai-chat'
+import { handleChat, resolveToolApproval, stopStream } from './ai-chat'
 import { AI_PROVIDERS } from '@shared/types'
 import type {
   AppSettings,
+  ApprovalDecision,
   BranchShellSessionSeed,
   ChatPayload,
   CreateShellSessionSeed,
+  ProviderSecretProvider,
+  ShellApproval,
+  ShellAttachment,
   ShellArtifact,
   ShellChatMessage,
   ShellLog,
@@ -24,7 +28,16 @@ import type {
   ShellSnapshot,
 } from '@shared/types'
 import { getSettings, updateSettings } from './platform/settings'
+import { clearLocalCaches, resetWorkspaceData } from './platform/data-maintenance'
 import {
+  deleteProviderSecret,
+  getProviderSecretsStatus,
+  initializeSecretStore,
+  setProviderSecret,
+} from './platform/secret-store'
+import {
+  appendShellApproval,
+  appendShellAttachment,
   appendShellArtifact,
   appendShellLog,
   appendShellMessage,
@@ -35,7 +48,10 @@ import {
   getShellSnapshot,
   initializeShellState,
   promoteShellSession,
+  resolveShellApproval,
   restoreShellSession,
+  commitShellAttachments,
+  removeShellAttachment,
   setActiveShellSession,
   updateShellRunStep,
   updateShellSession,
@@ -48,6 +64,7 @@ const DATA_DIR = join(app.getPath('userData'), 'usan-pro')
 const SKILLS_DB = join(DATA_DIR, 'skills.db')
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json')
 const SHELL_STATE_FILE = join(DATA_DIR, 'shell-state.json')
+const SECRETS_FILE = join(DATA_DIR, 'provider-secrets.json')
 
 // ─── Window ──────────────────────────────────────────────────────────────────
 
@@ -119,6 +136,25 @@ function broadcastShellSnapshot(snapshot: ShellSnapshot): void {
     .forEach((contents) => contents.send('shell:snapshot', snapshot))
 }
 
+async function clearBrowserCaches(): Promise<void> {
+  const seenSessions = new Set<Electron.Session>()
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.webContents.isDestroyed()) {
+      continue
+    }
+
+    seenSessions.add(window.webContents.session)
+  }
+
+  for (const browserSession of seenSessions) {
+    await browserSession.clearCache()
+    await browserSession.clearStorageData({
+      storages: ['serviceworkers', 'cachestorage'],
+    })
+  }
+}
+
 // ─── App lifecycle ───────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
@@ -126,6 +162,7 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, win) => optimizer.watchWindowShortcuts(win))
   mkdirSync(DATA_DIR, { recursive: true })
   initializeShellState(SHELL_STATE_FILE)
+  initializeSecretStore(SECRETS_FILE)
 
   createWindow()
 
@@ -246,8 +283,39 @@ ipcMain.handle('shell:append-log', (_e, log: ShellLog) => {
   return snapshot
 })
 
+ipcMain.handle('shell:append-attachment', (_e, attachment: ShellAttachment) => {
+  const snapshot = appendShellAttachment(attachment)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:remove-attachment', (_e, attachmentId: string) => {
+  const snapshot = removeShellAttachment(attachmentId)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:commit-attachments', (_e, sessionId: string, attachmentIds: string[], messageId: string) => {
+  const snapshot = commitShellAttachments(sessionId, attachmentIds, messageId)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
 ipcMain.handle('shell:append-artifact', (_e, artifact: ShellArtifact) => {
   const snapshot = appendShellArtifact(artifact)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:append-approval', (_e, approval: ShellApproval) => {
+  const snapshot = appendShellApproval(approval)
+  broadcastShellSnapshot(snapshot)
+  return snapshot
+})
+
+ipcMain.handle('shell:resolve-approval', (_e, approvalId: string, decision: ApprovalDecision) => {
+  const snapshot = resolveShellApproval(approvalId, decision)
+  resolveToolApproval(approvalId, decision)
   broadcastShellSnapshot(snapshot)
   return snapshot
 })
@@ -258,6 +326,43 @@ ipcMain.handle('settings:get', () => {
 
 ipcMain.handle('settings:update', (_e, patch: Partial<AppSettings>) => {
   return updateSettings(SETTINGS_FILE, patch)
+})
+
+ipcMain.handle('secrets:get-status', () => {
+  return getProviderSecretsStatus()
+})
+
+ipcMain.handle('secrets:set-provider-key', (_e, provider: ProviderSecretProvider, value: string) => {
+  return setProviderSecret(provider, value)
+})
+
+ipcMain.handle('secrets:delete-provider-key', (_e, provider: ProviderSecretProvider) => {
+  return deleteProviderSecret(provider)
+})
+
+ipcMain.handle('data:reset-workspace', () => {
+  const result = resetWorkspaceData({
+    dataDir: DATA_DIR,
+    settingsFile: SETTINGS_FILE,
+    shellStateFile: SHELL_STATE_FILE,
+    secretsFile: SECRETS_FILE,
+    skillsDb: SKILLS_DB,
+    skillsRoot: SKILLS_ROOT,
+  })
+  broadcastShellSnapshot(result.snapshot)
+  return result
+})
+
+ipcMain.handle('data:clear-cache', async () => {
+  return clearLocalCaches({
+    dataDir: DATA_DIR,
+    settingsFile: SETTINGS_FILE,
+    shellStateFile: SHELL_STATE_FILE,
+    secretsFile: SECRETS_FILE,
+    skillsDb: SKILLS_DB,
+    skillsRoot: SKILLS_ROOT,
+    clearBrowserCaches,
+  })
 })
 
 // AI Chat (streaming)

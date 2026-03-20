@@ -281,6 +281,10 @@ export function readSkillContent(skillPath: string): string {
   return readFileSync(mdPath, 'utf-8')
 }
 
+export function closeSkillIndexCache(): void {
+  closeCachedDb()
+}
+
 function rowToMeta(row: Record<string, unknown>): SkillMeta {
   return {
     slug: row.slug as string,

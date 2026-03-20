@@ -2,9 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AIProvider,
   AppSettings,
+  ApprovalDecision,
   BranchShellSessionSeed,
+  CacheClearResult,
   ChatPayload,
   CreateShellSessionSeed,
+  ProviderSecretProvider,
+  ProviderSecretsSnapshot,
+  ShellApproval,
+  ShellAttachment,
   ShellArtifact,
   ShellChatMessage,
   ShellLog,
@@ -13,6 +19,7 @@ import type {
   ShellSnapshot,
   SkillMeta,
   StreamChunk,
+  WorkspaceResetResult,
 } from '@shared/types'
 
 const api = {
@@ -53,7 +60,12 @@ const api = {
     appendRunStep: (step: ShellRunStep): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:append-run-step', step),
     updateRunStep: (stepId: string, patch: Partial<ShellRunStep>): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:update-run-step', stepId, patch),
     appendLog: (log: ShellLog): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:append-log', log),
+    appendAttachment: (attachment: ShellAttachment): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:append-attachment', attachment),
+    removeAttachment: (attachmentId: string): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:remove-attachment', attachmentId),
+    commitAttachments: (sessionId: string, attachmentIds: string[], messageId: string): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:commit-attachments', sessionId, attachmentIds, messageId),
     appendArtifact: (artifact: ShellArtifact): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:append-artifact', artifact),
+    appendApproval: (approval: ShellApproval): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:append-approval', approval),
+    resolveApproval: (approvalId: string, decision: ApprovalDecision): Promise<ShellSnapshot> => ipcRenderer.invoke('shell:resolve-approval', approvalId, decision),
     onSnapshot: (cb: (snapshot: ShellSnapshot) => void): (() => void) => {
       const handler = (_: Electron.IpcRendererEvent, snapshot: ShellSnapshot) => cb(snapshot)
       ipcRenderer.on('shell:snapshot', handler)
@@ -64,6 +76,17 @@ const api = {
   settings: {
     get: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
     update: (patch: Partial<AppSettings>): Promise<AppSettings> => ipcRenderer.invoke('settings:update', patch),
+  },
+
+  secrets: {
+    getStatus: (): Promise<ProviderSecretsSnapshot> => ipcRenderer.invoke('secrets:get-status'),
+    setProviderKey: (provider: ProviderSecretProvider, value: string): Promise<ProviderSecretsSnapshot> => ipcRenderer.invoke('secrets:set-provider-key', provider, value),
+    deleteProviderKey: (provider: ProviderSecretProvider): Promise<ProviderSecretsSnapshot> => ipcRenderer.invoke('secrets:delete-provider-key', provider),
+  },
+
+  data: {
+    resetWorkspace: (): Promise<WorkspaceResetResult> => ipcRenderer.invoke('data:reset-workspace'),
+    clearCache: (): Promise<CacheClearResult> => ipcRenderer.invoke('data:clear-cache'),
   },
 
   // Window controls

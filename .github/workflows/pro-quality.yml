@@ -1,0 +1,76 @@
+name: Pro Quality Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/pro/**'
+      - '.github/workflows/pro-quality.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/pro/**'
+      - '.github/workflows/pro-quality.yml'
+
+concurrency:
+  group: pro-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pro-verify-strict:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/pro
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/pro/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Strict verification gate (includes Electron smoke)
+        env:
+          CI: 'true'
+          USAN_SMOKE_SELFTEST_TIMEOUT_MS: '60000'
+        run: npm run verify:strict
+
+      - name: Upload Electron smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pro-electron-smoke
+          path: apps/pro/output/playwright/electron-smoke
+
+      - name: Upload Phase 0 readiness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pro-phase0-readiness
+          path: apps/pro/output/phase0-readiness
+
+      - name: Publish readiness summary
+        if: always()
+        shell: pwsh
+        run: |
+          $summaryPaths = @(
+            'apps/pro/output/phase0-readiness/phase0-readiness.md',
+            'apps/pro/output/phase0-readiness/phase0-closeout.md'
+          )
+
+          foreach ($summaryPath in $summaryPaths) {
+            if (Test-Path $summaryPath) {
+              Get-Content $summaryPath | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+              "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+          }

@@ -2,33 +2,41 @@
  * AI Chat Engine with main-process-owned shell state lifecycle.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
-import { AI_MODELS, type ChatPayload, type ShellSnapshot, type StreamChunk } from '@shared/types'
-import type { WebContents } from 'electron'
 import {
+  AI_MODELS,
+  type ApprovalDecision,
+  type ChatPayload,
+  type ShellAttachment,
+  type ShellArtifact,
+  type ShellSnapshot,
+  type StreamChunk,
+} from '@shared/types'
+import type { WebContents } from 'electron'
+import { getAttachmentDeliveryMode, getModelNativeFileMode } from '@shared/attachment-routing'
+import {
+  appendShellApproval,
   appendShellArtifact,
   appendShellLog,
   appendShellMessage,
   appendShellRunStep,
   getShellSnapshot,
+  resolveShellApproval,
   updateShellRunStep,
   updateShellSession,
 } from './platform/shell-state'
-import { TOOL_DEFS, executeTool } from './tools/index'
+import { TOOL_DEFS, executeTool, getToolExecutionPolicy, type ToolExecutionPolicy } from './tools/index'
+import {
+  getChatProviderAdapter,
+  type ApprovalResolution,
+  type ChatRuntime,
+  type ProviderToolRuntime,
+  type RecordToolResultOptions,
+} from './providers/chat'
 
 const activeStreams = new Map<string, AbortController>()
+const pendingApprovals = new Map<string, { requestId: string; resolve: (decision: ApprovalResolution) => void }>()
 
 type BroadcastShellSnapshot = (snapshot: ShellSnapshot) => void
-
-interface ChatRuntime {
-  requestId: string
-  sessionId: string
-  streamedText: string
-  requestStepId: string
-  toolStepCount: number
-  pendingToolSteps: Map<string, string>
-  assistantCommitted: boolean
-}
 
 function send(sender: WebContents, chunk: StreamChunk) {
   if (!sender.isDestroyed()) {
@@ -70,8 +78,106 @@ function summarizeValue(value: unknown): string {
   }
 }
 
+function describeToolInput(name: string, input: Record<string, unknown>): string {
+  if (name === 'bash') {
+    return String(input.command ?? '').trim() || 'Shell command'
+  }
+
+  if (name === 'web_fetch') {
+    return String(input.url ?? '').trim() || 'Web fetch'
+  }
+
+  if (name === 'read_file') {
+    return String(input.path ?? '').trim() || 'File read'
+  }
+
+  if (name === 'write_file') {
+    return String(input.path ?? '').trim() || 'File write'
+  }
+
+  return summarizeValue(input)
+}
+
+function createApprovalAction(name: string, input: Record<string, unknown>): string {
+  if (name === 'bash') {
+    return `Run shell command: ${describeToolInput(name, input)}`
+  }
+
+  if (name === 'write_file') {
+    return `Write file: ${describeToolInput(name, input)}`
+  }
+
+  return `Run tool: ${name}`
+}
+
+function createApprovalDetail(name: string, input: Record<string, unknown>): string {
+  if (name === 'bash') {
+    return `Command: ${describeToolInput(name, input)}`
+  }
+
+  if (name === 'write_file') {
+    return `Path: ${describeToolInput(name, input)}\nContent: ${summarizeValue(input.content ?? '')}`
+  }
+
+  return summarizeValue(input)
+}
+
+function createApprovalDeniedResult(name: string, policy: ToolExecutionPolicy): string {
+  if (policy.fallback) {
+    return `Execution skipped: approval denied for ${name}. ${policy.fallback}`
+  }
+
+  return `Execution skipped: approval denied for ${name}.`
+}
+
 function createArtifactTitle(sessionArtifactCount: number): string {
   return `assistant-response-${String(sessionArtifactCount + 1).padStart(3, '0')}.md`
+}
+
+function listRequestAttachments(payload: ChatPayload): ShellAttachment[] {
+  const attachmentById = new Map<string, ShellAttachment>()
+  const lastMessageIndex = payload.messages.length - 1
+
+  payload.messages.forEach((message, index) => {
+    const currentAttachments = message.attachments ?? (
+      index === lastMessageIndex ? payload.attachments ?? [] : []
+    )
+
+    for (const attachment of currentAttachments) {
+      if (!attachmentById.has(attachment.id)) {
+        attachmentById.set(attachment.id, attachment)
+      }
+    }
+  })
+
+  return [...attachmentById.values()]
+}
+
+function appendAttachmentRoutingLogs(
+  payload: ChatPayload,
+  runtime: ChatRuntime,
+  broadcastShellSnapshot: BroadcastShellSnapshot,
+): void {
+  const nativeFileMode = getModelNativeFileMode(payload.model)
+  const attachments = listRequestAttachments(payload)
+
+  attachments.forEach((attachment, index) => {
+    const attachmentDeliveryMode = getAttachmentDeliveryMode(attachment, nativeFileMode)
+
+    broadcastShellSnapshot(appendShellLog({
+      id: `log-${payload.requestId}-attachment-${index + 1}`,
+      sessionId: payload.sessionId,
+      ts: createTimeLabel(),
+      level: 'info',
+      message: `Attachment route: ${attachment.name} -> ${attachmentDeliveryMode}`,
+      kind: 'attachment',
+      status: 'success',
+      stepId: runtime.requestStepId,
+      attachmentName: attachment.name,
+      attachmentDeliveryMode,
+      modelId: payload.model,
+    }))
+  })
 }
 
 function createRuntime(payload: ChatPayload): ChatRuntime {
@@ -115,15 +221,19 @@ function broadcastRequestStarted(
     ts: createTimeLabel(),
     level: 'info',
     message: `Request started with ${payload.model}`,
+    kind: 'session',
+    status: 'running',
   }))
+  appendAttachmentRoutingLogs(payload, runtime, broadcastShellSnapshot)
 }
 
 function appendStreamText(sender: WebContents, runtime: ChatRuntime, text: string): void {
   runtime.streamedText += text
-  send(sender, { requestId: runtime.requestId, text, done: false })
+  send(sender, { requestId: runtime.requestId, type: 'text_delta', text })
 }
 
 function persistAssistantResponse(
+  sender: WebContents,
   runtime: ChatRuntime,
   broadcastShellSnapshot: BroadcastShellSnapshot,
 ): void {
@@ -140,7 +250,7 @@ function persistAssistantResponse(
   }))
 
   const session = getShellSnapshot().sessions.find((item) => item.id === runtime.sessionId)
-  broadcastShellSnapshot(appendShellArtifact({
+  const artifact: ShellArtifact = {
     id: `artifact-${runtime.requestId}`,
     sessionId: runtime.sessionId,
     title: createArtifactTitle(session?.artifactCount ?? 0),
@@ -149,7 +259,13 @@ function persistAssistantResponse(
     size: `${Math.max(1, Math.ceil(runtime.streamedText.length / 1024))} KB`,
     version: 1,
     content: runtime.streamedText,
-  }))
+  }
+  broadcastShellSnapshot(appendShellArtifact(artifact))
+  send(sender, {
+    requestId: runtime.requestId,
+    type: 'artifact',
+    artifact,
+  })
 
   runtime.assistantCommitted = true
 }
@@ -169,11 +285,76 @@ function finalizePendingToolSteps(
   runtime.pendingToolSteps.clear()
 }
 
+async function requestToolApproval(
+  runtime: ChatRuntime,
+  name: string,
+  input: Record<string, unknown>,
+  stepId: string,
+  policy: ToolExecutionPolicy,
+  abort: AbortController,
+  broadcastShellSnapshot: BroadcastShellSnapshot,
+): Promise<ApprovalResolution> {
+  const approvalId = `approval-${runtime.requestId}-${runtime.toolStepCount}`
+  const approvalAction = createApprovalAction(name, input)
+
+  broadcastShellSnapshot(appendShellApproval({
+    id: approvalId,
+    sessionId: runtime.sessionId,
+    action: approvalAction,
+    detail: createApprovalDetail(name, input),
+    capability: policy.capability,
+    risk: policy.risk,
+    status: 'pending',
+    retryable: true,
+    fallback: policy.fallback,
+    stepId,
+  }))
+  broadcastShellSnapshot(appendShellLog({
+    id: `log-${approvalId}-requested`,
+    sessionId: runtime.sessionId,
+    ts: createTimeLabel(),
+    level: 'warn',
+    message: `Approval requested: ${approvalAction}`,
+    kind: 'approval',
+    status: 'pending',
+    capability: policy.capability,
+    stepId,
+    approvalId,
+  }))
+
+  return await new Promise<ApprovalResolution>((resolve) => {
+    let settled = false
+
+    const finish = (decision: ApprovalResolution) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      pendingApprovals.delete(approvalId)
+      abort.signal.removeEventListener('abort', handleAbort)
+      resolve(decision)
+    }
+
+    const handleAbort = () => {
+      broadcastShellSnapshot(resolveShellApproval(approvalId, 'denied'))
+      finish('aborted')
+    }
+
+    pendingApprovals.set(approvalId, {
+      requestId: runtime.requestId,
+      resolve: finish,
+    })
+    abort.signal.addEventListener('abort', handleAbort, { once: true })
+  })
+}
+
 function finalizeSuccess(
+  sender: WebContents,
   runtime: ChatRuntime,
   broadcastShellSnapshot: BroadcastShellSnapshot,
 ): void {
-  persistAssistantResponse(runtime, broadcastShellSnapshot)
+  persistAssistantResponse(sender, runtime, broadcastShellSnapshot)
   broadcastShellSnapshot(updateShellRunStep(runtime.requestStepId, {
     status: 'success',
     detail: 'Response completed',
@@ -184,17 +365,20 @@ function finalizeSuccess(
     ts: createTimeLabel(),
     level: 'info',
     message: 'Response completed',
+    kind: 'session',
+    status: 'success',
   }))
   broadcastShellSnapshot(updateShellSession(runtime.sessionId, { status: 'active' }))
 }
 
 function finalizeError(
+  sender: WebContents,
   runtime: ChatRuntime,
   errorMessage: string,
   broadcastShellSnapshot: BroadcastShellSnapshot,
 ): void {
   finalizePendingToolSteps(runtime, 'failed', errorMessage, broadcastShellSnapshot)
-  persistAssistantResponse(runtime, broadcastShellSnapshot)
+  persistAssistantResponse(sender, runtime, broadcastShellSnapshot)
   broadcastShellSnapshot(updateShellRunStep(runtime.requestStepId, {
     status: 'failed',
     detail: errorMessage,
@@ -205,16 +389,19 @@ function finalizeError(
     ts: createTimeLabel(),
     level: 'error',
     message: errorMessage,
+    kind: 'session',
+    status: 'failed',
   }))
   broadcastShellSnapshot(updateShellSession(runtime.sessionId, { status: 'failed' }))
 }
 
 function finalizeAborted(
+  sender: WebContents,
   runtime: ChatRuntime,
   broadcastShellSnapshot: BroadcastShellSnapshot,
 ): void {
   finalizePendingToolSteps(runtime, 'skipped', 'Generation stopped by user', broadcastShellSnapshot)
-  persistAssistantResponse(runtime, broadcastShellSnapshot)
+  persistAssistantResponse(sender, runtime, broadcastShellSnapshot)
   broadcastShellSnapshot(updateShellRunStep(runtime.requestStepId, {
     status: 'skipped',
     detail: 'Generation stopped by user',
@@ -225,6 +412,8 @@ function finalizeAborted(
     ts: createTimeLabel(),
     level: 'warn',
     message: 'Generation stopped by user',
+    kind: 'session',
+    status: 'skipped',
   }))
   broadcastShellSnapshot(updateShellSession(runtime.sessionId, { status: 'active' }))
 }
@@ -236,7 +425,7 @@ function recordToolCall(
   name: string,
   input: unknown,
   broadcastShellSnapshot: BroadcastShellSnapshot,
-): void {
+): string {
   runtime.toolStepCount += 1
   const stepId = `step-${runtime.requestId}-tool-${runtime.toolStepCount}`
   runtime.pendingToolSteps.set(toolId, stepId)
@@ -254,47 +443,64 @@ function recordToolCall(
     ts: createTimeLabel(),
     level: 'debug',
     message: `Tool call: ${name}(${summarizeValue(input)})`,
+    kind: 'tool',
+    status: 'running',
+    stepId,
+    toolName: name,
   }))
   send(sender, {
     requestId: runtime.requestId,
-    toolCall: { name, input },
-    done: false,
+    type: 'tool_call',
+    toolCall: { id: toolId, name, input },
   })
+
+  return stepId
 }
 
 function recordToolResult(
   sender: WebContents,
   runtime: ChatRuntime,
   toolId: string,
+  name: string,
   result: string,
   broadcastShellSnapshot: BroadcastShellSnapshot,
+  options?: {
+    finalizeStep?: boolean
+    stepStatus?: 'success' | 'skipped'
+    logLevel?: 'info' | 'warn' | 'error' | 'debug'
+  },
 ): void {
   const stepId = runtime.pendingToolSteps.get(toolId)
-  if (stepId) {
+  if (stepId && options?.finalizeStep !== false) {
     broadcastShellSnapshot(updateShellRunStep(stepId, {
-      status: 'success',
+      status: options?.stepStatus ?? 'success',
       detail: summarizeValue(result),
     }))
-    runtime.pendingToolSteps.delete(toolId)
   }
+  runtime.pendingToolSteps.delete(toolId)
 
   broadcastShellSnapshot(appendShellLog({
     id: `log-${runtime.requestId}-tool-result-${Date.now()}`,
     sessionId: runtime.sessionId,
     ts: createTimeLabel(),
-    level: 'info',
+    level: options?.logLevel ?? 'info',
     message: `Tool result: ${summarizeValue(result)}`,
+    kind: 'tool',
+    status: options?.stepStatus ?? 'success',
+    stepId,
+    toolName: name,
   }))
   send(sender, {
     requestId: runtime.requestId,
+    type: 'tool_result',
     toolResult: { id: toolId, result },
-    done: false,
   })
 }
 
 function recordToolFailure(
   runtime: ChatRuntime,
   toolId: string,
+  name: string,
   errorMessage: string,
   broadcastShellSnapshot: BroadcastShellSnapshot,
 ): void {
@@ -313,7 +519,54 @@ function recordToolFailure(
     ts: createTimeLabel(),
     level: 'error',
     message: errorMessage,
+    kind: 'tool',
+    status: 'failed',
+    stepId,
+    toolName: name,
   }))
+}
+
+function createProviderToolRuntime(
+  sender: WebContents,
+  runtime: ChatRuntime,
+  abort: AbortController,
+  broadcastShellSnapshot: BroadcastShellSnapshot,
+): ProviderToolRuntime {
+  return {
+    toolDefs: TOOL_DEFS,
+    appendText(text) {
+      if (!abort.signal.aborted) {
+        appendStreamText(sender, runtime, text)
+      }
+    },
+    recordToolCall(toolId, name, input) {
+      return recordToolCall(sender, runtime, toolId, name, input, broadcastShellSnapshot)
+    },
+    recordToolResult(toolId, name, result, options?: RecordToolResultOptions) {
+      recordToolResult(sender, runtime, toolId, name, result, broadcastShellSnapshot, options)
+    },
+    recordToolFailure(toolId, name, errorMessage) {
+      recordToolFailure(runtime, toolId, name, errorMessage, broadcastShellSnapshot)
+    },
+    requestApproval(name, input, stepId, policy) {
+      return requestToolApproval(runtime, name, input, stepId, policy, abort, broadcastShellSnapshot)
+    },
+    getExecutionPolicy(name) {
+      return getToolExecutionPolicy(name)
+    },
+    executeTool(name, input) {
+      return executeTool(name, input)
+    },
+    createApprovalDeniedResult(name, policy) {
+      return createApprovalDeniedResult(name, policy)
+    },
+    markSessionRunning() {
+      broadcastShellSnapshot(updateShellSession(runtime.sessionId, { status: 'running' }))
+    },
+    isAborted() {
+      return abort.signal.aborted
+    },
+  }
 }
 
 export async function handleChat(
@@ -324,41 +577,37 @@ export async function handleChat(
   const { requestId } = payload
   const abort = new AbortController()
   const runtime = createRuntime(payload)
+  const providerTools = createProviderToolRuntime(sender, runtime, abort, broadcastShellSnapshot)
   activeStreams.set(requestId, abort)
   broadcastRequestStarted(payload, runtime, broadcastShellSnapshot)
 
   try {
     const provider = getProvider(payload.model)
-    switch (provider) {
-      case 'anthropic':
-        await handleAnthropic(sender, payload, runtime, abort, broadcastShellSnapshot)
-        break
-      case 'openai':
-        await handleOpenAI(sender, payload, runtime, abort)
-        break
-      case 'google':
-        await handleGoogle(sender, payload, runtime, abort)
-        break
-    }
+    await getChatProviderAdapter(provider).run({
+      payload,
+      runtime,
+      abort,
+      tools: providerTools,
+    })
 
     if (abort.signal.aborted) {
-      finalizeAborted(runtime, broadcastShellSnapshot)
-      send(sender, { requestId, done: true })
+      finalizeAborted(sender, runtime, broadcastShellSnapshot)
+      send(sender, { requestId, type: 'done' })
       return
     }
 
-    finalizeSuccess(runtime, broadcastShellSnapshot)
-    send(sender, { requestId, done: true })
+    finalizeSuccess(sender, runtime, broadcastShellSnapshot)
+    send(sender, { requestId, type: 'done' })
   } catch (error) {
     if (abort.signal.aborted) {
-      finalizeAborted(runtime, broadcastShellSnapshot)
-      send(sender, { requestId, done: true })
+      finalizeAborted(sender, runtime, broadcastShellSnapshot)
+      send(sender, { requestId, type: 'done' })
       return
     }
 
     const message = getErrorMessage(error)
-    finalizeError(runtime, message, broadcastShellSnapshot)
-    send(sender, { requestId, error: message, done: true })
+    finalizeError(sender, runtime, message, broadcastShellSnapshot)
+    send(sender, { requestId, type: 'error', error: message })
   } finally {
     activeStreams.delete(requestId)
   }
@@ -368,235 +617,6 @@ export function stopStream(requestId: string): void {
   activeStreams.get(requestId)?.abort()
 }
 
-async function handleAnthropic(
-  sender: WebContents,
-  payload: ChatPayload,
-  runtime: ChatRuntime,
-  abort: AbortController,
-  broadcastShellSnapshot: BroadcastShellSnapshot,
-) {
-  const { messages, model, systemPrompt, useTools = false } = payload
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is not configured')
-  }
-
-  const client = new Anthropic({ apiKey })
-  const history: Anthropic.Messages.MessageParam[] = messages.map((message) => ({
-    role: message.role,
-    content: message.content,
-  }))
-
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    if (abort.signal.aborted) {
-      return
-    }
-
-    const params: Anthropic.Messages.MessageCreateParamsStreaming = {
-      model,
-      max_tokens: 8096,
-      messages: history,
-      stream: true,
-    }
-
-    if (systemPrompt) {
-      params.system = systemPrompt
-    }
-    if (useTools) {
-      ;(params as Anthropic.Messages.MessageCreateParamsStreaming & { tools: unknown }).tools = TOOL_DEFS
-    }
-
-    const stream = client.messages.stream(params)
-    stream.on('text', (text) => {
-      if (!abort.signal.aborted) {
-        appendStreamText(sender, runtime, text)
-      }
-    })
-
-    const finalMessage = await stream.finalMessage()
-    if (abort.signal.aborted) {
-      return
-    }
-
-    const toolUseBlocks = finalMessage.content.filter(
-      (block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use',
-    )
-    if (finalMessage.stop_reason !== 'tool_use' || toolUseBlocks.length === 0) {
-      break
-    }
-
-    const toolResults: Anthropic.Messages.ToolResultBlockParam[] = []
-    for (const tool of toolUseBlocks) {
-      if (abort.signal.aborted) {
-        return
-      }
-
-      recordToolCall(sender, runtime, tool.id, tool.name, tool.input, broadcastShellSnapshot)
-
-      try {
-        const result = await executeTool(tool.name, tool.input as Record<string, unknown>)
-        if (abort.signal.aborted) {
-          return
-        }
-
-        recordToolResult(sender, runtime, tool.id, result, broadcastShellSnapshot)
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: tool.id,
-          content: result,
-        })
-      } catch (error) {
-        recordToolFailure(runtime, tool.id, getErrorMessage(error), broadcastShellSnapshot)
-        throw error
-      }
-    }
-
-    history.push({ role: 'assistant', content: finalMessage.content })
-    history.push({ role: 'user', content: toolResults })
-  }
-}
-
-async function handleOpenAI(
-  sender: WebContents,
-  payload: ChatPayload,
-  runtime: ChatRuntime,
-  abort: AbortController,
-) {
-  const { messages, model, systemPrompt } = payload
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured')
-  }
-
-  const openaiMessages: Array<{ role: string; content: string }> = []
-  if (systemPrompt) {
-    openaiMessages.push({ role: 'system', content: systemPrompt })
-  }
-  for (const message of messages) {
-    openaiMessages.push({ role: message.role, content: message.content })
-  }
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ model, messages: openaiMessages, stream: true }),
-    signal: abort.signal,
-  })
-
-  if (!response.ok) {
-    throw new Error(`OpenAI error ${response.status}: ${await response.text()}`)
-  }
-
-  const reader = response.body?.getReader()
-  if (!reader) {
-    throw new Error('OpenAI response body is empty')
-  }
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done || abort.signal.aborted) {
-      break
-    }
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-
-    for (const line of lines) {
-      if (!line.startsWith('data: ') || line === 'data: [DONE]') {
-        continue
-      }
-
-      try {
-        const json = JSON.parse(line.slice(6))
-        const delta = json.choices?.[0]?.delta?.content
-        if (delta) {
-          appendStreamText(sender, runtime, delta)
-        }
-      } catch {
-        // Ignore malformed SSE frames.
-      }
-    }
-  }
-}
-
-async function handleGoogle(
-  sender: WebContents,
-  payload: ChatPayload,
-  runtime: ChatRuntime,
-  abort: AbortController,
-) {
-  const { messages, model, systemPrompt } = payload
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured')
-  }
-
-  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = []
-  for (const message of messages) {
-    contents.push({
-      role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: message.content }],
-    })
-  }
-
-  const body: Record<string, unknown> = { contents }
-  if (systemPrompt) {
-    body.systemInstruction = { parts: [{ text: systemPrompt }] }
-  }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: abort.signal,
-    },
-  )
-
-  if (!response.ok) {
-    throw new Error(`Gemini error ${response.status}: ${await response.text()}`)
-  }
-
-  const reader = response.body?.getReader()
-  if (!reader) {
-    throw new Error('Gemini response body is empty')
-  }
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done || abort.signal.aborted) {
-      break
-    }
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) {
-        continue
-      }
-
-      try {
-        const json = JSON.parse(line.slice(6))
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text
-        if (text) {
-          appendStreamText(sender, runtime, text)
-        }
-      } catch {
-        // Ignore malformed SSE frames.
-      }
-    }
-  }
+export function resolveToolApproval(approvalId: string, decision: ApprovalDecision): void {
+  pendingApprovals.get(approvalId)?.resolve(decision)
 }

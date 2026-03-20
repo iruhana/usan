@@ -4,8 +4,8 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
 import {
-  Search, Plus, Settings, History,
-  Zap, FileText, TerminalSquare, PanelRight, PanelBottom,
+  Search, Plus, Settings, History, AlertTriangle,
+  Zap, FileText, TerminalSquare, PanelRight, PanelBottom, Paperclip,
   Command, Sparkles,
 } from 'lucide-react'
 import { useSettingsStore } from '../../stores/settings.store'
@@ -25,7 +25,7 @@ export default function CommandPalette() {
   const {
     commandPaletteOpen, setCommandPaletteOpen,
     setView, toggleContextPanel, toggleUtilityPanel,
-    setUtilityTab, toggleSessionHistory,
+    setUtilityTab, toggleSessionHistory, setWorkListFilter, setLogFeedFilter,
   } = useUiStore()
   const defaultModel = useSettingsStore((state) => state.settings.defaultModel)
   const createSession = useShellStore((state) => state.createSession)
@@ -44,6 +44,27 @@ export default function CommandPalette() {
     close()
   }, [close, createSession, defaultModel, setView])
 
+  const handleSetWorkListFilter = useCallback((filter: Parameters<typeof setWorkListFilter>[0]) => {
+    const nextUtilityTab =
+      filter === 'approvals'
+        ? 'approvals'
+        : filter === 'tools' || filter === 'attachments' || filter === 'issues'
+          ? 'logs'
+          : null
+
+    setView('chat')
+    setWorkListFilter(filter)
+    setLogFeedFilter(
+      filter === 'tools' || filter === 'attachments' || filter === 'issues'
+        ? filter
+        : 'all',
+    )
+    if (nextUtilityTab) {
+      setUtilityTab(nextUtilityTab)
+    }
+    close()
+  }, [close, setLogFeedFilter, setUtilityTab, setView, setWorkListFilter])
+
   const commands: CommandItem[] = [
     { id: 'new-session', icon: Plus, label: '새 세션', shortcut: 'Ctrl+N', section: '세션', action: handleNewSession },
     { id: 'search-sessions', icon: Search, label: '세션 검색', section: '세션', action: () => {} },
@@ -53,6 +74,11 @@ export default function CommandPalette() {
     { id: 'show-logs', icon: TerminalSquare, label: '로그 보기', section: '패널', action: () => { setUtilityTab('logs'); close() } },
     { id: 'show-approvals', icon: Zap, label: '승인 보기', section: '패널', action: () => { setUtilityTab('approvals'); close() } },
     { id: 'show-steps', icon: FileText, label: '실행 단계 보기', section: '패널', action: () => { setUtilityTab('steps'); close() } },
+    { id: 'filter-all-sessions', icon: History, label: '작업 목록: 전체 보기', shortcut: 'Ctrl+Shift+0', section: '작업 목록', action: () => { handleSetWorkListFilter('all') } },
+    { id: 'filter-approval-sessions', icon: Zap, label: '작업 목록: 승인 대기만 보기', shortcut: 'Ctrl+Shift+A', section: '작업 목록', action: () => { handleSetWorkListFilter('approvals') } },
+    { id: 'filter-tool-sessions', icon: TerminalSquare, label: '작업 목록: 도구 실행만 보기', shortcut: 'Ctrl+Shift+L', section: '작업 목록', action: () => { handleSetWorkListFilter('tools') } },
+    { id: 'filter-attachment-sessions', icon: Paperclip, label: '작업 목록: 첨부 세션만 보기', shortcut: 'Ctrl+Shift+F', section: '작업 목록', action: () => { handleSetWorkListFilter('attachments') } },
+    { id: 'filter-issue-sessions', icon: AlertTriangle, label: '작업 목록: 이슈만 보기', shortcut: 'Ctrl+Shift+E', section: '작업 목록', action: () => { handleSetWorkListFilter('issues') } },
     { id: 'settings', icon: Settings, label: '설정 열기', shortcut: 'Ctrl+,', section: '일반', action: () => { setView('settings'); close() } },
     { id: 'history', icon: History, label: '히스토리', section: '일반', action: () => { toggleSessionHistory(); close() } },
   ]

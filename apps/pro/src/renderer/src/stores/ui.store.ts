@@ -6,6 +6,8 @@ import { create } from 'zustand'
 
 export type ShellView = 'chat' | 'settings'
 export type UtilityTab = 'logs' | 'terminal' | 'steps' | 'approvals'
+export type WorkListFilter = 'all' | 'approvals' | 'tools' | 'attachments' | 'issues'
+export type LogFeedFilter = 'all' | 'tools' | 'attachments' | 'issues'
 
 interface UiState {
   /* Navigation */
@@ -20,6 +22,10 @@ interface UiState {
   sessionHistoryOpen: boolean
   toggleSessionHistory: () => void
   setSessionHistoryOpen: (open: boolean) => void
+  workListFilter: WorkListFilter
+  setWorkListFilter: (filter: WorkListFilter) => void
+  logFeedFilter: LogFeedFilter
+  setLogFeedFilter: (filter: LogFeedFilter) => void
 
   /* Z5: context panel */
   contextPanelOpen: boolean
@@ -46,6 +52,10 @@ export const useUiStore = create<UiState>((set) => ({
   sessionHistoryOpen: false,
   toggleSessionHistory: () => set((s) => ({ sessionHistoryOpen: !s.sessionHistoryOpen })),
   setSessionHistoryOpen: (sessionHistoryOpen) => set({ sessionHistoryOpen }),
+  workListFilter: 'all',
+  setWorkListFilter: (workListFilter) => set({ workListFilter }),
+  logFeedFilter: 'all',
+  setLogFeedFilter: (logFeedFilter) => set({ logFeedFilter }),
 
   contextPanelOpen: false,
   toggleContextPanel: () => set((s) => ({ contextPanelOpen: !s.contextPanelOpen })),

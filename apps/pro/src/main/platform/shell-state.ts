@@ -1,9 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type {
+  ApprovalDecision,
   BranchShellSessionSeed,
   CreateShellSessionSeed,
   ShellApproval,
+  ShellAttachment,
   ShellArtifact,
   ShellChatMessage,
   ShellLog,
@@ -14,9 +16,16 @@ import type {
   ShellSnapshot,
 } from '@shared/types'
 import { createShellSnapshot } from './shell-snapshot'
+import {
+  getShellSnapshotDatabasePath,
+  persistShellSnapshotToDatabase,
+  readShellSnapshotFromDatabase,
+  resetShellSnapshotDatabaseForTests,
+} from './storage/shell-db'
 
 let shellSnapshot: ShellSnapshot | null = null
 let shellSnapshotFilePath: string | null = null
+let shellSnapshotDatabasePath: string | null = null
 const DEFAULT_SESSION_TITLE = '새 세션'
 const DEFAULT_SESSION_MODEL = 'claude-sonnet-4-6'
 const BRANCH_SESSION_SUFFIX = '분기본'
@@ -39,6 +48,7 @@ function isShellSnapshot(value: unknown): value is ShellSnapshot {
     (typeof candidate.activeSessionId === 'string' || candidate.activeSessionId === null)
     && Array.isArray(candidate.sessions)
     && Array.isArray(candidate.runSteps)
+    && (candidate.attachments === undefined || Array.isArray(candidate.attachments))
     && Array.isArray(candidate.artifacts)
     && Array.isArray(candidate.approvals)
     && Array.isArray(candidate.logs)
@@ -70,6 +80,10 @@ function writeShellSnapshotToDisk(filePath: string, snapshot: ShellSnapshot): vo
 }
 
 function persistShellSnapshot(snapshot: ShellSnapshot): void {
+  if (shellSnapshotDatabasePath) {
+    persistShellSnapshotToDatabase(shellSnapshotDatabasePath, snapshot)
+  }
+
   if (!shellSnapshotFilePath) {
     return
   }
@@ -77,7 +91,7 @@ function persistShellSnapshot(snapshot: ShellSnapshot): void {
   writeShellSnapshotToDisk(shellSnapshotFilePath, snapshot)
 }
 
-function readPersistedShellSnapshot(filePath: string): ShellSnapshot {
+function readLegacyShellSnapshot(filePath: string): ShellSnapshot {
   if (!existsSync(filePath)) {
     return createDefaultSnapshot()
   }
@@ -88,11 +102,26 @@ function readPersistedShellSnapshot(filePath: string): ShellSnapshot {
     if (!isShellSnapshot(parsed)) {
       throw new Error('Persisted shell snapshot shape is invalid')
     }
-    return cloneSnapshot(parsed)
+    return cloneSnapshot({
+      ...parsed,
+      attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
+    })
   } catch {
     archiveCorruptSnapshot(filePath)
     return createDefaultSnapshot()
   }
+}
+
+function readPersistedShellSnapshot(filePath: string, dbPath: string): ShellSnapshot {
+  const snapshotFromDatabase = readShellSnapshotFromDatabase(dbPath)
+  if (snapshotFromDatabase) {
+    return snapshotFromDatabase
+  }
+
+  const legacySnapshot = readLegacyShellSnapshot(filePath)
+  persistShellSnapshotToDatabase(dbPath, legacySnapshot)
+  writeShellSnapshotToDisk(filePath, legacySnapshot)
+  return legacySnapshot
 }
 
 function ensureShellSnapshot(): ShellSnapshot {
@@ -114,6 +143,40 @@ function touchSession(session: ShellSession): ShellSession {
     ...session,
     updatedAt: '방금',
   }
+}
+
+function createTimeLabel(): string {
+  return new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date())
+}
+
+function reconcileApprovalStatus(
+  session: ShellSession,
+  approvals: ShellApproval[],
+): ShellSession {
+  const hasPendingApproval = approvals.some((approval) => (
+    approval.sessionId === session.id && approval.status === 'pending'
+  ))
+
+  if (hasPendingApproval) {
+    return touchSession({
+      ...session,
+      status: 'approval_pending',
+    })
+  }
+
+  if (session.status === 'approval_pending') {
+    return touchSession({
+      ...session,
+      status: 'active',
+    })
+  }
+
+  return session
 }
 
 function createSessionId(sessions: ShellSession[]): string {
@@ -207,33 +270,33 @@ function createBranchedSessionTitle(sourceTitle: string, seed: BranchShellSessio
     : candidate
 }
 
-function cloneSessionMessages(
+function getSessionMessagesForBranch(
   messages: ShellChatMessage[],
   sourceSessionId: string,
-  targetSessionId: string,
   sourceMessageId?: string,
 ): ShellChatMessage[] | null {
   const sourceMessages = messages.filter((message) => message.sessionId === sourceSessionId)
-  const slicedMessages = sourceMessageId
-    ? (() => {
-      const sourceMessageIndex = sourceMessages.findIndex((message) => message.id === sourceMessageId)
-      if (sourceMessageIndex === -1) {
-        return null
-      }
-      return sourceMessages.slice(0, sourceMessageIndex + 1)
-    })()
-    : sourceMessages
+  if (!sourceMessageId) {
+    return sourceMessages
+  }
 
-  if (!slicedMessages) {
+  const sourceMessageIndex = sourceMessages.findIndex((message) => message.id === sourceMessageId)
+  if (sourceMessageIndex === -1) {
     return null
   }
 
-  return slicedMessages
-    .map((message, index) => ({
-      ...message,
-      id: `msg-${targetSessionId}-${index + 1}`,
-      sessionId: targetSessionId,
-    }))
+  return sourceMessages.slice(0, sourceMessageIndex + 1)
+}
+
+function cloneSessionMessages(
+  messages: ShellChatMessage[],
+  targetSessionId: string,
+): ShellChatMessage[] {
+  return messages.map((message, index) => ({
+    ...message,
+    id: `msg-${targetSessionId}-${index + 1}`,
+    sessionId: targetSessionId,
+  }))
 }
 
 function cloneSessionArtifacts(
@@ -247,6 +310,33 @@ function cloneSessionArtifacts(
       ...artifact,
       id: `artifact-${targetSessionId}-${index + 1}`,
       sessionId: targetSessionId,
+    }))
+}
+
+function cloneSessionAttachments(
+  attachments: ShellAttachment[],
+  sourceSessionId: string,
+  targetSessionId: string,
+  messageIdMap: ReadonlyMap<string, string>,
+  includeUnbound: boolean,
+): ShellAttachment[] {
+  return attachments
+    .filter((attachment) => {
+      if (attachment.sessionId !== sourceSessionId) {
+        return false
+      }
+
+      if (!attachment.messageId) {
+        return includeUnbound
+      }
+
+      return messageIdMap.has(attachment.messageId)
+    })
+    .map((attachment, index) => ({
+      ...attachment,
+      id: `attachment-${targetSessionId}-${index + 1}`,
+      sessionId: targetSessionId,
+      messageId: attachment.messageId ? messageIdMap.get(attachment.messageId) : undefined,
     }))
 }
 
@@ -331,6 +421,19 @@ function rebaseSessionArtifacts(
   }))
 }
 
+function rebaseSessionAttachments(
+  attachments: ShellAttachment[],
+  targetSessionId: string,
+  messageIdMap: ReadonlyMap<string, string>,
+): ShellAttachment[] {
+  return attachments.map((attachment, index) => ({
+    ...attachment,
+    id: `attachment-${targetSessionId}-promoted-${index + 1}`,
+    sessionId: targetSessionId,
+    messageId: attachment.messageId ? messageIdMap.get(attachment.messageId) : undefined,
+  }))
+}
+
 function rebaseSessionApprovals(
   approvals: ShellApproval[],
   targetSessionId: string,
@@ -387,13 +490,18 @@ function rebaseSessionLogs(
 
 export function initializeShellState(filePath: string): ShellSnapshot {
   shellSnapshotFilePath = filePath
-  shellSnapshot = readPersistedShellSnapshot(filePath)
+  shellSnapshotDatabasePath = getShellSnapshotDatabasePath(filePath)
+  shellSnapshot = readPersistedShellSnapshot(filePath, shellSnapshotDatabasePath)
   persistShellSnapshot(shellSnapshot)
   return getShellSnapshot()
 }
 
 export function getShellSnapshot(): ShellSnapshot {
   return cloneSnapshot(ensureShellSnapshot())
+}
+
+export function replaceShellSnapshot(nextSnapshot: ShellSnapshot): ShellSnapshot {
+  return commitShellSnapshot(cloneSnapshot(nextSnapshot))
 }
 
 export function setActiveShellSession(sessionId: string): ShellSnapshot {
@@ -432,17 +540,27 @@ export function branchShellSession(sessionId: string, seed: BranchShellSessionSe
   }
 
   const branchedSessionId = createSessionId(current.sessions)
-  const clonedMessages = cloneSessionMessages(
+  const sourceBranchMessages = getSessionMessagesForBranch(
     current.messages,
     sourceSession.id,
-    branchedSessionId,
     seed.sourceMessageId,
   )
-  if (!clonedMessages) {
+  if (!sourceBranchMessages) {
     return getShellSnapshot()
   }
+  const clonedMessages = cloneSessionMessages(sourceBranchMessages, branchedSessionId)
+  const messageIdMap = new Map(
+    sourceBranchMessages.map((message, index) => [message.id, clonedMessages[index]?.id ?? message.id]),
+  )
 
   const cloneSessionOutputs = !seed.sourceMessageId
+  const clonedAttachments = cloneSessionAttachments(
+    current.attachments,
+    sourceSession.id,
+    branchedSessionId,
+    messageIdMap,
+    cloneSessionOutputs,
+  )
   const clonedArtifacts = cloneSessionOutputs
     ? cloneSessionArtifacts(current.artifacts, sourceSession.id, branchedSessionId)
     : []
@@ -476,6 +594,10 @@ export function branchShellSession(sessionId: string, seed: BranchShellSessionSe
     messages: [
       ...current.messages,
       ...clonedMessages,
+    ],
+    attachments: [
+      ...current.attachments,
+      ...clonedAttachments,
     ],
     artifacts: [
       ...current.artifacts,
@@ -519,6 +641,16 @@ export function promoteShellSession(sessionId: string): ShellSnapshot {
     branchedMessages,
     sourceSession.id,
     sourceMessages.slice(0, sharedMessageCount).map((message) => message.id),
+  )
+  const promotedMessageIdMap = new Map(
+    branchedMessages
+      .map((message, index) => [message.id, promotedMessages[index]?.id])
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  )
+  const promotedAttachments = rebaseSessionAttachments(
+    current.attachments.filter((attachment) => attachment.sessionId === branchSession.id),
+    sourceSession.id,
+    promotedMessageIdMap,
   )
   const promotedArtifacts = rebaseSessionArtifacts(
     current.artifacts.filter((artifact) => artifact.sessionId === branchSession.id),
@@ -596,6 +728,10 @@ export function promoteShellSession(sessionId: string): ShellSnapshot {
     runSteps: [
       ...current.runSteps.filter((step) => step.sessionId !== sourceSession.id),
       ...promotedRunSteps,
+    ],
+    attachments: [
+      ...current.attachments.filter((attachment) => attachment.sessionId !== sourceSession.id),
+      ...promotedAttachments,
     ],
     artifacts: [
       ...current.artifacts.filter((artifact) => artifact.sessionId !== sourceSession.id),
@@ -755,6 +891,81 @@ export function appendShellLog(log: ShellLog): ShellSnapshot {
   })
 }
 
+export function appendShellAttachment(attachment: ShellAttachment): ShellSnapshot {
+  const current = ensureShellSnapshot()
+  return commitShellSnapshot({
+    ...current,
+    attachments: [...current.attachments, attachment],
+    sessions: current.sessions.map((session) => (
+      session.id === attachment.sessionId
+        ? touchSession(session)
+        : session
+    )),
+  })
+}
+
+export function removeShellAttachment(attachmentId: string): ShellSnapshot {
+  const current = ensureShellSnapshot()
+  const targetAttachment = current.attachments.find((attachment) => attachment.id === attachmentId)
+  if (!targetAttachment) {
+    return getShellSnapshot()
+  }
+
+  return commitShellSnapshot({
+    ...current,
+    attachments: current.attachments.filter((attachment) => attachment.id !== attachmentId),
+    sessions: current.sessions.map((session) => (
+      session.id === targetAttachment.sessionId
+        ? touchSession(session)
+        : session
+    )),
+  })
+}
+
+export function commitShellAttachments(
+  sessionId: string,
+  attachmentIds: string[],
+  messageId: string,
+): ShellSnapshot {
+  if (attachmentIds.length === 0) {
+    return getShellSnapshot()
+  }
+
+  const current = ensureShellSnapshot()
+  const attachmentIdSet = new Set(attachmentIds)
+  let changed = false
+  const nextAttachments: ShellAttachment[] = current.attachments.map((attachment) => {
+    if (
+      attachment.sessionId !== sessionId
+      || !attachmentIdSet.has(attachment.id)
+      || attachment.status !== 'staged'
+    ) {
+      return attachment
+    }
+
+    changed = true
+    return {
+      ...attachment,
+      status: 'sent' as const,
+      messageId,
+    }
+  })
+
+  if (!changed) {
+    return getShellSnapshot()
+  }
+
+  return commitShellSnapshot({
+    ...current,
+    attachments: nextAttachments,
+    sessions: current.sessions.map((session) => (
+      session.id === sessionId
+        ? touchSession(session)
+        : session
+    )),
+  })
+}
+
 export function appendShellArtifact(artifact: ShellArtifact): ShellSnapshot {
   const current = ensureShellSnapshot()
   return commitShellSnapshot({
@@ -771,7 +982,92 @@ export function appendShellArtifact(artifact: ShellArtifact): ShellSnapshot {
   })
 }
 
+export function appendShellApproval(approval: ShellApproval): ShellSnapshot {
+  const current = ensureShellSnapshot()
+  const nextApprovals = [...current.approvals, approval]
+
+  return commitShellSnapshot({
+    ...current,
+    approvals: nextApprovals,
+    runSteps: approval.stepId
+      ? current.runSteps.map((step) => (
+        step.id === approval.stepId
+          ? { ...step, status: 'approval_needed', detail: approval.detail }
+          : step
+      ))
+      : current.runSteps,
+    sessions: current.sessions.map((session) => (
+      session.id === approval.sessionId
+        ? reconcileApprovalStatus(session, nextApprovals)
+        : session
+    )),
+  })
+}
+
+export function resolveShellApproval(
+  approvalId: string,
+  decision: ApprovalDecision,
+): ShellSnapshot {
+  const current = ensureShellSnapshot()
+  const approval = current.approvals.find((item) => item.id === approvalId)
+  if (!approval || approval.status !== 'pending') {
+    return getShellSnapshot()
+  }
+
+  const nextApprovals = current.approvals.map((item) => (
+    item.id === approvalId
+      ? {
+        ...item,
+        status: decision,
+      }
+      : item
+  ))
+  const resolutionDetail = decision === 'approved'
+    ? `Approval granted: ${approval.capability}`
+    : `Approval denied: ${approval.capability}`
+
+  return commitShellSnapshot({
+    ...current,
+    approvals: nextApprovals,
+    runSteps: approval.stepId
+      ? current.runSteps.map((step) => (
+        step.id === approval.stepId
+          ? {
+            ...step,
+            status: decision === 'approved' ? 'running' : 'skipped',
+            detail: decision === 'denied' && approval.fallback
+              ? `${resolutionDetail}. ${approval.fallback}`
+              : resolutionDetail,
+          }
+          : step
+      ))
+      : current.runSteps,
+    logs: [
+      ...current.logs,
+      {
+        id: `log-${approvalId}-${decision}`,
+        sessionId: approval.sessionId,
+        ts: createTimeLabel(),
+        level: decision === 'approved' ? 'info' : 'warn',
+        message: `${decision === 'approved' ? 'Approval approved' : 'Approval denied'}: ${approval.action}`,
+        kind: 'approval',
+        status: decision,
+        capability: approval.capability,
+        stepId: approval.stepId,
+        approvalId,
+      },
+    ],
+    sessions: current.sessions.map((session) => (
+      session.id === approval.sessionId
+        ? reconcileApprovalStatus(session, nextApprovals)
+        : session
+    )),
+  })
+}
+
 export function resetShellStateForTests(): void {
   shellSnapshot = null
   shellSnapshotFilePath = null
+  shellSnapshotDatabasePath = null
+  resetShellSnapshotDatabaseForTests()
 }

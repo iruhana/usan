@@ -41,6 +41,7 @@ export default function NavRail() {
 
   return (
     <nav
+      data-shell-zone="nav-rail"
       aria-label="Primary navigation"
       style={{
         width,

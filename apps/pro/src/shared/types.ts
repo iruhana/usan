@@ -162,29 +162,81 @@ export interface ChatPayload {
     content: string
     ts: number
   }
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  messages: ChatPayloadMessage[]
+  attachments?: ShellAttachment[]
   model: string
   systemPrompt?: string
   useTools?: boolean
 }
 
-export interface StreamChunk {
-  requestId: string
-  text?: string
-  toolCall?: { name: string; input: unknown }
-  toolResult?: { id: string; result: string }
-  error?: string
-  done: boolean
+export interface ChatPayloadMessage {
+  role: 'user' | 'assistant'
+  content: string
+  attachments?: ShellAttachment[]
 }
+
+export type StreamChunk =
+  | {
+    requestId: string
+    type: 'text_delta'
+    text: string
+  }
+  | {
+    requestId: string
+    type: 'tool_call'
+    toolCall: { id: string; name: string; input: unknown }
+  }
+  | {
+    requestId: string
+    type: 'tool_result'
+    toolResult: { id: string; result: string }
+  }
+  | {
+    requestId: string
+    type: 'artifact'
+    artifact: ShellArtifact
+  }
+  | {
+    requestId: string
+    type: 'error'
+    error: string
+  }
+  | {
+    requestId: string
+    type: 'done'
+  }
 
 // ─── Shell Snapshot ──────────────────────────────────────────────────────────
 
 export type SessionStatus = 'active' | 'idle' | 'running' | 'failed' | 'approval_pending'
 export type RunStepStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'approval_needed'
 export type ArtifactKind = 'code' | 'markdown' | 'json' | 'diff' | 'plan' | 'preview'
+export type ShellAttachmentKind = 'file' | 'image' | 'screenshot'
+export type ShellAttachmentSource = 'picker' | 'clipboard' | 'screenshot'
+export type ShellAttachmentStatus = 'staged' | 'sent'
+export type AttachmentDeliveryMode = 'native_image' | 'native_document' | 'text_fallback' | 'summary_only'
 export type ApprovalRisk = 'low' | 'medium' | 'high'
+export type ApprovalStatus = 'pending' | 'approved' | 'denied'
+export type ApprovalDecision = Extract<ApprovalStatus, 'approved' | 'denied'>
+export type ApprovalCapability =
+  | 'filesystem:read'
+  | 'filesystem:write'
+  | 'shell:execute'
+  | 'network:fetch'
+  | 'integration:read'
+  | 'integration:write'
+  | 'automation:trigger'
 export type ReferenceType = 'file' | 'memory' | 'web' | 'resource'
 export type PreviewStatus = 'healthy' | 'partial' | 'stale' | 'failed'
+export type ShellLogKind = 'session' | 'tool' | 'approval' | 'system' | 'attachment'
+export type ShellLogStatus =
+  | 'pending'
+  | 'running'
+  | 'success'
+  | 'failed'
+  | 'skipped'
+  | 'approved'
+  | 'denied'
 
 export interface ShellSession {
   id: string
@@ -231,13 +283,34 @@ export interface ShellArtifact {
   content?: string
 }
 
+export interface ShellAttachment {
+  id: string
+  sessionId: string
+  kind: ShellAttachmentKind
+  source: ShellAttachmentSource
+  status: ShellAttachmentStatus
+  name: string
+  mimeType: string
+  sizeBytes: number
+  sizeLabel: string
+  createdAt: string
+  messageId?: string
+  path?: string
+  dataUrl?: string
+  textContent?: string
+}
+
 export interface ShellApproval {
   id: string
   sessionId: string
   action: string
   detail: string
+  capability: ApprovalCapability
   risk: ApprovalRisk
+  status: ApprovalStatus
   retryable: boolean
+  fallback?: string
+  stepId?: string
 }
 
 export interface ShellLog {
@@ -246,6 +319,15 @@ export interface ShellLog {
   ts: string
   level: 'info' | 'warn' | 'error' | 'debug'
   message: string
+  kind?: ShellLogKind
+  status?: ShellLogStatus
+  capability?: ApprovalCapability
+  stepId?: string
+  approvalId?: string
+  toolName?: string
+  attachmentName?: string
+  attachmentDeliveryMode?: AttachmentDeliveryMode
+  modelId?: string
 }
 
 export interface ShellTemplate {
@@ -283,6 +365,7 @@ export interface ShellSnapshot {
   activeSessionId: string | null
   sessions: ShellSession[]
   runSteps: ShellRunStep[]
+  attachments: ShellAttachment[]
   artifacts: ShellArtifact[]
   approvals: ShellApproval[]
   logs: ShellLog[]
@@ -317,6 +400,35 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   onboardingDismissed: false,
 }
 
+export type ProviderSecretProvider = AIModelProvider
+export type ProviderSecretSource = 'secure_store' | 'environment' | 'none'
+
+export interface ProviderSecretStatus {
+  provider: ProviderSecretProvider
+  configured: boolean
+  source: ProviderSecretSource
+}
+
+export interface ProviderSecretsSnapshot {
+  encryptionAvailable: boolean
+  providers: ProviderSecretStatus[]
+}
+
+export interface WorkspaceResetResult {
+  backupDir: string
+  clearedSessionCount: number
+  clearedMessageCount: number
+  clearedArtifactCount: number
+  snapshot: ShellSnapshot
+}
+
+export interface CacheClearResult {
+  backupDir: string | null
+  clearedPaths: string[]
+  reindexedSkillCount: number
+  browserCacheCleared: boolean
+}
+
 // ─── IPC channels ────────────────────────────────────────────────────────────
 
 export interface IpcChannels {
@@ -348,7 +460,17 @@ export interface IpcChannels {
   'shell:append-run-step': (step: ShellRunStep) => ShellSnapshot
   'shell:update-run-step': (stepId: string, patch: Partial<ShellRunStep>) => ShellSnapshot
   'shell:append-log': (log: ShellLog) => ShellSnapshot
+  'shell:append-attachment': (attachment: ShellAttachment) => ShellSnapshot
+  'shell:remove-attachment': (attachmentId: string) => ShellSnapshot
+  'shell:commit-attachments': (sessionId: string, attachmentIds: string[], messageId: string) => ShellSnapshot
   'shell:append-artifact': (artifact: ShellArtifact) => ShellSnapshot
+  'shell:append-approval': (approval: ShellApproval) => ShellSnapshot
+  'shell:resolve-approval': (approvalId: string, decision: ApprovalDecision) => ShellSnapshot
   'settings:get': () => AppSettings
   'settings:update': (patch: Partial<AppSettings>) => AppSettings
+  'secrets:get-status': () => ProviderSecretsSnapshot
+  'secrets:set-provider-key': (provider: ProviderSecretProvider, value: string) => ProviderSecretsSnapshot
+  'secrets:delete-provider-key': (provider: ProviderSecretProvider) => ProviderSecretsSnapshot
+  'data:reset-workspace': () => WorkspaceResetResult
+  'data:clear-cache': () => CacheClearResult
 }

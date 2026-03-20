@@ -4,7 +4,9 @@ import type {
   BranchShellSessionSeed,
   ChatPayload,
   CreateShellSessionSeed,
+  ProviderSecretsSnapshot,
   ShellApproval,
+  ShellAttachment,
   ShellArtifact,
   ShellChatMessage,
   ShellLog,
@@ -20,7 +22,8 @@ import { DEFAULT_APP_SETTINGS } from '@shared/types'
 interface RequestRuntime {
   sessionId: string
   streamedText: string
-  toolStepIds: string[]
+  toolStepCount: number
+  pendingToolSteps: Map<string, string>
   completed: boolean
 }
 
@@ -146,6 +149,33 @@ function cloneSessionArtifacts(
     }))
 }
 
+function cloneSessionAttachments(
+  attachments: ShellAttachment[],
+  sourceSessionId: string,
+  targetSessionId: string,
+  messageIdMap: ReadonlyMap<string, string>,
+  includeUnbound: boolean,
+): ShellAttachment[] {
+  return attachments
+    .filter((attachment) => {
+      if (attachment.sessionId !== sourceSessionId) {
+        return false
+      }
+
+      if (!attachment.messageId) {
+        return includeUnbound
+      }
+
+      return messageIdMap.has(attachment.messageId)
+    })
+    .map((attachment, index) => ({
+      ...attachment,
+      id: `attachment-${targetSessionId}-${index + 1}`,
+      sessionId: targetSessionId,
+      messageId: attachment.messageId ? messageIdMap.get(attachment.messageId) : undefined,
+    }))
+}
+
 function cloneSessionReferences(
   references: ShellReference[],
   sourceSessionId: string,
@@ -224,6 +254,19 @@ function rebaseSessionArtifacts(
     ...artifact,
     id: `artifact-${targetSessionId}-promoted-${index + 1}`,
     sessionId: targetSessionId,
+    }))
+}
+
+function rebaseSessionAttachments(
+  attachments: ShellAttachment[],
+  targetSessionId: string,
+  messageIdMap: ReadonlyMap<string, string>,
+): ShellAttachment[] {
+  return attachments.map((attachment, index) => ({
+    ...attachment,
+    id: `attachment-${targetSessionId}-promoted-${index + 1}`,
+    sessionId: targetSessionId,
+    messageId: attachment.messageId ? messageIdMap.get(attachment.messageId) : undefined,
   }))
 }
 
@@ -299,6 +342,7 @@ function createShellSnapshot(): ShellSnapshot {
     runSteps: [
       { id: 'step-1', sessionId: 'sess-001', label: 'Project analysis', status: 'success', durationMs: 1000 },
     ],
+    attachments: [],
     artifacts: [
       {
         id: 'art-001',
@@ -362,8 +406,12 @@ function createShellSnapshot(): ShellSnapshot {
 export function installMockUsan(options?: {
   snapshot?: ShellSnapshot
   settings?: AppSettings
+  secrets?: ProviderSecretsSnapshot
 }) {
-  let snapshot = structuredClone(options?.snapshot ?? createShellSnapshot())
+  let snapshot = structuredClone({
+    ...(options?.snapshot ?? createShellSnapshot()),
+    attachments: options?.snapshot?.attachments ?? [],
+  })
   const chunkListeners = new Set<(chunk: StreamChunk) => void>()
   const shellListeners = new Set<(shellSnapshot: ShellSnapshot) => void>()
   const runtimes = new Map<string, RequestRuntime>()
@@ -372,6 +420,14 @@ export function installMockUsan(options?: {
     onboardingDismissed: true,
     ...(options?.settings ?? {}),
   }
+  let secrets = structuredClone(options?.secrets ?? {
+    encryptionAvailable: true,
+    providers: [
+      { provider: 'anthropic', configured: true, source: 'secure_store' },
+      { provider: 'openai', configured: true, source: 'secure_store' },
+      { provider: 'google', configured: true, source: 'secure_store' },
+    ],
+  })
 
   function notifyShellSnapshot(): void {
     const nextSnapshot = structuredClone(snapshot)
@@ -391,6 +447,31 @@ export function installMockUsan(options?: {
       ...session,
       updatedAt: 'Just now',
     }
+  }
+
+  function reconcileApprovalStatus(
+    session: ShellSession,
+    approvals: ShellApproval[],
+  ): ShellSession {
+    const hasPendingApproval = approvals.some((approval) => (
+      approval.sessionId === session.id && approval.status === 'pending'
+    ))
+
+    if (hasPendingApproval) {
+      return touchSession({
+        ...session,
+        status: 'approval_pending',
+      })
+    }
+
+    if (session.status === 'approval_pending') {
+      return touchSession({
+        ...session,
+        status: 'active',
+      })
+    }
+
+    return session
   }
 
   function reconcileSessionSelection(
@@ -463,32 +544,31 @@ export function installMockUsan(options?: {
       )),
     }))
 
-    updateSnapshot((current) => {
-      const session = current.sessions.find((item) => item.id === runtime.sessionId)
-      const artifact: ShellArtifact = {
-        id: `artifact-${requestId}`,
-        sessionId: runtime.sessionId,
-        title: createArtifactTitle(session?.artifactCount ?? 0),
-        kind: 'markdown',
-        createdAt: 'Just now',
-        size: `${Math.max(1, Math.ceil(runtime.streamedText.length / 1024))} KB`,
-        version: 1,
-        content: runtime.streamedText,
-      }
+    const session = snapshot.sessions.find((item) => item.id === runtime.sessionId)
+    const artifact: ShellArtifact = {
+      id: `artifact-${requestId}`,
+      sessionId: runtime.sessionId,
+      title: createArtifactTitle(session?.artifactCount ?? 0),
+      kind: 'markdown',
+      createdAt: 'Just now',
+      size: `${Math.max(1, Math.ceil(runtime.streamedText.length / 1024))} KB`,
+      version: 1,
+      content: runtime.streamedText,
+    }
 
-      return {
-        ...current,
-        artifacts: [...current.artifacts, artifact],
-        sessions: current.sessions.map((item) => (
-          item.id === runtime.sessionId
-            ? touchSession({
-              ...item,
-              artifactCount: item.artifactCount + 1,
-            })
-            : item
-        )),
-      }
-    })
+    updateSnapshot((current) => ({
+      ...current,
+      artifacts: [...current.artifacts, artifact],
+      sessions: current.sessions.map((item) => (
+        item.id === runtime.sessionId
+          ? touchSession({
+            ...item,
+            artifactCount: item.artifactCount + 1,
+          })
+          : item
+      )),
+    }))
+    notifyChunk({ requestId, type: 'artifact', artifact })
   }
 
   function finalizeRequest(
@@ -507,7 +587,7 @@ export function installMockUsan(options?: {
       appendAssistantResponse(requestId, runtime)
     }
 
-    for (const stepId of runtime.toolStepIds) {
+    for (const stepId of runtime.pendingToolSteps.values()) {
       updateSnapshot((current) => ({
         ...current,
         runSteps: current.runSteps.map((step) => (
@@ -547,7 +627,8 @@ export function installMockUsan(options?: {
     runtimes.set(payload.requestId, {
       sessionId: payload.sessionId,
       streamedText: '',
-      toolStepIds: [],
+      toolStepCount: 0,
+      pendingToolSteps: new Map(),
       completed: false,
     })
 
@@ -596,6 +677,8 @@ export function installMockUsan(options?: {
           ts: createTimeLabel(),
           level: 'info',
           message: `Request started with ${payload.model}`,
+          kind: 'session',
+          status: 'running',
         },
       ],
     }))
@@ -629,11 +712,13 @@ export function installMockUsan(options?: {
             ts: createTimeLabel(),
             level: 'warn',
             message: 'Generation stopped by user',
+            kind: 'session',
+            status: 'skipped',
           },
           { status: 'active' },
           true,
         )
-        notifyChunk({ requestId, done: true })
+        notifyChunk({ requestId, type: 'done' })
       }),
       onChunk: vi.fn().mockImplementation((cb: (chunk: StreamChunk) => void) => {
         chunkListeners.add(cb)
@@ -690,7 +775,20 @@ export function installMockUsan(options?: {
           return current
         }
 
+        const messageIdMap = new Map(
+          current.messages
+            .filter((message) => message.sessionId === sourceSession.id)
+            .slice(0, clonedMessages.length)
+            .map((message, index) => [message.id, clonedMessages[index]?.id ?? message.id]),
+        )
         const cloneSessionOutputs = !seed?.sourceMessageId
+        const clonedAttachments = cloneSessionAttachments(
+          current.attachments,
+          sourceSession.id,
+          branchedSessionId,
+          messageIdMap,
+          cloneSessionOutputs,
+        )
         const clonedArtifacts = cloneSessionOutputs
           ? cloneSessionArtifacts(current.artifacts, sourceSession.id, branchedSessionId)
           : []
@@ -724,6 +822,10 @@ export function installMockUsan(options?: {
           messages: [
             ...current.messages,
             ...clonedMessages,
+          ],
+          attachments: [
+            ...current.attachments,
+            ...clonedAttachments,
           ],
           artifacts: [
             ...current.artifacts,
@@ -765,6 +867,16 @@ export function installMockUsan(options?: {
           branchedMessages,
           sourceSession.id,
           sourceMessages.slice(0, sharedMessageCount).map((message) => message.id),
+        )
+        const promotedMessageIdMap = new Map(
+          branchedMessages
+            .map((message, index) => [message.id, promotedMessages[index]?.id])
+            .filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+        )
+        const promotedAttachments = rebaseSessionAttachments(
+          current.attachments.filter((attachment) => attachment.sessionId === branchSession.id),
+          sourceSession.id,
+          promotedMessageIdMap,
         )
         const promotedArtifacts = rebaseSessionArtifacts(
           current.artifacts.filter((artifact) => artifact.sessionId === branchSession.id),
@@ -842,6 +954,10 @@ export function installMockUsan(options?: {
           runSteps: [
             ...current.runSteps.filter((step) => step.sessionId !== sourceSession.id),
             ...promotedRunSteps,
+          ],
+          attachments: [
+            ...current.attachments.filter((attachment) => attachment.sessionId !== sourceSession.id),
+            ...promotedAttachments,
           ],
           artifacts: [
             ...current.artifacts.filter((artifact) => artifact.sessionId !== sourceSession.id),
@@ -970,6 +1086,50 @@ export function installMockUsan(options?: {
             : session
         )),
       }))),
+      appendAttachment: vi.fn().mockImplementation(async (attachment: ShellAttachment) => updateSnapshot((current) => ({
+        ...current,
+        attachments: [...current.attachments, attachment],
+        sessions: current.sessions.map((session) => (
+          session.id === attachment.sessionId
+            ? touchSession(session)
+            : session
+        )),
+      }))),
+      removeAttachment: vi.fn().mockImplementation(async (attachmentId: string) => updateSnapshot((current) => {
+        const targetAttachment = current.attachments.find((attachment) => attachment.id === attachmentId)
+        if (!targetAttachment) {
+          return current
+        }
+
+        return {
+          ...current,
+          attachments: current.attachments.filter((attachment) => attachment.id !== attachmentId),
+          sessions: current.sessions.map((session) => (
+            session.id === targetAttachment.sessionId
+              ? touchSession(session)
+              : session
+          )),
+        }
+      })),
+      commitAttachments: vi.fn().mockImplementation(async (sessionId: string, attachmentIds: string[], messageId: string) => updateSnapshot((current) => ({
+        ...current,
+        attachments: current.attachments.map((attachment) => (
+          attachment.sessionId === sessionId
+          && attachment.status === 'staged'
+          && attachmentIds.includes(attachment.id)
+            ? {
+              ...attachment,
+              status: 'sent',
+              messageId,
+            }
+            : attachment
+        )),
+        sessions: current.sessions.map((session) => (
+          session.id === sessionId
+            ? touchSession(session)
+            : session
+        )),
+      }))),
       appendArtifact: vi.fn().mockImplementation(async (artifact: ShellArtifact) => updateSnapshot((current) => ({
         ...current,
         artifacts: [...current.artifacts, artifact],
@@ -982,6 +1142,82 @@ export function installMockUsan(options?: {
             : session
         )),
       }))),
+      appendApproval: vi.fn().mockImplementation(async (approval: ShellApproval) => updateSnapshot((current) => {
+        const nextApprovals = [...current.approvals, approval]
+
+        return {
+          ...current,
+          approvals: nextApprovals,
+          runSteps: approval.stepId
+            ? current.runSteps.map((step) => (
+              step.id === approval.stepId
+                ? { ...step, status: 'approval_needed', detail: approval.detail }
+                : step
+            ))
+            : current.runSteps,
+          sessions: current.sessions.map((session) => (
+            session.id === approval.sessionId
+              ? reconcileApprovalStatus(session, nextApprovals)
+              : session
+          )),
+        }
+      })),
+      resolveApproval: vi.fn().mockImplementation(async (approvalId: string, decision: 'approved' | 'denied') => updateSnapshot((current) => {
+        const approval = current.approvals.find((item) => item.id === approvalId)
+        if (!approval || approval.status !== 'pending') {
+          return current
+        }
+
+        const nextApprovals = current.approvals.map((item) => (
+          item.id === approvalId
+            ? {
+              ...item,
+              status: decision,
+            }
+            : item
+        ))
+        const resolutionDetail = decision === 'approved'
+          ? `Approval granted: ${approval.capability}`
+          : `Approval denied: ${approval.capability}`
+
+        return {
+          ...current,
+          approvals: nextApprovals,
+          runSteps: approval.stepId
+            ? current.runSteps.map((step) => (
+              step.id === approval.stepId
+                ? {
+                  ...step,
+                  status: decision === 'approved' ? 'running' : 'skipped',
+                  detail: decision === 'denied' && approval.fallback
+                    ? `${resolutionDetail}. ${approval.fallback}`
+                    : resolutionDetail,
+                }
+                : step
+            ))
+            : current.runSteps,
+          logs: [
+            ...current.logs,
+            {
+              id: `log-${approvalId}-${decision}`,
+              sessionId: approval.sessionId,
+              ts: createTimeLabel(),
+              level: decision === 'approved' ? 'info' : 'warn',
+              message: `${decision === 'approved' ? 'Approval approved' : 'Approval denied'}: ${approval.action}`,
+              kind: 'approval',
+              status: decision,
+              capability: approval.capability,
+              stepId: approval.stepId,
+              approvalId,
+            },
+          ],
+          sessions: current.sessions.map((session) => (
+            session.id === approval.sessionId
+              ? reconcileApprovalStatus(session, nextApprovals)
+              : session
+          )),
+        }
+      })),
       onSnapshot: vi.fn().mockImplementation((cb: (shellSnapshot: ShellSnapshot) => void) => {
         shellListeners.add(cb)
         return () => {
@@ -999,6 +1235,89 @@ export function installMockUsan(options?: {
         return settings
       }),
     },
+    secrets: {
+      getStatus: vi.fn().mockImplementation(async () => structuredClone(secrets)),
+      setProviderKey: vi.fn().mockImplementation(async (provider: 'anthropic' | 'openai' | 'google', value: string) => {
+        if (!secrets.encryptionAvailable) {
+          throw new Error('Secure local secret storage is unavailable on this system.')
+        }
+
+        if (!value.trim()) {
+          return structuredClone(secrets)
+        }
+
+        secrets = {
+          ...secrets,
+          providers: secrets.providers.map((item) => (
+            item.provider === provider
+              ? { ...item, configured: true, source: 'secure_store' }
+              : item
+          )),
+        }
+        return structuredClone(secrets)
+      }),
+      deleteProviderKey: vi.fn().mockImplementation(async (provider: 'anthropic' | 'openai' | 'google') => {
+        secrets = {
+          ...secrets,
+          providers: secrets.providers.map((item) => (
+            item.provider === provider
+              ? { ...item, configured: false, source: 'none' }
+              : item
+          )),
+        }
+        return structuredClone(secrets)
+      }),
+    },
+    data: {
+      resetWorkspace: vi.fn().mockImplementation(async () => {
+        const previousSnapshot = structuredClone(snapshot)
+        const nextSnapshot: ShellSnapshot = {
+          activeSessionId: 'sess-001',
+          sessions: [
+            {
+              id: 'sess-001',
+              title: '새 세션',
+              status: 'active',
+              model: settings.defaultModel,
+              updatedAt: '방금',
+              archivedAt: null,
+              pinned: false,
+              messageCount: 0,
+              artifactCount: 0,
+            },
+          ],
+          runSteps: [],
+          attachments: [],
+          artifacts: [],
+          approvals: [],
+          logs: [],
+          templates: previousSnapshot.templates,
+          messages: [],
+          references: [],
+          previews: [],
+        }
+
+        snapshot = nextSnapshot
+        notifyShellSnapshot()
+
+        return {
+          backupDir: 'C:\\mock\\usan-pro\\backups\\workspace-reset',
+          clearedSessionCount: previousSnapshot.sessions.length,
+          clearedMessageCount: previousSnapshot.messages.length,
+          clearedArtifactCount: previousSnapshot.artifacts.length,
+          snapshot: structuredClone(nextSnapshot),
+        }
+      }),
+      clearCache: vi.fn().mockResolvedValue({
+        backupDir: 'C:\\mock\\usan-pro\\backups\\cache-clear',
+        clearedPaths: [
+          'C:\\mock\\usan-pro\\shell-state.json',
+          'C:\\mock\\usan-pro\\skills.db',
+        ],
+        reindexedSkillCount: 0,
+        browserCacheCleared: true,
+      }),
+    },
     window: {
       minimize: vi.fn().mockResolvedValue(undefined),
       maximize: vi.fn().mockResolvedValue(undefined),
@@ -1008,104 +1327,121 @@ export function installMockUsan(options?: {
     emitChunk: (chunk: StreamChunk) => {
       const runtime = runtimes.get(chunk.requestId)
       if (runtime && !runtime.completed) {
-        if (chunk.text) {
-          runtime.streamedText += chunk.text
-        }
-
-        if (chunk.toolCall) {
-          const toolCall = chunk.toolCall
-          const nextIndex = runtime.toolStepIds.length + 1
-          const stepId = `step-${chunk.requestId}-tool-${nextIndex}`
-          runtime.toolStepIds.push(stepId)
-          updateSnapshot((current) => ({
-            ...current,
-            runSteps: [
-              ...current.runSteps,
-              {
-                id: stepId,
-                sessionId: runtime.sessionId,
-                label: `Run tool: ${toolCall.name}`,
-                status: 'running',
-                detail: summarizeValue(toolCall.input),
-              },
-            ],
-            sessions: current.sessions.map((session) => (
-              session.id === runtime.sessionId
-                ? touchSession(session)
-                : session
-            )),
-            logs: [
-              ...current.logs,
-              {
-                id: `log-${stepId}`,
-                sessionId: runtime.sessionId,
-                ts: createTimeLabel(),
-                level: 'debug',
-                message: `Tool call: ${toolCall.name}(${summarizeValue(toolCall.input)})`,
-              },
-            ],
-          }))
-        }
-
-        if (chunk.toolResult) {
-          const toolResult = chunk.toolResult
-          const stepId = runtime.toolStepIds.shift()
-          if (stepId) {
+        switch (chunk.type) {
+          case 'text_delta':
+            runtime.streamedText += chunk.text
+            break
+          case 'tool_call': {
+            const toolCall = chunk.toolCall
+            runtime.toolStepCount += 1
+            const stepId = `step-${chunk.requestId}-tool-${runtime.toolStepCount}`
+            runtime.pendingToolSteps.set(toolCall.id, stepId)
             updateSnapshot((current) => ({
               ...current,
-              runSteps: current.runSteps.map((step) => (
-                step.id === stepId
-                  ? { ...step, status: 'success', detail: summarizeValue(toolResult.result) }
-                  : step
+              runSteps: [
+                ...current.runSteps,
+                {
+                  id: stepId,
+                  sessionId: runtime.sessionId,
+                  label: `Run tool: ${toolCall.name}`,
+                  status: 'running',
+                  detail: summarizeValue(toolCall.input),
+                },
+              ],
+              sessions: current.sessions.map((session) => (
+                session.id === runtime.sessionId
+                  ? touchSession(session)
+                  : session
               )),
               logs: [
                 ...current.logs,
                 {
-                  id: `log-${chunk.requestId}-tool-result-${Date.now()}`,
+                  id: `log-${stepId}`,
                   sessionId: runtime.sessionId,
                   ts: createTimeLabel(),
-                  level: 'info',
-                  message: `Tool result: ${summarizeValue(toolResult.result)}`,
+                  level: 'debug',
+                  message: `Tool call: ${toolCall.name}(${summarizeValue(toolCall.input)})`,
+                  kind: 'tool',
+                  status: 'running',
+                  stepId,
+                  toolName: toolCall.name,
                 },
               ],
             }))
+            break
           }
-        }
-
-        if (chunk.error) {
-          finalizeRequest(
-            chunk.requestId,
-            {
-              status: 'failed',
-              detail: chunk.error,
-            },
-            {
-              id: `log-${chunk.requestId}-failed`,
-              sessionId: runtime.sessionId,
-              ts: createTimeLabel(),
-              level: 'error',
-              message: chunk.error,
-            },
-            { status: 'failed' },
-            true,
-          )
-        } else if (chunk.done) {
-          finalizeRequest(
-            chunk.requestId,
-            {
-              status: 'success',
-              detail: 'Response completed',
-            },
-            {
-              id: `log-${chunk.requestId}-done`,
-              sessionId: runtime.sessionId,
-              ts: createTimeLabel(),
-              level: 'info',
-              message: 'Response completed',
-            },
-            { status: 'active' },
-            true,
-          )
+          case 'tool_result': {
+            const toolResult = chunk.toolResult
+            const stepId = runtime.pendingToolSteps.get(toolResult.id)
+            if (stepId) {
+              updateSnapshot((current) => ({
+                ...current,
+                runSteps: current.runSteps.map((step) => (
+                  step.id === stepId
+                    ? { ...step, status: 'success', detail: summarizeValue(toolResult.result) }
+                    : step
+                )),
+                logs: [
+                  ...current.logs,
+                  {
+                    id: `log-${chunk.requestId}-tool-result-${Date.now()}`,
+                    sessionId: runtime.sessionId,
+                    ts: createTimeLabel(),
+                    level: 'info',
+                    message: `Tool result: ${summarizeValue(toolResult.result)}`,
+                    kind: 'tool',
+                    status: 'success',
+                    stepId,
+                    toolName: current.runSteps.find((step) => step.id === stepId)?.label?.replace(/^Run tool: /, ''),
+                  },
+                ],
+              }))
+              runtime.pendingToolSteps.delete(toolResult.id)
+            }
+            break
+          }
+          case 'error':
+            finalizeRequest(
+              chunk.requestId,
+              {
+                status: 'failed',
+                detail: chunk.error,
+              },
+              {
+                id: `log-${chunk.requestId}-failed`,
+                sessionId: runtime.sessionId,
+                ts: createTimeLabel(),
+                level: 'error',
+                message: chunk.error,
+                kind: 'session',
+                status: 'failed',
+              },
+              { status: 'failed' },
+              true,
+            )
+            break
+          case 'done':
+            finalizeRequest(
+              chunk.requestId,
+              {
+                status: 'success',
+                detail: 'Response completed',
+              },
+              {
+                id: `log-${chunk.requestId}-done`,
+                sessionId: runtime.sessionId,
+                ts: createTimeLabel(),
+                level: 'info',
+                message: 'Response completed',
+                kind: 'session',
+                status: 'success',
+              },
+              { status: 'active' },
+              true,
+            )
+            break
+          default:
+            break
         }
       }
 

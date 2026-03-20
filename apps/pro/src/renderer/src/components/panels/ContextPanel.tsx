@@ -31,6 +31,7 @@ export default function ContextPanel() {
 
   return (
     <div
+      data-shell-zone="context-panel"
       className="anim-fade-in"
       style={{
         width: 'var(--context-panel-width)',

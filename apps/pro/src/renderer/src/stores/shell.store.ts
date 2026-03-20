@@ -1,7 +1,10 @@
 import { create } from 'zustand'
 import type {
+  ApprovalDecision,
   BranchShellSessionSeed,
   CreateShellSessionSeed,
+  ShellApproval,
+  ShellAttachment,
   ShellArtifact,
   ShellChatMessage,
   ShellLog,
@@ -14,6 +17,7 @@ const EMPTY_SNAPSHOT: ShellSnapshot = {
   activeSessionId: null,
   sessions: [],
   runSteps: [],
+  attachments: [],
   artifacts: [],
   approvals: [],
   logs: [],
@@ -46,7 +50,12 @@ interface ShellState extends ShellSnapshot {
   appendRunStep: (step: ShellRunStep) => Promise<void>
   updateRunStep: (stepId: string, patch: Partial<ShellRunStep>) => Promise<void>
   appendLog: (log: ShellLog) => Promise<void>
+  appendAttachment: (attachment: ShellAttachment) => Promise<void>
+  removeAttachment: (attachmentId: string) => Promise<void>
+  commitAttachments: (sessionId: string, attachmentIds: string[], messageId: string) => Promise<void>
   appendArtifact: (artifact: ShellArtifact) => Promise<void>
+  appendApproval: (approval: ShellApproval) => Promise<void>
+  resolveApproval: (approvalId: string, decision: ApprovalDecision) => Promise<void>
 }
 
 export const useShellStore = create<ShellState>((set) => ({
@@ -126,8 +135,38 @@ export const useShellStore = create<ShellState>((set) => ({
       set(applySnapshot(snapshot))
     }
   },
+  appendAttachment: async (attachment) => {
+    const snapshot = await window.usan?.shell?.appendAttachment?.(attachment)
+    if (snapshot) {
+      set(applySnapshot(snapshot))
+    }
+  },
+  removeAttachment: async (attachmentId) => {
+    const snapshot = await window.usan?.shell?.removeAttachment?.(attachmentId)
+    if (snapshot) {
+      set(applySnapshot(snapshot))
+    }
+  },
+  commitAttachments: async (sessionId, attachmentIds, messageId) => {
+    const snapshot = await window.usan?.shell?.commitAttachments?.(sessionId, attachmentIds, messageId)
+    if (snapshot) {
+      set(applySnapshot(snapshot))
+    }
+  },
   appendArtifact: async (artifact) => {
     const snapshot = await window.usan?.shell?.appendArtifact?.(artifact)
+    if (snapshot) {
+      set(applySnapshot(snapshot))
+    }
+  },
+  appendApproval: async (approval) => {
+    const snapshot = await window.usan?.shell?.appendApproval?.(approval)
+    if (snapshot) {
+      set(applySnapshot(snapshot))
+    }
+  },
+  resolveApproval: async (approvalId, decision) => {
+    const snapshot = await window.usan?.shell?.resolveApproval?.(approvalId, decision)
     if (snapshot) {
       set(applySnapshot(snapshot))
     }

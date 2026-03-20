@@ -34,6 +34,7 @@ export default function TitleBar() {
 
   return (
     <div
+      data-shell-zone="titlebar"
       className="drag-region"
       style={{
         height: 'var(--titlebar-height)',
